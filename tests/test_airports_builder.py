@@ -24,6 +24,8 @@ def row(**overrides) -> dict:
         "continent": "NA",
         "country_name": "United States",
         "municipality": "Cynthiana",
+        "latitude_deg": "38.3903",
+        "longitude_deg": "-84.2947",
         "gps_code": "K0I8",
         "icao_code": "",
         "iata_code": "",
@@ -64,6 +66,27 @@ class TestIataPass:
         assert "0I8" not in airports
         assert "0I8" in full
         assert "0I8" not in airports  # the returned IATA dict is unmodified
+
+
+class TestAirportCoordinates:
+    def test_builds_coordinates_for_iata_and_full_codes(self):
+        rows = [
+            row(iata_code="LEX", icao_code="KLEX", local_code=""),
+            row(iata_code="", icao_code="KRGA", gps_code="KRGA", local_code="RGA"),
+        ]
+        points = builder.build_airport_coordinates(rows)
+        assert points["LEX"] == {"latitude": 38.3903, "longitude": -84.2947}
+        assert points["RGA"] == {"latitude": 38.3903, "longitude": -84.2947}
+        assert points["KRGA"] == {"latitude": 38.3903, "longitude": -84.2947}
+
+    def test_ignores_invalid_coordinates_and_closed_non_iata_airports(self):
+        points = builder.build_airport_coordinates(
+            [
+                row(local_code="BAD", latitude_deg="nan"),
+                row(local_code="CLOSED", type="closed"),
+            ]
+        )
+        assert points == {}
 
 
 class TestLocalCodePass:

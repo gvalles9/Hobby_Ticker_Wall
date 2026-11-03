@@ -1,0 +1,13 @@
+[Unit]
+Description=FlightTracker first-boot Wi-Fi setup hotspot
+After=NetworkManager.service
+Wants=NetworkManager.service
+Before=network-online.target FlightTracker.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/flighttracker-wifi-setup
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

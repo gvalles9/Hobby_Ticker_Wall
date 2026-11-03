@@ -437,17 +437,15 @@ export default defineComponent({
 
       <h5>API Key</h5>
       <div class="mb-3">
-        <label class="form-label small">WeatherAPI.com API Key</label>
+        <label class="form-label small">WeatherAPI.com API Key (optional)</label>
         <input type="password" class="form-control form-control-sm"
                name="weatherapi_key" id="weatherapi_key"
                v-model="store.config.weatherapi_key"
-               placeholder="Get a free key at weatherapi.com" />
-        <div v-if="store.ui.weatherKeyError" class="form-text small" style="color:#dc3545">
-          A WeatherAPI.com API key is required when weather is enabled.
-        </div>
+               placeholder="Leave blank to use NOAA/NWS" />
         <div class="form-text text-muted small">
-          Weather uses your flight location coordinates.
-          <a href="https://www.weatherapi.com/pricing.aspx" target="_blank">Get a free key here</a>.
+          If set, this key selects WeatherAPI.com. If left blank, the ticker uses the
+          free NOAA/NWS API (U.S. locations only). Weather uses your observer coordinates.
+          <a href="https://www.weatherapi.com/pricing.aspx" target="_blank">Get a WeatherAPI.com key</a>.
         </div>
       </div>
 

@@ -1,9 +1,9 @@
-"""Info bar widget - callsign or airline name in the middle bar row.
+"""Info bar widget - callsign or airline name in the middle row.
 
 Two modes, selected at construction via ``cfg.info_bar_mode``:
 
 * :class:`CallsignBar` - draws the callsign with numeric/alpha colouring
-  via :class:`Span` objects, plus the dividing bar and N/M index.
+  via :class:`Span` objects, plus a right-aligned N/M index.
 * :class:`AirlineNameBar` - looks up the airline name from
   ``assets/airlines.json`` via the resolved ICAO code and bounce-scrolls
   it using the :class:`Scroller`, same font/position as the callsign bar.
@@ -27,7 +27,6 @@ from setup.themes import (
     THEME_AIRLINE,
     THEME_BG,
     THEME_DATA_INDEX,
-    THEME_DIVIDING_BAR,
     THEME_FLIGHT_ALPHA,
     THEME_FLIGHT_NUMERIC,
 )
@@ -39,8 +38,32 @@ BAR_PADDING = 2
 FLIGHT_NO_POSITION = (0, 23)
 FLIGHT_NO_TEXT_HEIGHT = 8
 FLIGHT_NO_FONT = fonts.small
-DATA_INDEX_POSITION = (52, 23)
+DATA_INDEX_Y = 21
 DATA_INDEX_FONT = fonts.extrasmall
+
+
+def _draw_flight_index(panel, canvas, index: int, flight_count: int) -> None:
+    text = f"{index + 1}/{flight_count}"
+    x = screen.WIDTH - BAR_PADDING - _text_width(DATA_INDEX_FONT, text)
+    panel.draw_text(
+        canvas,
+        DATA_INDEX_FONT,
+        x,
+        DATA_INDEX_Y,
+        TC(THEME_DATA_INDEX),
+        text,
+    )
+
+
+def _text_width(font, text: str) -> int:
+    return sum(font.CharacterWidth(ord(char)) for char in text)
+
+
+def _flight_index_reserve(flight_count: int) -> int:
+    if flight_count <= 1:
+        return 0
+    widest_index = f"{flight_count}/{flight_count}"
+    return BAR_PADDING + _text_width(DATA_INDEX_FONT, widest_index)
 
 
 def airline_name_from_flight(flight: Flight) -> str:
@@ -122,7 +145,7 @@ def _numeric_alpha_spans(text: str) -> Spans:
 
 
 class CallsignBar:
-    """Draws the callsign with numeric/alpha colouring, dividing bar + index."""
+    """Draws the callsign with numeric/alpha colouring and optional index."""
 
     def __init__(self, panel, cfg: Config | None = None):
         self.panel = panel
@@ -165,10 +188,9 @@ class CallsignBar:
             BAR_STARTING_POSITION[1] + (FLIGHT_NO_TEXT_HEIGHT // 2),
             TC(THEME_BG),
         )
-        flight_no_text_length = 0
         if callsign and callsign != "N/A":
             spans = build_info_spans(callsign=callsign)
-            flight_no_text_length = draw_spans(
+            draw_spans(
                 self.panel,
                 canvas,
                 spans,
@@ -177,39 +199,7 @@ class CallsignBar:
             )
 
         if flight_count > 1:
-            self.panel.draw_square(
-                canvas,
-                DATA_INDEX_POSITION[0] - BAR_PADDING,
-                BAR_STARTING_POSITION[1] - (FLIGHT_NO_TEXT_HEIGHT // 2),
-                screen.WIDTH,
-                BAR_STARTING_POSITION[1] + (FLIGHT_NO_TEXT_HEIGHT // 2),
-                TC(THEME_BG),
-            )
-            self.panel.draw_line(
-                canvas,
-                flight_no_text_length + BAR_PADDING,
-                BAR_STARTING_POSITION[1],
-                DATA_INDEX_POSITION[0] - BAR_PADDING - 1,
-                BAR_STARTING_POSITION[1],
-                TC(THEME_DIVIDING_BAR),
-            )
-            self.panel.draw_text(
-                canvas,
-                DATA_INDEX_FONT,
-                DATA_INDEX_POSITION[0],
-                DATA_INDEX_POSITION[1],
-                TC(THEME_DATA_INDEX),
-                f"{index + 1}/{flight_count}",
-            )
-        else:
-            self.panel.draw_line(
-                canvas,
-                flight_no_text_length + BAR_PADDING if flight_no_text_length else 0,
-                BAR_STARTING_POSITION[1],
-                screen.WIDTH,
-                BAR_STARTING_POSITION[1],
-                TC(THEME_DIVIDING_BAR),
-            )
+            _draw_flight_index(self.panel, canvas, index, flight_count)
 
 
 class AirlineNameBar:
@@ -301,7 +291,11 @@ class AirlineNameBar:
                 canvas,
                 FLIGHT_NO_POSITION[0],
                 FLIGHT_NO_POSITION[1] - 1,
-                DATA_INDEX_POSITION[0] - 1 if flight_count > 1 else screen.WIDTH,
+                (
+                    screen.WIDTH - _flight_index_reserve(flight_count)
+                    if flight_count > 1
+                    else screen.WIDTH
+                ),
                 self.spans,
                 bounce=True,
             )
@@ -319,22 +313,18 @@ class AirlineNameBar:
         ):
             self.last_index_drawn = index
             self.last_flight_count_drawn = flight_count
+            index_text = f"{index + 1}/{flight_count}"
+            index_width = _text_width(DATA_INDEX_FONT, index_text)
+            index_x = screen.WIDTH - BAR_PADDING - index_width
             self.panel.draw_square(
                 canvas,
-                DATA_INDEX_POSITION[0] - BAR_PADDING,
+                index_x - BAR_PADDING,
                 BAR_STARTING_POSITION[1] - (FLIGHT_NO_TEXT_HEIGHT // 2),
-                screen.WIDTH,
+                screen.WIDTH - 1,
                 BAR_STARTING_POSITION[1] + (FLIGHT_NO_TEXT_HEIGHT // 2),
                 TC(THEME_BG),
             )
-            self.panel.draw_text(
-                canvas,
-                DATA_INDEX_FONT,
-                DATA_INDEX_POSITION[0],
-                DATA_INDEX_POSITION[1],
-                TC(THEME_DATA_INDEX),
-                f"{index + 1}/{flight_count}",
-            )
+            _draw_flight_index(self.panel, canvas, index, flight_count)
 
 
 def make_callsign_bar(cfg: Config, panel):

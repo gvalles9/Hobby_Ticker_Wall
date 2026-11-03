@@ -208,19 +208,23 @@ SPRITE_POSITION = (0, 6)
 
 # Text positions for the weather data fields.
 TEXT_FONT = fonts.small
-TEMPERATURE_POSITION = [48, 13]
-HUMIDITY_POSITION = [23, 20]
-WIND_POSITION = [23, 13]
-WIND_ARROW_POSITION = [16, 7]
+TEMPERATURE_POSITION = [SCREEN_WIDTH - 32, 13]
+HUMIDITY_POSITION = [72, 20]
+WIND_POSITION = [72, 13]
+WIND_ARROW_POSITION = [64, 7]
 
 # Moon phase icon.
-MOON_X = 56  # hardcoded x position for the moon icon
+MOON_X = SCREEN_WIDTH - 9
 MOON_Y = 14  # y position for the moon icon (below the temperature string)
 
 # UV index triangle (drawn to the left of the moon icon).
 # Hardcoded three vertices of the triangle (height 7px). Tweak to fit.
 
-UV_TRIANGLE = ((48, 20), (54, 20), (51, 15))
+UV_TRIANGLE = (
+    (SCREEN_WIDTH - 19, 20),
+    (SCREEN_WIDTH - 13, 20),
+    (SCREEN_WIDTH - 16, 15),
+)
 
 
 # UV index -> colour mapping (via theme keys resolved at draw time).
@@ -405,10 +409,12 @@ class ConditionsIdleTheme(BaseIdleScene):
         if temp_str == self.last_temp_str:
             return
 
-        temp_x = 64 - font_text_width(fonts.small_symbols, temp_str)
+        temp_x = SCREEN_WIDTH - font_text_width(fonts.small_symbols, temp_str)
 
         if self.last_temp_str is not None:
-            old_x = 64 - font_text_width(fonts.small_symbols, self.last_temp_str)
+            old_x = SCREEN_WIDTH - font_text_width(
+                fonts.small_symbols, self.last_temp_str
+            )
             self.panel.draw_text(
                 self.canvas,
                 fonts.small_symbols,
@@ -483,12 +489,9 @@ class ConditionsIdleTheme(BaseIdleScene):
         if wind_kph is None:
             return
 
-        if cfg.speed_unit == "mph":
+        if getattr(cfg, "idle_speed_unit", cfg.speed_unit) == "mph":
             wind_val = wind_kph * 0.621371
             wind_unit = "m"
-        elif cfg.speed_unit == "kts":
-            wind_val = wind_kph * 0.539957
-            wind_unit = "k"
         else:
             wind_val = wind_kph
             wind_unit = "k"

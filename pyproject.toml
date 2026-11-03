@@ -1,7 +1,7 @@
 [project]
-name = "flighttracker"
-version = "2.0.7"
-description = "Real-time flight tracker display for Raspberry Pi with RGB LED panels"
+name = "hobby-ticker"
+version = "1.0.0"
+description = "Hobby Ticker: a real-time flight and weather display for Raspberry Pi RGB LED panels"
 readme = "README.md"
 license = "GPL-3.0-only"
 authors = [{ name = "Colin Waddell", email = "contact@colinwaddell.com" }]
@@ -49,10 +49,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/ColinWaddell/FlightTracker"
-Repository = "https://github.com/ColinWaddell/FlightTracker"
-Issues = "https://github.com/ColinWaddell/FlightTracker/issues"
-Changelog = "https://github.com/ColinWaddell/FlightTracker/blob/main/CHANGELOG.md"
+Homepage = "https://github.com/gvalles9/Hobby_Ticker_Wall"
+Repository = "https://github.com/gvalles9/Hobby_Ticker_Wall"
+Issues = "https://github.com/gvalles9/Hobby_Ticker_Wall/issues"
+Changelog = "https://github.com/gvalles9/Hobby_Ticker_Wall/blob/main/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 include = ["setup*", "display*", "utilities*", "scenes*", "web*", "platforms*"]

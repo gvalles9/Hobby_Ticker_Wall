@@ -20,12 +20,14 @@ GET  /logs/download  -> download full log buffer as .txt
 from __future__ import annotations
 
 import contextlib
+import copy
 import functools
 import hashlib
 import json
 import logging
 import os
 import secrets
+import subprocess
 import sys
 import threading
 import time
@@ -44,19 +46,26 @@ from flask import (
 )
 
 from display.rgbpanel import PANEL_COLOUR_ORDERS
-from setup.configuration import CONFIG_PATH, PLATFORM_DATA_DIR, Config
+from setup.configuration import (
+    CONFIG_PATH,
+    DEFAULTS,
+    PLATFORM_DATA_DIR,
+    Config,
+    _migrate_provider_lists,
+)
 from setup.logging import get_buffer
 from utilities.flight import Flight
 from utilities.lookups import cache as routes_cache
 from utilities.lookups import usage as usage_tally
 from utilities.tle_manager import TLE_CACHE_PATH, TLE_CACHE_TTL
 from utilities.updater import (
+    GITHUB_REPOSITORY_URL,
     compare_versions,
     get_update_info,
     perform_update,
     version_string,
 )
-from version import VERSION
+from version import APP_VERSION, VERSION
 
 # Port is read from config.json via Config.web_port (default 8584).
 FLASK_PORT = Config.instance().web_port
@@ -71,7 +80,7 @@ logger = logging.getLogger("web")
 @app.context_processor
 def _inject_version():
     """Make the app version available to every template (footer, etc.)."""
-    return {"app_version": version_string(VERSION)}
+    return {"app_version": f"Hobby Ticker {version_string(APP_VERSION)}"}
 
 
 # ---------------------------------------------------------------------------
@@ -488,8 +497,45 @@ def _merge_provider_settings(cfg, partial: dict) -> dict:
 
 def parse_settings_form(form, cfg) -> dict:
     """Coerce the submitted HTML form into a config dict, applying clamps."""
+    from scenes.flight.custom_details import AVAILABLE_FIELDS
+    from setup.configuration import DEFAULT_FLIGHT_DATA_POINTS, unit_profile_values
+
+    default_idle_theme = getattr(cfg, "idle_screen_theme", "cycle")
+    current_flight_units = getattr(cfg, "flight_units", "")
+    if current_flight_units not in ("metric", "standard"):
+        current_flight_units = (
+            "standard"
+            if getattr(cfg, "height_unit", "m") == "ft"
+            or getattr(cfg, "speed_unit", "kmh") in ("mph", "kts")
+            else "metric"
+        )
+    current_idle_units = getattr(cfg, "idle_units", "")
+    if current_idle_units not in ("metric", "standard"):
+        current_idle_units = (
+            "standard" if getattr(cfg, "temperature_unit", "f") == "f" else "metric"
+        )
+    flight_units = str_val(form.get("flight_units"), current_flight_units).lower()
+    if flight_units not in ("metric", "standard"):
+        flight_units = current_flight_units
+    idle_units = str_val(form.get("idle_units"), current_idle_units).lower()
+    if idle_units not in ("metric", "standard"):
+        idle_units = current_idle_units
+    unit_values = unit_profile_values(flight_units, idle_units)
+    current_flight_data_points = getattr(
+        cfg, "flight_data_points", DEFAULT_FLIGHT_DATA_POINTS
+    )
+    idle_theme = str_val(form.get("idle_screen_theme"), default_idle_theme).lower()
+    stored_location_source = (
+        cfg.get("location_source", "manual")
+        if hasattr(cfg, "get")
+        else getattr(cfg, "location_source", "manual")
+    )
+    location_source = str(form.get("location_source", stored_location_source))
+    if location_source not in ("auto", "browser", "ip", "manual"):
+        location_source = "manual"
     return {
         # Location / flight zone
+        "location_source": location_source,
         "flight_location_mode": (
             "advanced"
             if str_val(form.get("flight_location_mode"), "simple").lower() == "advanced"
@@ -542,28 +588,28 @@ def parse_settings_form(form, cfg) -> dict:
         "details_custom_template": str_val(
             form.get("details_custom_template"), cfg.details_custom_template
         ),
+        **{
+            f"flight_data_point_{index + 1}": (
+                value
+                if (
+                    value := str_val(
+                        form.get(f"flight_data_point_{index + 1}"),
+                        current_flight_data_points[index],
+                    )
+                )
+                in AVAILABLE_FIELDS
+                else current_flight_data_points[index]
+            )
+            for index in range(4)
+        },
         "show_emergency_squawk": bool_val(form.get("show_emergency_squawk")),
+        "flight_units": flight_units,
+        "idle_units": idle_units,
         # Weather
         "weatherapi_key": str_val(form.get("weatherapi_key"), cfg.weatherapi_key),
         "weather_mode": int_val(form.get("weather_mode"), 0),
         "rain_sensitivity": max(0, min(2, int_val(form.get("rain_sensitivity"), 1))),
-        "temperature_unit": (
-            v
-            if (v := str_val(form.get("temperature_unit"), "c").lower())
-            in ("c", "f", "k")
-            else "c"
-        ),
-        "speed_unit": (
-            v
-            if (v := str_val(form.get("speed_unit"), "kmh").lower())
-            in ("kmh", "mph", "kts")
-            else "kmh"
-        ),
-        "height_unit": (
-            v
-            if (v := str_val(form.get("height_unit"), "m").lower()) in ("m", "ft")
-            else "m"
-        ),
+        **unit_values,
         "number_separator": (
             v
             if (v := str_val(form.get("number_separator"), "none").lower())
@@ -630,14 +676,9 @@ def parse_settings_form(form, cfg) -> dict:
         "date_format": int_val(form.get("date_format"), 0),
         # Idle screen theme
         "idle_screen_theme": (
-            "conditions"
-            if str_val(form.get("idle_screen_theme"), "classic").lower() == "conditions"
-            else (
-                "forecast"
-                if str_val(form.get("idle_screen_theme"), "classic").lower()
-                == "forecast"
-                else "classic"
-            )
+            idle_theme
+            if idle_theme in ("classic", "conditions", "forecast", "cycle")
+            else "classic"
         ),
         # Web interface
         "web_interface_enabled": bool_val(form.get("web_interface_enabled")),
@@ -989,6 +1030,7 @@ def _settings_page_data(
         "template_errors": template_errors or [],
         "error": error,
         "import_failed": import_failed,
+        "location_detection_enabled": cfg.get("location_source") in ("auto", "ip"),
         "csrf_token": csrf_token(),
         "in_schedule": cfg.is_in_brightness_schedule(),
         "schedule_window": schedule_window,
@@ -1025,6 +1067,7 @@ def _settings_page_data(
             ),
         },
         "urls": {
+            "ipLocation": _url_for("ip_location"),
             "logs": _url_for("logs"),
             "update": _url_for("update"),
             "cacheClear": "/cache-clear",
@@ -1135,6 +1178,127 @@ def settings():
         "settings.html",
         **_settings_page_data(cfg, import_failed=import_failed),
     )
+
+
+@app.route("/wifi-setup", methods=["GET", "POST"])
+def wifi_setup():
+    """Configure the Pi's home Wi-Fi while its temporary setup AP is active."""
+    setup_marker = Path("/run/flighttracker-wifi-setup")
+    if not setup_marker.exists():
+        abort(404)
+
+    error = None
+    if request.method == "POST":
+        if not validate_csrf(request.form):
+            error = "Invalid request. Reload the setup page and try again."
+        else:
+            payload = {
+                "ssid": request.form.get("ssid", "").strip(),
+                "password": request.form.get("password", ""),
+            }
+            if not payload["ssid"] or not payload["password"]:
+                error = "Enter your Wi-Fi network name and password."
+            else:
+                try:
+                    result = subprocess.run(
+                        ["sudo", "-n", "/usr/local/sbin/flighttracker-configure-wifi"],
+                        input=json.dumps(payload),
+                        text=True,
+                        capture_output=True,
+                        timeout=90,
+                        check=False,
+                    )
+                except (OSError, subprocess.TimeoutExpired) as exc:
+                    logger.error("Wi-Fi setup helper failed: %s", exc)
+                    error = (
+                        "Wi-Fi setup could not be started. Check the Pi installation."
+                    )
+                else:
+                    if result.returncode:
+                        error = result.stderr.strip() or (
+                            "Could not connect. Check the network name and password."
+                        )
+                    else:
+                        logger.info("Home Wi-Fi connection configured.")
+                        from utilities.system_info import hostname
+
+                        return render_template(
+                            "wifi_setup_complete.html",
+                            hostname=hostname(),
+                            web_port=FLASK_PORT,
+                        )
+
+    return render_template(
+        "wifi_setup.html",
+        csrf_token=csrf_token(),
+        error=error,
+    )
+
+
+@app.route("/settings/reset", methods=["POST"])
+@login_required
+def reset_settings():
+    """Restore application defaults without changing Wi-Fi or web access."""
+    if not validate_csrf(request.form):
+        abort(403, description="Invalid CSRF token.")
+
+    cfg = Config.instance()
+    password_hash = cfg.get("web_password_hash", "")
+    cfg.data_store = copy.deepcopy(DEFAULTS)
+    cfg.data_store["web_password_hash"] = password_hash
+    _migrate_provider_lists(cfg.data_store, {})
+    cfg.save()
+    logger.info("Application settings reset to defaults.")
+    restart_after(delay=1.0)
+    return jsonify(message="FlightTracker settings were reset to defaults.")
+
+
+@app.route("/wifi-setup/reset", methods=["POST"])
+@login_required
+def reset_wifi():
+    """Reopen the protected Wi-Fi setup hotspot without forgetting credentials."""
+    if not validate_csrf(request.form):
+        abort(403, description="Invalid CSRF token.")
+
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", "/usr/local/sbin/flighttracker-configure-wifi"],
+            input=json.dumps({"action": "start_setup"}),
+            text=True,
+            capture_output=True,
+            timeout=45,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        logger.error("Could not reopen the Wi-Fi setup hotspot: %s", exc)
+        return (
+            jsonify(error="Could not start Wi-Fi setup. Check the Pi installation."),
+            500,
+        )
+    if result.returncode:
+        logger.error("Wi-Fi setup hotspot failed: %s", result.stderr.strip())
+        return jsonify(error="Could not start the Wi-Fi setup hotspot."), 500
+
+    logger.info("Wi-Fi setup hotspot reopened from the settings page.")
+    restart_after(delay=1.0)
+    return jsonify(
+        message="The setup hotspot is starting. Use the QR code on the display."
+    )
+
+
+@app.route("/api/location/ip")
+@login_required
+def ip_location():
+    """Return an approximate location based on the server's public IP."""
+    try:
+        from utilities.location import ip_location as lookup_ip_location
+
+        lat, lng = lookup_ip_location()
+    except (OSError, TimeoutError, ValueError, KeyError) as exc:
+        logger.warning("IP location lookup failed: %s", exc)
+        return jsonify(error="IP-based location lookup failed."), 502
+
+    return jsonify(latitude=lat, longitude=lng)
 
 
 @app.route("/ping")
@@ -1524,8 +1688,13 @@ def logs_download():
 def update():
     """Show the update status page."""
     info = get_update_info()
+    info["current_version"] = version_string(APP_VERSION)
     return render_template(
-        "update.html", info=info, csrf_token=csrf_token(), active_page="update"
+        "update.html",
+        info=info,
+        csrf_token=csrf_token(),
+        active_page="update",
+        repository_url=GITHUB_REPOSITORY_URL,
     )
 
 
@@ -1536,30 +1705,14 @@ def update_check():
     if not validate_csrf(request.form):
         return {"error": "Invalid CSRF token."}, 403
     info = get_update_info()
+    info["current_version"] = version_string(APP_VERSION)
     return info, 200
-
-
-@app.route("/update/notes", methods=["POST"])
-@login_required
-def update_notes():
-    """Fetch release notes for a given tag."""
-    if not validate_csrf(request.form):
-        return {"error": "Invalid CSRF token."}, 403
-    tag = request.form.get("tag", "").strip()
-    if not tag:
-        return {"error": "No tag specified."}, 400
-    from utilities.updater import get_release_notes
-
-    notes = get_release_notes(tag)
-    if notes is None:
-        return {"error": "No release notes available for this tag."}, 404
-    return {"notes": notes}, 200
 
 
 @app.route("/update/apply", methods=["POST"])
 @login_required
 def update_apply():
-    """Apply an update by checking out the given tag and restarting."""
+    """Apply a fast-forward update from the configured Git upstream."""
     if not validate_csrf(request.form):
         return (
             render_template(
@@ -1568,25 +1721,13 @@ def update_apply():
                 csrf_token=csrf_token(),
                 error="Invalid CSRF token.",
                 active_page="update",
+                repository_url=GITHUB_REPOSITORY_URL,
             ),
             403,
         )
 
-    tag = request.form.get("tag", "").strip()
-    if not tag:
-        return (
-            render_template(
-                "update.html",
-                info=get_update_info(),
-                csrf_token=csrf_token(),
-                error="No tag specified.",
-                active_page="update",
-            ),
-            400,
-        )
-
-    logger.info("Applying update to tag %s", tag)
-    success, message = perform_update(tag)
+    logger.info("Applying update from the configured Git upstream")
+    success, message = perform_update()
 
     if not success:
         logger.error("Update failed: %s", message)
@@ -1597,6 +1738,7 @@ def update_apply():
                 csrf_token=csrf_token(),
                 error=message,
                 active_page="update",
+                repository_url=GITHUB_REPOSITORY_URL,
             ),
             500,
         )

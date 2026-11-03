@@ -25,7 +25,7 @@ from utilities.lookups.results import AircraftInfo, RouteInfo  # noqa: E402,F401
 # ---------------------------------------------------------------------------
 
 # Telemetry fields compared by telemetry_changed()
-TELEMETRY_FIELDS = ("altitude", "ground_speed", "heading")
+TELEMETRY_FIELDS = ("altitude", "ground_speed", "heading", "latitude", "longitude")
 
 # Transponder Mode-A codes that signal an in-flight emergency:
 # 7500 hijack, 7600 radio failure, 7700 general emergency.
@@ -65,6 +65,8 @@ class Flight:
     ground_speed: int = 0
     heading: int = 0
     vertical_speed: int = 0
+    latitude: float | None = None
+    longitude: float | None = None
     # Live transponder Mode-A code (e.g. "7700").  Text, often blank -
     # per-poll live data, not identity and not route info; the custom
     # scroller omits it when empty.

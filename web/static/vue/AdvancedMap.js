@@ -34,6 +34,7 @@ export default defineComponent({
     function syncMarker(lat, lng) {
       props.store.config.flight_observer_lat = lat;
       props.store.config.flight_observer_lng = lng;
+      props.store.config.location_source = "manual";
     }
 
     function bindRectEvents(r) {
@@ -169,6 +170,36 @@ export default defineComponent({
       setTimeout(fixMapLayout, 100);
 
       watch(
+        () => [
+          props.store.config.flight_observer_lat,
+          props.store.config.flight_observer_lng,
+        ],
+        ([newLat, newLng]) => {
+          if (!Number.isFinite(newLat) || !Number.isFinite(newLng)) return;
+          marker.setLatLng([newLat, newLng]);
+          map.panTo([newLat, newLng], { animate: false });
+        },
+      );
+
+      watch(
+        () => [
+          props.store.config.flight_zone_tl_y,
+          props.store.config.flight_zone_tl_x,
+          props.store.config.flight_zone_br_y,
+          props.store.config.flight_zone_br_x,
+        ],
+        ([tlY, tlX, brY, brX]) => {
+          if (!["browser", "ip"].includes(props.store.config.location_source)) return;
+          if (![tlY, tlX, brY, brX].every(Number.isFinite)) return;
+          rect.setBounds([
+            [tlY, tlX],
+            [brY, brX],
+          ]);
+          map.fitBounds(rect.getBounds(), { padding: [20, 20] });
+        },
+      );
+
+      watch(
         () => props.store.isAdvancedLocation,
         (isAdvanced) => {
           if (isAdvanced) nextTick(() => setTimeout(fixMapLayout, 50));
@@ -215,12 +246,14 @@ export default defineComponent({
       const lat = parseFloat(e.target.value);
       if (Number.isFinite(lat)) {
         this.store.config.flight_observer_lat = lat;
+        this.store.config.location_source = "manual";
       }
     },
     onObserverLngChange(e) {
       const lng = wrapLng(parseFloat(e.target.value));
       if (Number.isFinite(lng)) {
         this.store.config.flight_observer_lng = lng;
+        this.store.config.location_source = "manual";
       }
     },
   },

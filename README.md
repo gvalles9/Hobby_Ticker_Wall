@@ -1,48 +1,92 @@
-# Raspberry Pi Flight Tracker (v2) [![Tests and formatting](https://github.com/ColinWaddell/FlightTracker/actions/workflows/lint.yml/badge.svg)](https://github.com/ColinWaddell/FlightTracker/actions/workflows/lint.yml)
+# Hobby Ticker V1
 
-[![Finished flight tracker showing a flight](https://blog.colinwaddell.com/user/pages/01.articles/02.flight-tracker/screen-flight-thumb.jpg)](https://blog.colinwaddell.com/user/pages/01.articles/02.flight-tracker/screen-flight-thumb.jpg)
+Hobby Ticker is a Raspberry Pi flight, weather, and satellite display based on
+[Colin Waddell's FlightTracker](https://github.com/ColinWaddell/FlightTracker).
+It is customized primarily for a Raspberry Pi 3 B+ driving **three 64×32 HUB75
+panels in a horizontal chain** (192×32 logical pixels). The chain dimensions
+are set in `setup/screen.py`.
 
-A Raspberry Pi-powered RGB LED matrix that shows you what aircraft are overhead. It sits on your fridge, or a shelf, or wherever you decide to put it, and quietly answers the important question: **"What's that plane?"**
+## What this fork adds
 
-FlightTracker takes live aircraft data, works out what is nearby, and displays it on a 64x32 RGB LED matrix. When there's nothing overhead, it shows the time, weather, temperature, rainfall, or satellite passes.
+- **Three-panel display support** and Pi 3 B+ setup adjustments.
+- **Flight details at a glance:** four configurable telemetry fields, with
+  heading, vertical speed, altitude, and ground speed as defaults.
+- **Approximate route progress** along the bottom of the display. The indicator
+  is hidden when aircraft position or airport coordinates are missing.
+- **Flight-screen layout refinements:** left-to-right aircraft-model scrolling,
+  a right-aligned flight page count, and compact, right-aligned telemetry.
+- **Idle weather and forecasts:** a classic screen and a three-day forecast can
+  cycle automatically. NOAA/NWS is used for U.S. locations when no optional
+  WeatherAPI key is configured.
+- **Separate unit profiles:** flight and satellite scenes default to metric;
+  idle weather defaults to standard units. Both profiles are configurable.
+- **First-boot Wi-Fi setup and recovery** for supported Pi installations.
+- **Branch-based updates** from the checkout's configured Git upstream.
+  Updates fast-forward only and refuse tracked local changes or diverged
+  branches.
 
-For much more detailed documentation, visit [flight-tracker.dev](https://flight-tracker.dev).
-
- - [Hardware: Build your own](https://flight-tracker.dev/build/)
- - [Software: Install and configure](https://flight-tracker.dev/install/)
-
----
-
-## Support Me
-
-I've been working on this project for 5 years now, nearly every day, helping users and adding new features. If you'd like to show your support visit [ko-fi.com/flighttracker](https://ko-fi.com/flighttracker)
-
----
-
-## v1 to v2
-
-Recently (June 2026) this codebase has had a major rewrite. There are detailed guides on the update procedure but it's worth pointing out the change in branching:
-
- - `main` is the new home for FlightTracker `v2`
- - `master` is the resting place of FlightTracker `v1`
-
-## FlightTracker OS
-
-FlightTracker OS is available as a 32 bit or 64 bit Raspberry Pi image with a browser-based installer for setting up your Flight Tracker.
-
-[Find out more about FlightTracker OS →](https://flight-tracker.dev/os/)
+The original FlightTracker documentation remains useful for general hardware
+and driver background: [build guide](https://flight-tracker.dev/build/) ·
+[software guide](https://flight-tracker.dev/install/).
 
 ## Installation
 
-### Quick install
+> The Raspberry Pi installers clone the Hobby Ticker `main` branch from this
+> repository. Run the matching script from the Pi's terminal:
+>
+> ```bash
+> # Raspberry Pi 3/4/Zero
+> curl -sSL https://raw.githubusercontent.com/gvalles9/Hobby_Ticker_Wall/main/platforms/pi/install.sh | bash
+>
+> # Raspberry Pi 5
+> curl -sSL https://raw.githubusercontent.com/gvalles9/Hobby_Ticker_Wall/main/platforms/pi5/install.sh | bash
+> ```
+>
+> The installer requires an internet connection and interactive terminal access.
+> The application remains in `~/FlightTracker` to preserve existing service and
+> configuration conventions; its Git remote points to this Hobby Ticker repo.
 
-Run this over SSH on a fresh Raspberry Pi OS (Lite) install and the script will detect your Pi model and run the appropriate installer:
+The optional first-boot Wi-Fi setup is available after its services have been
+installed. On first boot, the Pi starts a temporary setup hotspot. Scan the QR
+code on the matrix to join, then browse to `http://192.168.4.1:8584/wifi-setup`
+and enter your home Wi-Fi credentials. The hotspot shuts off once the Pi
+connects. To enable it on an existing installation, run the helper from the
+repository directory, then reboot:
 
 ```bash
-curl -sSL https://flight-tracker.dev/install.sh | bash
+cd "$HOME/FlightTracker"
+sudo bash platforms/common/install-wifi-setup.sh "$(id -un)" "$HOME/FlightTracker"
+sudo reboot
 ```
 
-The installer detects your hardware, clones the repo, sets up the Python environment, and configures a systemd service so FlightTracker starts on boot.
+After setup, the configuration website remains available on your home network at
+`http://<pi-hostname>.local:8584/settings` (for example, `http://raspberrypi.local:8584/settings`).
+The installers enable mDNS hostname discovery; the Pi and your phone/computer must be
+on the same local network.
+
+The Admin page includes separate recovery buttons to reset Hobby Ticker settings
+(while keeping the web password and Wi-Fi credentials) or reopen the Wi-Fi setup
+hotspot to change networks. If the saved Wi-Fi connection is unavailable for 10
+minutes, the Pi automatically opens the protected setup hotspot and displays its QR.
+The saved network credentials are retained, so if that network reconnects the Pi
+returns to it and closes the temporary hotspot.
+
+On Raspberry Pi, a systemd timer checks the checkout's configured Git upstream
+daily at 2:00 AM local time. It fast-forwards only when the working tree is clean,
+updates Python dependencies when source changes, and restarts the display service
+after a successful update. Failed dependency updates are retried the next night.
+User configuration is stored outside the source checkout and is not reset by
+code updates. Check the result with
+`sudo journalctl -u FlightTracker-NightlyUpdate.service`.
+
+The Pygame simulator uses the same local config mechanism, but closing its window
+resets that simulator installation's settings to defaults. This behavior applies
+only to the simulator, not to Raspberry Pi installations.
+
+Hobby Ticker's product version (`1.0.0`) is separate from the retained upstream
+compatibility version used for backup metadata.
+
+## Platform guides
 
 ### Step-by-step install
 
@@ -54,14 +98,18 @@ If you'd rather do it manually - or you want to understand what the script does 
 | Raspberry Pi 5 | [platforms/pi5/INSTALL.md](platforms/pi5/INSTALL.md) |
 | Desktop simulator | [platforms/simulator/INSTALL.md](platforms/simulator/INSTALL.md) |
 
+The Pi guides retain some upstream-specific clone/install commands and are not
+yet fully rewritten for Hobby Ticker. Use them as hardware and driver
+references; for an automated install, use the Hobby Ticker commands above.
+
 ## 3D Printed Case
 
-There's an official 3D-printable case for FlightTracker, designed for the 64×32 HUB75 RGB LED matrix (4mm pitch). It's a two-piece interlocking design that works with any Raspberry Pi model and prints on a normal-sized bed with minimal supports.
+The original project's 3D-printable case was designed for a 64×32 HUB75 RGB LED matrix (4mm pitch). It's a two-piece interlocking design that works with any Raspberry Pi model and prints on a normal-sized bed with minimal supports.
 
 - Ready-to-print files on [Printables](https://www.printables.com/model/1820229-flight-tracker-screen-for-raspberry-pi-any-model-6)
 - OpenSCAD source and assembly instructions on [GitHub](https://github.com/ColinWaddell/FlightTracker-Case)
 
-![FlightTracker in the 3D printed case](assets/flight-tracker-case.jpg)
+![The original FlightTracker in its 3D printed case](assets/flight-tracker-case.jpg)
 
 ---
 
@@ -73,7 +121,8 @@ An LED wired to a GPIO pin can blink while flight data is loading. Enable it in 
 
 ### Rainfall chart
 
-If you have a WeatherAPI key configured, you can display a 24-hour rainfall chart alongside the temperature. Set the weather mode to "temperature + rainfall" in the web UI.
+Weather uses the free NOAA/NWS API by default for U.S. locations. Add a WeatherAPI.com key in the web UI to use that provider instead. Set the weather mode to "temperature + rainfall" to display a 24-hour rainfall chart alongside the temperature.
+The default idle screen alternates between the Classic display and a 3-day forecast (today plus the next two days), showing each for 30 seconds. Temperatures default to Fahrenheit; choose Fahrenheit or Celsius under **Settings → Hardware → Defaults → Units**. Daily forecast temperatures are labeled with their low/high and unit (for example, `Lo 46°F Hi 68°F`). Precipitation defaults to inches; choose inches or millimetres in the same Units section. On the Classic screen, enabled weather shows labeled current temperature, humidity, precipitation, and wind values alongside a condition icon. If weather data is unavailable, the time/date remain visible without weather readings or forecast icons.
 
 [![Example Weather Chart](https://raw.githubusercontent.com/ColinWaddell/FlightTracker/refs/heads/main/assets/weather.jpg)](https://raw.githubusercontent.com/ColinWaddell/FlightTracker/refs/heads/main/assets/weather.jpg)
 
@@ -81,10 +130,12 @@ If you have a WeatherAPI key configured, you can display a 24-hour rainfall char
 
 By default the tracker pulls flight data from FlightRadar24. If you run your own ADS-B receiver with [tar1090](https://github.com/wiedehopf/tar1090) or a compatible [PiAware](https://www.flightaware.com/adsb/piaware/) / [dump1090-fa](https://github.com/flightaware/dump1090) setup, you can use that as your primary data source instead - no FlightRadar24 account or API access required.
 
+The flight display's upper-right panel shows four configurable flight data fields (default: heading, vertical speed, altitude, and ground speed); choose fields under **Sky Monitoring → Plane Info Row → Flight Data Panel**. Choose separate Metric/Standard measurement profiles for flight scenes and idle screens under **Hardware → Defaults → Screen Units**. The bottom pixel row shows approximate route progress, estimated from the aircraft's direct distance from the origin relative to the origin-to-destination distance. The bar is hidden when the aircraft position or airport coordinates are unavailable; it does not represent the exact route flown.
+
 #### What you need
 
 - A device running dump1090-fa, readsb, or similar, with tar1090 installed
-- The device must be reachable on your local network from the Flight Tracker Pi
+- The device must be reachable on your local network from the Hobby Ticker Pi
 - tar1090-db enrichment active (the default in most installations) - it provides the aircraft type descriptions used by this software
 
 #### Finding your aircraft.json URL
@@ -122,7 +173,7 @@ Once you have the URL, open the web UI and go to **Providers** → **Provider Se
 
 #### Enabling OpenSky Network
 
-1. Log in to the FlightTracker web interface
+1. Log in to the Hobby Ticker web interface
 2. Go to **Providers** → **Provider Settings** → **OpenSky Network** and enter your **Client ID** and **Client Secret**
 3. Enable OpenSky (and order it ahead of FlightRadar24) under **Providers** → **Lookup Priority**
 4. Save - the tracker will restart and begin fetching from OpenSky
@@ -135,6 +186,17 @@ Once you have the URL, open the web UI and go to **Providers** → **Provider Se
 - Data refreshes every 30 seconds
 
 ---
+
+## Location setup
+
+On a fresh install, the tracker has no preset city. It uses an approximate location
+from the server's public IP through [ipwho.is](https://ipwho.is/) so weather can load
+without opening settings first. When the settings page is opened, the browser also tries
+device location and uses it if available. IP-based locations are approximate, and the
+service receives the server's public IP address. Review and save the detected location
+in **Sky Monitoring → Location**. Existing custom coordinates and locations edited
+manually are not replaced.
+
 ## Satellite Tracking
 
 To see when a particular satellite is over head enter its [NORAD ID](https://celestrak.org/SATCAT/search.php) in the device config and it'll let you know where to look, its altitude and speed.
@@ -220,7 +282,7 @@ python flight-tracker.py reset settings
 ```
 
 - **Everything is broken and it wont boot:**
-  [Raise a ticket](https://github.com/ColinWaddell/FlightTracker/issues/new?template=bug_report.yml) and tell me what you can see. The most useful info comes from trying to run it manually like this:
+  If you are using the upstream FlightTracker release, [report the issue there](https://github.com/ColinWaddell/FlightTracker/issues/new?template=bug_report.yml). For Hobby Ticker-specific changes, report it in your fork. The most useful diagnostic output comes from running the program manually:
 
 ```bash
 # Disable the service
@@ -253,24 +315,25 @@ This table is for reference if you've disabled the web interface (`web_interface
 
 | Key | Description | Default |
 |-----|-------------|---------|
+| `location_source` | `"auto"` for first-run location detection, `"browser"` or `"ip"` for detected locations, `"manual"` to preserve manually set coordinates | `"auto"` |
 | `flight_location_mode` | `"simple"` (centre + radius) or `"advanced"` (drawn box + observer) | `"simple"` |
-| `flight_lat` / `flight_lng` | Centre of the flight search zone (simple mode) | `55.87` / `-4.25` |
+| `flight_lat` / `flight_lng` | Centre of the flight search zone (simple mode); automatically detected when `location_source` is `"auto"` | `0.0` / `0.0` (unset) |
 | `flight_radius` | Search radius in km (simple mode) | `20.0` |
 | `flight_zone_tl_y` / `flight_zone_tl_x` | Search box top-left corner, lat/lng (advanced mode) | `56.05` / `-4.57` |
 | `flight_zone_br_y` / `flight_zone_br_x` | Search box bottom-right corner, lat/lng (advanced mode) | `55.69` / `-3.93` |
-| `flight_observer_lat` / `flight_observer_lng` | Observer position for weather, sunrise/sunset, satellite passes, and flight distance sorting (advanced mode) | `55.87` / `-4.25` |
+| `flight_observer_lat` / `flight_observer_lng` | Observer position for weather, sunrise/sunset, satellite passes, and flight distance sorting (advanced mode) | `0.0` / `0.0` (unset) |
 | `flight_min_altitude` | Ignore aircraft below this altitude (metres) | `100.0` |
 | `flight_max_altitude` | Ignore aircraft above this altitude (metres) | `10000.0` |
 | `airport_display_style` | `0` = short code, `1` = airport name, `2` = abbreviated name, `3` = municipality, `4` = municipality + country | `0` |
 | `home_airport_code` | IATA code of your local airport - highlighted on the display | `""` |
 | `journey_blank_filler` | Filler shown for blank journey segments | `"???"` |
 | `details` | Bottom row: `0` = aircraft make/model, `1` = altitude/speed/heading | `0` |
-| `weatherapi_key` | API key for [weatherapi.com](https://www.weatherapi.com/pricing.aspx). Leave blank to disable weather | `""` |
-| `weather_mode` | `0` = off, `1` = temperature only, `2` = temperature + 24-hour rainfall graph | `0` |
+| `flight_data_point_1`–`flight_data_point_4` | Four configurable fields shown in the upper-right flight data panel; defaults are heading, vertical speed, altitude, and ground speed | `heading`, `vertical_speed`, `altitude`, `ground_speed` |
+| `weatherapi_key` | Optional API key for [weatherapi.com](https://www.weatherapi.com/pricing.aspx). When blank, use NOAA/NWS (U.S. locations only) | `""` |
+| `weather_mode` | `0` = off, `1` = temperature only, `2` = temperature + 24-hour rainfall graph | `1` |
 | `rain_sensitivity` | `0` = dry, `1` = moderate, `2` = wet | `1` |
-| `temperature_unit` | `"c"` for Celsius, `"f"` for Fahrenheit | `"c"` |
-| `speed_unit` | `"kmh"` for km/h, `"mph"` for miles/h, `"kts"` for knots | `"kmh"` |
-| `height_unit` | `"m"` for metres, `"ft"` for feet | `"m"` |
+| `flight_units` | Flight scenes and satellite measurements: `"metric"` or `"standard"` | `"metric"` |
+| `idle_units` | Idle-screen weather and forecast: `"metric"` or `"standard"` | `"standard"` |
 | `theme` | `0` = default, `1` = monochrome, `2` = pastel | `0` |
 | `brightness_mode` | `"simple"` (brightness slider + schedule) or `"advanced"` | `"simple"` |
 | `screen_brightness` | Display brightness from `1` (dim) to `5` (full) | `3` |
@@ -309,13 +372,13 @@ This table is for reference if you've disabled the web interface (`web_interface
 
 ## Contributing
 
-If you'd like to contribute to FlightTracker - whether it's a bug report, feature idea, or pull request - please read the [contributing guide](CONTRIBUTORS.md).
+If you'd like to contribute to Hobby Ticker, please use the issue and pull-request tools for your fork.
 
 ---
 
 ## Acknowledgements
 
-FlightTracker builds on the work of several open-source projects and contributors:
+Hobby Ticker is a fork of **[FlightTracker](https://github.com/ColinWaddell/FlightTracker)** by **Colin Waddell**. It builds on the upstream project's code, documentation, and work from several open-source projects and contributors:
 
 - **Display drivers** - thanks to Henner Zeller for the [rpi-rgb-led-matrix](https://github.com/hzeller/rpi-rgb-led-matrix) C++ library and Python bindings (used on Pi 3/4/Zero), and to Adafruit for the [adafruit_blinka_raspberry_pi5_piomatter](https://github.com/adafruit/Adafruit_Blinka_Raspberry_Pi5_Piomatter) driver (used on Pi 5).
 - **[plane-tracker-rgb-pi](https://github.com/c0wsaysmoo/plane-tracker-rgb-pi)** - thanks to c0wsaysmoo for letting me copy some of their great work.
@@ -325,4 +388,4 @@ FlightTracker builds on the work of several open-source projects and contributor
 
 ## License
 
-Flight Tracker is released under the GNU General Public License v3.0. You're welcome to use, modify, and share the code - just keep it under the same license and include proper attribution (retain the copyright and license notice). See [LICENSE.md](LICENSE.md) for details.
+Hobby Ticker is released under the GNU General Public License v3.0. You're welcome to use, modify, and share the code - keep it under the same license and include proper attribution (retain the copyright and license notice). See [LICENSE.md](LICENSE.md) for details.

@@ -13,10 +13,12 @@ import base64
 import pytest
 from flask import Flask
 
+from setup import screen
 from utilities import image_inbox as mod
 from web.image_api import register_image_api
 
-FRAME = bytes(range(256)) * 24
+FRAME_BYTES = screen.WIDTH * screen.HEIGHT * 3
+FRAME = bytes(range(256)) * (FRAME_BYTES // 256)
 FRAME_B64 = base64.b64encode(FRAME).decode()
 
 
@@ -127,7 +129,7 @@ def test_rejected_bad_frame_length(client, key):
     short = base64.b64encode(FRAME[:-3]).decode()
     resp = _post_image(client, api_key=key, body={"data": [short]})
     assert resp.status_code == 400
-    assert "6144" in resp.get_json()["error"]
+    assert str(FRAME_BYTES) in resp.get_json()["error"]
 
 
 def test_rejected_non_object_body(client, key):

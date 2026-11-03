@@ -2,16 +2,16 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security issue in FlightTracker, please report it
-responsibly rather than opening a public GitHub issue.
+If you discover a security issue in Hobby Ticker, please report it
+responsibly rather than opening a public GitHub issue. Use the private
+vulnerability reporting feature for this repository when available, or
+contact its maintainer privately through the hosting service.
 
-**Visit my website for contact details:**
-www.colinwaddell.com
+For vulnerabilities in the original upstream FlightTracker project, use
+its [security reporting instructions](https://github.com/ColinWaddell/FlightTracker/security).
 
-Include as much detail as you can - steps to reproduce, affected
-versions, and any potential impact. Reports will be acknowledged
-within 48 hours and I'll aim to provide a fix or mitigation as soon
-as reasonably possible.
+Include steps to reproduce, affected versions, and potential impact.
+Do not include secrets or personal data.
 
 ## Sharing Config Safely
 

@@ -1,7 +1,7 @@
 """Tests for the status-page system telemetry (utilities/system_info.py).
 
-These read the real host - assertions are shaped to hold on any Linux box
-(and, where possible, anywhere Python runs), not to assert specific values.
+These read the real host - assertions are shaped to hold on Linux and
+Windows, not to assert specific values.
 """
 
 from __future__ import annotations
@@ -29,16 +29,38 @@ class TestSystemInfo:
         from utilities.system_info import uptime_seconds
 
         uptime = uptime_seconds()
-        assert uptime is not None
-        assert uptime > 0
+        assert uptime is None or uptime > 0
 
     def test_load_average_returned_triple(self):
         from utilities.system_info import load_average
 
         load = load_average()
-        assert load is not None
+        if load is None:
+            return  # Windows does not expose load averages through Python.
         one, five, fifteen = load
         assert all(v >= 0 for v in (one, five, fifteen))
+
+    def test_load_average_none_when_unsupported(self, monkeypatch):
+        import os
+
+        from utilities.system_info import load_average
+
+        monkeypatch.delattr(os, "getloadavg", raising=False)
+        assert load_average() is None
+
+    def test_windows_uptime_uses_tick_count(self, monkeypatch):
+        import ctypes
+        import types
+
+        from utilities import system_info
+
+        kernel32 = types.SimpleNamespace(GetTickCount64=lambda: 123_456)
+        monkeypatch.setattr(system_info, "sys", types.SimpleNamespace(platform="win32"))
+        monkeypatch.setattr(
+            ctypes, "windll", types.SimpleNamespace(kernel32=kernel32), raising=False
+        )
+
+        assert system_info.uptime_seconds() == 123
 
     def test_memory_shape(self):
         from utilities.system_info import memory_usage

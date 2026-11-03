@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import sqlite3
 import time
+from contextlib import suppress
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -32,10 +33,15 @@ def open_db(path: Path | None) -> sqlite3.Connection:
         check_same_thread=False,
         isolation_level=None,  # autocommit; migrations use explicit BEGIN
     )
-    conn.execute("PRAGMA busy_timeout = 5000")
-    if path is not None:
-        conn.execute("PRAGMA journal_mode = WAL")
-    conn.execute("PRAGMA synchronous = NORMAL")
+    try:
+        conn.execute("PRAGMA busy_timeout = 5000")
+        if path is not None:
+            conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA synchronous = NORMAL")
+    except Exception:
+        with suppress(sqlite3.Error):
+            conn.close()
+        raise
     return conn
 
 

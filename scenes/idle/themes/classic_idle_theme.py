@@ -12,6 +12,11 @@ import datetime
 from math import ceil
 
 from scenes.idle.idle_scene import BaseIdleScene
+from scenes.idle.themes.icons.weather.codes import code_to_weather
+from scenes.idle.themes.icons.weather.forecast_sprite import (
+    blank_area,
+    draw_icon,
+)
 from scenes.idle.themes.theme_utilities import (
     _RAINFALL_SENSITIVITY_LEVELS,
     RAINFALL_12HR_MARKERS,
@@ -21,10 +26,12 @@ from scenes.idle.themes.theme_utilities import (
     RAINFALL_HOURS,
     RAINFALL_OVERSPILL_FLASH_ENABLED,
     font_text_width,
+    format_display_date,
     temperature_to_colour,
 )
 from setup import fonts
 from setup.configuration import Config
+from setup.screen import WIDTH as SCREEN_WIDTH
 from setup.themes import (
     TC,
     THEME_BG,
@@ -33,6 +40,7 @@ from setup.themes import (
     THEME_TIME,
     THEME_TIME_AMPM,
 )
+from utilities.sun_times import is_daytime
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -47,20 +55,17 @@ AMPM_POSITION_Y = 6
 # Date
 DATE_FONT = fonts.small
 DATE_POSITION = (1, 31)
-DATE_FORMATS = [
-    "%Y-%m-%d",  # 0 = YYYY-MM-DD
-    "%d-%m-%Y",  # 1 = DD-MM-YYYY (leading zeros stripped in draw_date)
-    "%m-%d-%Y",  # 2 = MM-DD-YYYY (leading zeros stripped in draw_date)
-]
-
 # Day of week
 DAY_FONT = fonts.small
 DAY_POSITION = (2, 23)
 
 # Temperature display
 TEMPERATURE_FONT = fonts.extrasmall
-TEMPERATURE_FONT_HEIGHT = 5
-TEMPERATURE_POSITION = (48, TEMPERATURE_FONT_HEIGHT + 1)
+WEATHER_ICON_RIGHT_MARGIN = 4
+WEATHER_ICON_TEXT_GAP = 4
+WEATHER_ICON_POSITION = (SCREEN_WIDTH - 15 - WEATHER_ICON_RIGHT_MARGIN, 8)
+WEATHER_DETAIL_RIGHT_EDGE = WEATHER_ICON_POSITION[0] - WEATHER_ICON_TEXT_GAP
+WEATHER_DETAIL_Y_POSITIONS = (6, 12, 18, 24)
 
 
 class ClassicIdleTheme(BaseIdleScene):
@@ -78,8 +83,10 @@ class ClassicIdleTheme(BaseIdleScene):
         self.last_time: str | None = None
         self.last_date: str | None = None
         self.last_day: str | None = None
-        self.last_temp_str: str | None = None
         self.last_temp_c: float | None = None
+        self.last_weather_details: tuple[str, str, str, str] | None = None
+        self.last_weather_icon_key: tuple[int, bool] | None = None
+        self.weather_icon_drawn = False
         self.last_rain_data: list | None = None
 
     def theme_reset(self) -> None:
@@ -87,8 +94,10 @@ class ClassicIdleTheme(BaseIdleScene):
         self.last_time = None
         self.last_date = None
         self.last_day = None
-        self.last_temp_str = None
         self.last_temp_c = None
+        self.last_weather_details = None
+        self.last_weather_icon_key = None
+        self.weather_icon_drawn = False
         self.last_rain_data = None
 
     # ------------------------------------------------------------------
@@ -173,16 +182,10 @@ class ClassicIdleTheme(BaseIdleScene):
 
     def draw_date(self) -> None:
         cfg = Config.instance()
-        fmt = (
-            DATE_FORMATS[cfg.date_format]
-            if cfg.date_format < len(DATE_FORMATS)
-            else DATE_FORMATS[0]
+        current_date = format_display_date(
+            datetime.datetime.now(),
+            cfg.date_format if cfg.date_format in (0, 1, 2) else 0,
         )
-        # Strip leading zeros from day/month (cross-platform: %-d is
-        # Linux-only, %#d is Windows-only, so we lstrip manually).
-        current_date = datetime.datetime.now().strftime(fmt).replace("-0", "-")
-        if current_date.startswith("0"):
-            current_date = current_date[1:]
         if self.last_date == current_date:
             return
 
@@ -237,42 +240,137 @@ class ClassicIdleTheme(BaseIdleScene):
     # Weather
     # ------------------------------------------------------------------
 
-    def erase_temperature(self) -> None:
-        """Erase the previously-drawn temperature string, if any."""
-        if self.last_temp_str is not None:
-            self.panel.draw_text(
-                self.canvas,
-                TEMPERATURE_FONT,
-                TEMPERATURE_POSITION[0],
-                TEMPERATURE_POSITION[1],
-                TC(THEME_BG),
-                self.last_temp_str,
-            )
-            self.last_temp_str = None
-
-    def draw_temperature(self, temp_c: float) -> None:
-        """Render the temperature value in the configured units."""
+    def draw_weather_icon(self, weather: dict | None) -> None:
         cfg = Config.instance()
-        if cfg.temperature_unit == "f":
-            display_temp = temp_c * 9.0 / 5.0 + 32
-            unit_char = "F"
-        elif cfg.temperature_unit == "k":
-            display_temp = temp_c + 273.15
-            unit_char = "K"
+        if cfg.weather_mode < 1 or weather is None:
+            if self.weather_icon_drawn:
+                blank_area(
+                    self.panel,
+                    self.canvas,
+                    *WEATHER_ICON_POSITION,
+                )
+                self.weather_icon_drawn = False
+            self.last_weather_icon_key = None
+            return
+
+        condition_code = int(weather.get("condition_code", 0))
+        night = not is_daytime(cfg.observer_lat, cfg.observer_lng)
+        icon_key = (condition_code, night)
+        if icon_key == self.last_weather_icon_key:
+            return
+
+        if self.weather_icon_drawn:
+            blank_area(self.panel, self.canvas, *WEATHER_ICON_POSITION)
+            self.weather_icon_drawn = False
+
+        icon_name, _animation_name, _intensity = code_to_weather(condition_code, night)
+        if icon_name is not None:
+            draw_icon(self.panel, self.canvas, *WEATHER_ICON_POSITION, icon_name)
+            self.weather_icon_drawn = True
         else:
-            display_temp = temp_c
-            unit_char = "C"
-        temp_str = f"{round(display_temp)}°{unit_char}".rjust(5)
-        self.panel.draw_text(
-            self.canvas,
-            TEMPERATURE_FONT,
-            TEMPERATURE_POSITION[0],
-            TEMPERATURE_POSITION[1],
-            temperature_to_colour(temp_c),
-            temp_str,
-        )
+            blank_area(self.panel, self.canvas, *WEATHER_ICON_POSITION)
+        self.last_weather_icon_key = icon_key
+
+    def weather_detail_strings(
+        self, weather: dict
+    ) -> tuple[tuple[str, str, str, str], float | None]:
+        """Format labeled current weather values for the classic idle layout."""
+        cfg = Config.instance()
+        temp_c = weather.get("temp_c")
+        if temp_c is None:
+            temp_text = "Temp --"
+        else:
+            if cfg.temperature_unit == "f":
+                temp = temp_c * 9.0 / 5.0 + 32
+                unit = "F"
+            elif cfg.temperature_unit == "k":
+                temp = temp_c + 273.15
+                unit = "K"
+            else:
+                temp = temp_c
+                unit = "C"
+            temp_text = f"Temp {round(temp)}{unit}"
+
+        humidity = weather.get("humidity")
+        humidity_text = f"Hum {round(humidity)}%" if humidity is not None else "Hum --"
+
+        precip_mm = weather.get("precip_mm")
+        if precip_mm is None:
+            precip_text = "Rain --"
+        elif cfg.precipitation_unit == "in":
+            precip_text = f"Rain {precip_mm / 25.4:.2f}in"
+        else:
+            precip_text = f"Rain {round(precip_mm, 1):g}mm"
+
+        wind_kph = weather.get("wind_kph")
+        direction = weather.get("wind_dir")
+        degrees = weather.get("wind_degree")
+        if not direction and degrees is not None:
+            direction = self.degrees_to_cardinal(degrees)
+        if wind_kph is None:
+            wind_text = "Wind --"
+        elif getattr(cfg, "idle_speed_unit", cfg.speed_unit) == "mph":
+            wind_text = f"Wind {round(wind_kph * 0.621371)}mph"
+        else:
+            wind_text = f"Wind {round(wind_kph)}kmh"
+        if direction:
+            wind_text = f"{wind_text} {direction}"
+
+        return (temp_text, humidity_text, precip_text, wind_text), temp_c
+
+    @staticmethod
+    def degrees_to_cardinal(degrees: float) -> str:
+        """Convert a wind bearing to one of eight cardinal directions."""
+        directions = ("N", "NE", "E", "SE", "S", "SW", "W", "NW")
+        return directions[int((float(degrees) + 22.5) // 45) % 8]
+
+    def draw_weather_details(self, weather: dict | None) -> None:
+        """Draw or clear the labeled current-weather rows."""
+        if weather is None or Config.instance().weather_mode < 1:
+            details = None
+            temp_c = None
+        else:
+            details, temp_c = self.weather_detail_strings(weather)
+
+        if details == self.last_weather_details and temp_c == self.last_temp_c:
+            return
+
+        if self.last_weather_details is not None:
+            for text, (x, y) in zip(
+                self.last_weather_details,
+                self.weather_detail_positions(self.last_weather_details),
+            ):
+                self.panel.draw_text(
+                    self.canvas, TEMPERATURE_FONT, x, y, TC(THEME_BG), text
+                )
+
+        self.last_weather_details = details
         self.last_temp_c = temp_c
-        self.last_temp_str = temp_str
+        if details is None:
+            return
+
+        for index, (text, (x, y)) in enumerate(
+            zip(details, self.weather_detail_positions(details))
+        ):
+            colour = (
+                temperature_to_colour(temp_c)
+                if index == 0 and temp_c is not None
+                else TC(THEME_CURRENT_DATE)
+            )
+            self.panel.draw_text(self.canvas, TEMPERATURE_FONT, x, y, colour, text)
+
+    @staticmethod
+    def weather_detail_positions(
+        details: tuple[str, str, str, str],
+    ) -> tuple:
+        """Return right-aligned positions for the weather labels."""
+        return tuple(
+            (
+                WEATHER_DETAIL_RIGHT_EDGE - font_text_width(TEMPERATURE_FONT, text),
+                y,
+            )
+            for text, y in zip(details, WEATHER_DETAIL_Y_POSITIONS)
+        )
 
     def erase_rainfall(self) -> None:
         """Erase the previously-drawn rainfall graph, if any."""
@@ -283,16 +381,8 @@ class ClassicIdleTheme(BaseIdleScene):
     def draw_weather(self, count: int) -> None:
         cfg = Config.instance()
         weather = self.weather.get()
-
-        # --- Temperature ---
-        if cfg.weather_mode < 1:
-            # Mode disabled: erase if previously drawn
-            self.erase_temperature()
-        else:
-            temp_c = weather["temp_c"] if weather else None
-            self.erase_temperature()
-            if temp_c is not None:
-                self.draw_temperature(temp_c)
+        self.draw_weather_icon(weather)
+        self.draw_weather_details(weather)
 
         # --- Rainfall graph ---
         if cfg.weather_mode < 2:

@@ -14,6 +14,7 @@ from PIL import Image, ImageDraw
 from display.bdf_font import BDFFont
 from display.bdf_font import draw_text as bdf_draw_text
 from display.rgbpanel import Colour, RGBPanel, channel_permutation
+from setup import screen
 
 
 class PiomatterPanel(RGBPanel):
@@ -23,8 +24,8 @@ class PiomatterPanel(RGBPanel):
         self.matrix = None
         self.geometry = None
         self.framebuffer = None
-        self._width = 64
-        self._height = 32
+        self._width = screen.WIDTH
+        self._height = screen.HEIGHT
         self._brightness = 50  # 0-100
         self._rotation = 0
         self._channel_permutation = None  # set in init_matrix
@@ -35,8 +36,8 @@ class PiomatterPanel(RGBPanel):
 
     def init_matrix(
         self,
-        width=64,
-        height=32,
+        width=screen.WIDTH,
+        height=screen.HEIGHT,
         brightness=50,
         rotation=0,
         hat_pwm=True,

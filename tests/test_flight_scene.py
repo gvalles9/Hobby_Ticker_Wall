@@ -754,9 +754,10 @@ class TestCallsignBar:
         bar = CallsignBar(panel)
         flights = [Flight(callsign="BAW123"), Flight(callsign="UAL456")]
         bar.draw(canvas, flights, 0)
-        # The last draw_text call should be the N/M index
         last_call = panel.draw_text.call_args_list[-1]
         assert "1/2" in last_call[0]
+        assert last_call.args[2] > 150
+        panel.draw_line.assert_not_called()
 
 
 class TestAirlineNameBar:
@@ -901,6 +902,70 @@ class TestBuildSpans:
         spans = scene.build_spans(cfg)
         assert len(spans) == 1
         assert spans[0].text == NOT_DEFINED_TEXT
+
+    def test_header_shows_altitude_and_speed_in_configured_units(self):
+        from scenes.flight.flight_scene import FlightScene
+        from setup import fonts
+        from setup.configuration import Config
+
+        panel, canvas = _make_panel_and_canvas()
+        panel.draw_text.side_effect = lambda *a, **k: 0
+        overhead = MagicMock()
+        cfg = MagicMock()
+        cfg.show_airline_icon = False
+        cfg.details = 0
+        cfg.height_unit = "ft"
+        cfg.speed_unit = "kts"
+        cfg.number_separator = "comma"
+        cfg.flight_data_points = (
+            "heading",
+            "vertical_speed",
+            "altitude",
+            "ground_speed",
+        )
+
+        with patch.object(Config, "instance", return_value=cfg):
+            scene = FlightScene(canvas, panel, overhead, refresh_interval=60)
+            scene.flights = [
+                Flight(
+                    altitude=38000,
+                    ground_speed=480,
+                    heading=270,
+                    vertical_speed=1200,
+                )
+            ]
+            scene.draw_header_telemetry()
+
+        displayed = [call.args[-1] for call in panel.draw_text.call_args_list]
+        assert displayed == ["HDG 270", "VS 1,200FPM", "ALT 38,000FT", "SPD 480KTS"]
+        for index, call in enumerate(panel.draw_text.call_args_list):
+            x = call.args[2]
+            text = call.args[-1]
+            width = sum(fonts.extrasmall.CharacterWidth(ord(char)) for char in text)
+            assert x + width == (136 if index < 2 else 190)
+
+    def test_bottom_progress_draws_fraction_and_hides_when_unavailable(self):
+        from scenes.flight.flight_scene import FlightScene
+
+        panel, canvas = _make_panel_and_canvas()
+        overhead = MagicMock()
+        with patch(
+            "scenes.flight.flight_scene.route_progress_fraction", return_value=0.5
+        ):
+            scene = FlightScene(canvas, panel, overhead, refresh_interval=60)
+            scene.flights = [Flight(origin="IAD", destination="ATL")]
+            scene.draw_bottom_progress()
+
+        line_call = panel.draw_line.call_args
+        assert line_call.args[1:5] == (0, 31, 95, 31)
+
+        panel.draw_line.reset_mock()
+        with patch(
+            "scenes.flight.flight_scene.route_progress_fraction", return_value=None
+        ):
+            scene.draw_bottom_progress()
+        panel.draw_line.assert_not_called()
+        assert panel.draw_square.call_args.args[1:5] == (0, 31, 191, 31)
 
 
 class TestRegistrationCallsigns:
@@ -1131,7 +1196,9 @@ class TestEmergencySquawkPrefix:
         # scrolling viewport starts flush after it (no gap column).
         assert scene.squawk_scroller.width == prefix
         assert scene.details_scroller.x == prefix
-        assert scene.details_scroller.width == 64 - prefix
+        from setup import screen
+
+        assert scene.details_scroller.width == screen.WIDTH - prefix
         assert scene.squawk_scroller._spans[0].font is fonts.regular
         assert scene.squawk_scroller._spans[0].text == squawk
 
@@ -1150,7 +1217,9 @@ class TestEmergencySquawkPrefix:
 
         assert scene.squawk_scroller is None
         assert scene.details_scroller.x == 0
-        assert scene.details_scroller.width == 64
+        from setup import screen
+
+        assert scene.details_scroller.width == screen.WIDTH
 
     def test_transition_to_non_emergency_restores_viewport(self):
         scene = self._make_scene([Flight(squawk="7700")])
@@ -1164,7 +1233,9 @@ class TestEmergencySquawkPrefix:
 
         assert scene.squawk_scroller is None
         assert scene.details_scroller.x == 0
-        assert scene.details_scroller.width == 64
+        from setup import screen
+
+        assert scene.details_scroller.width == screen.WIDTH
 
     def test_mode_switch_rebuilds_prefix_with_small_font(self):
         from setup import fonts

@@ -1,4 +1,6 @@
 import contextlib
+import copy
+import json
 import logging
 import os
 import socket
@@ -12,10 +14,17 @@ from PIL import Image
 # Only the panel factory + PIL + qrcode are needed here.  Imported before the
 # background threads start to avoid GIL contention with heavy imports.
 from display.panel_factory import get_panel
-from setup.configuration import CONFIG_PATH, PLATFORM_DATA_DIR, Config
+from setup import screen
+from setup.configuration import (
+    CONFIG_PATH,
+    DEFAULTS,
+    PLATFORM_DATA_DIR,
+    Config,
+    _migrate_provider_lists,
+)
 from setup.logging import setup_logging
 from utilities.cli import dispatch_cli_command
-from version import VERSION
+from version import APP_VERSION
 
 panel = get_panel()
 # Font loading doesn't require the matrix to be initialised
@@ -95,7 +104,9 @@ def _render_celestrack_test(panel, canvas, cfg: Config, y):
 
     # Right-align the result label on the 64px-wide screen
     result_width = len(result_text) * 4
-    panel.draw_text(canvas, test_font, 64 - result_width, y, result_colour, result_text)
+    panel.draw_text(
+        canvas, test_font, screen.WIDTH - result_width, y, result_colour, result_text
+    )
     panel.swap(canvas)
 
 
@@ -117,7 +128,9 @@ def _render_data_source_test(panel, canvas, cfg: Config, y):
     result_colour = GREEN if ok else RED
     # Right-align the result label on the 64px-wide screen
     result_width = len(result_text) * 4
-    panel.draw_text(canvas, test_font, 64 - result_width, y, result_colour, result_text)
+    panel.draw_text(
+        canvas, test_font, screen.WIDTH - result_width, y, result_colour, result_text
+    )
     panel.swap(canvas)
 
 
@@ -132,7 +145,9 @@ def _render_routing_test(panel, canvas, cfg: Config, y):
     result_colour = GREEN if working else RED
 
     result_width = len(result_text) * 4
-    panel.draw_text(canvas, test_font, 64 - result_width, y, result_colour, result_text)
+    panel.draw_text(
+        canvas, test_font, screen.WIDTH - result_width, y, result_colour, result_text
+    )
     panel.swap(canvas)
 
 
@@ -160,18 +175,34 @@ def render_splash(
     url=None,
     qrcode=None,
     ERROR_CORRECT_L=None,
+    wifi_setup=None,
 ):
     """
     Render the splash BMP to canvas and swap it onto the display.
     """
     # Read raw bytes and set pixels manually (works on both Pi 3/4 and Pi 5).
     splash_path = os.path.join(os.path.dirname(__file__), "assets", "splash.bmp")
-    splash = Image.open(splash_path)
+    splash = Image.open(splash_path).convert("RGB")
     pixels = splash.tobytes()
-    for y in range(32):
-        for x in range(64):
-            i = (y * 64 + x) * 3
-            panel.set_pixel(canvas, x, y, pixels[i], pixels[i + 1], pixels[i + 2])
+    splash_x = (
+        0
+        if screen.WIDTH > screen.PANEL_WIDTH
+        else max(0, (screen.WIDTH - splash.width) // 2)
+    )
+    for y in range(min(screen.HEIGHT, splash.height)):
+        for x in range(splash.width):
+            px = splash_x + x
+            if px >= screen.WIDTH:
+                break
+            i = (y * splash.width + x) * 3
+            panel.set_pixel(canvas, px, y, pixels[i], pixels[i + 1], pixels[i + 2])
+
+    from setup.colours import WHITE
+
+    for y in range(15):
+        for x in range(splash.width):
+            panel.set_pixel(canvas, splash_x + x, y, 0, 0, 0)
+    panel.draw_text(canvas, loading_font, splash_x + 8, 12, WHITE, "HOBBY TICKER")
 
     if url is not None and qrcode is not None:
         qr = qrcode.QRCode(
@@ -180,22 +211,47 @@ def render_splash(
             box_size=1,
             border=1,
         )
-        qr.add_data(url)
+        if wifi_setup:
+            qr.add_data(
+                f"WIFI:T:WPA;S:{wifi_setup['ssid']};P:{wifi_setup['password']};;"
+            )
+        else:
+            qr.add_data(url)
         qr.make(fit=True)
-        for qy, row in enumerate(qr.get_matrix()):
+        qr_matrix = qr.get_matrix()
+        qr_panel_x = max(0, screen.WIDTH - screen.PANEL_WIDTH)
+        qr_x = qr_panel_x + (screen.PANEL_WIDTH - len(qr_matrix[0])) // 2
+        qr_y = 0 if wifi_setup else 2
+        for y in range(screen.HEIGHT):
+            for x in range(qr_panel_x, screen.WIDTH):
+                panel.set_pixel(canvas, x, y, 255, 255, 255)
+        for qy, row in enumerate(qr_matrix):
             for qx, cell in enumerate(row):
-                px, py = qx, qy + 2
-                if 0 <= px < 64 and 0 <= py < 32:
+                px, py = qr_x + qx, qy + qr_y
+                if 0 <= px < screen.WIDTH and 0 <= py < screen.HEIGHT:
                     v = 0 if cell else 255
                     panel.set_pixel(canvas, px, py, v, v, v)
+        if wifi_setup:
+            panel.draw_text(
+                canvas,
+                loading_font,
+                1,
+                26,
+                WHITE,
+                "JOIN, OPEN 192.168.4.1:8584",
+            )
     else:
-        # Loading state: dim white "loading..." at top-left while Flask starts.
-        from setup.colours import WHITE
-
+        # Show loading status and the product version on the middle panel.
         dim = WHITE.__class__(180, 180, 180)
-        panel.draw_text(canvas, loading_font, 1, 20, dim, "Loading")
+        loading_x = screen.PANEL_WIDTH + 1 if screen.WIDTH > screen.PANEL_WIDTH else 1
+        panel.draw_text(canvas, loading_font, loading_x, 20, dim, "Loading")
         panel.draw_text(
-            canvas, loading_font, 1, 28, dim, f"v{'.'.join(map(str, VERSION))}"
+            canvas,
+            loading_font,
+            loading_x,
+            28,
+            dim,
+            f"v{'.'.join(map(str, APP_VERSION))}",
         )
 
     panel.swap(canvas)
@@ -276,7 +332,23 @@ def display_load(panel, canvas, result: dict):
 
 
 def load_full_interface(panel, canvas, cfg: Config):
-    url = f"http://{local_ip()}:{cfg.web_port}/settings"
+    setup_mode = os.path.exists("/run/flighttracker-wifi-setup")
+    first_boot_setup = setup_mode
+    wifi_setup = None
+    if setup_mode:
+        try:
+            with open(
+                "/etc/flighttracker/setup-ap.json", encoding="utf-8"
+            ) as setup_file:
+                wifi_setup = json.load(setup_file)
+        except (OSError, json.JSONDecodeError) as exc:
+            logging.getLogger("startup").error(
+                "Could not read Wi-Fi setup QR data: %s", exc
+            )
+    if setup_mode:
+        url = f"http://192.168.4.1:{cfg.web_port}/wifi-setup"
+    else:
+        url = f"http://{local_ip()}:{cfg.web_port}/settings"
     print(f"[web] Config interface: {url}", flush=True)
 
     result: dict = {}
@@ -313,13 +385,32 @@ def load_full_interface(panel, canvas, cfg: Config):
             url,
             qrcode,
             ERROR_CORRECT_L,
+            wifi_setup,
         )
 
-    cfg_existed = CONFIG_PATH.exists()
     deadline = time.time() + SPLASH_TIMEOUT
     while True:
         time.sleep(0.5)
-        if time.time() >= deadline and (cfg_existed or CONFIG_PATH.exists()):
+        if setup_mode and not os.path.exists("/run/flighttracker-wifi-setup"):
+            setup_mode = False
+            wifi_setup = None
+            url = f"http://{local_ip()}:{cfg.web_port}/settings"
+            render_splash(
+                panel,
+                canvas,
+                Image,
+                loading_font,
+                url,
+                qrcode,
+                ERROR_CORRECT_L,
+            )
+            deadline = time.time() + SPLASH_TIMEOUT
+        setup_complete = bool(cfg.get("web_password_hash"))
+        if (
+            time.time() >= deadline
+            and not setup_mode
+            and (setup_complete or not first_boot_setup)
+        ):
             break
 
     # -- Phase 4: Wait for display build to finish ------------------------
@@ -462,6 +553,22 @@ def cleanup_successful_import() -> None:
         in_progress.unlink()
 
 
+def _reset_simulator_config() -> None:
+    cfg = Config.instance()
+    cfg.data_store = copy.deepcopy(DEFAULTS)
+    _migrate_provider_lists(cfg.data_store, {})
+    cfg.save()
+
+
+def _run_display(display) -> None:
+    try:
+        display.run()
+    except SystemExit as exc:
+        if getattr(panel, "is_simulator", False) and exc.code in (None, 0):
+            _reset_simulator_config()
+        raise
+
+
 def run_flight_tracker(disable_tests: bool = False):
     # Apply any staged config import before anything else initialises.
     apply_pending_config_update()
@@ -472,12 +579,17 @@ def run_flight_tracker(disable_tests: bool = False):
     _warn_if_root()
 
     cfg = Config.instance()
-    logger.info("FlightTracker starting (log level: %s)", cfg.log_level)
+    logger.info(
+        "Hobby Ticker v%s starting (log level: %s)",
+        ".".join(map(str, APP_VERSION)),
+        cfg.log_level,
+    )
 
     # Initialise matrix once with full config values
+    panel_height = 64 if cfg.display_scan_rate == 32 else screen.HEIGHT
     panel.init_matrix(
-        width=64,
-        height=64 if cfg.display_scan_rate == 32 else 32,
+        width=screen.WIDTH,
+        height=panel_height,
         brightness=cfg.brightness_percent,
         rotation=180 if cfg.screen_rotate else 0,
         hat_pwm=cfg.hat_pwm_enabled,
@@ -487,7 +599,9 @@ def run_flight_tracker(disable_tests: bool = False):
     canvas = panel.create_canvas()
     panel.clear(canvas)
     logger.info(
-        "RGB matrix initialised (64x32, brightness %d%%)",
+        "RGB matrix initialised (%dx%d, brightness %d%%)",
+        screen.WIDTH,
+        panel_height,
         cfg.brightness_percent,
     )
 
@@ -528,7 +642,7 @@ def run_flight_tracker(disable_tests: bool = False):
     logger.info("Display built - entering main loop")
 
     # -- Phase 5: Run the main display loop -----------------------------------
-    display.run()
+    _run_display(display)
 
 
 def _config_exists() -> bool:

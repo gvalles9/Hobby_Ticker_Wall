@@ -240,6 +240,46 @@ class TestParseSettingsFormProviders:
         assert out["providers"] == {}
         assert out["max_flight_lookup"] == 5  # int_val's documented default
 
+    def test_cycle_idle_theme_is_preserved(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form({"idle_screen_theme": "cycle"}, self._cfg())
+        assert out["idle_screen_theme"] == "cycle"
+
+    def test_missing_idle_theme_preserves_configured_default(self):
+        from web.app import parse_settings_form
+
+        cfg = self._cfg()
+        cfg.idle_screen_theme = "cycle"
+        assert parse_settings_form({}, cfg)["idle_screen_theme"] == "cycle"
+
+    def test_screen_unit_profiles_default_independently(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form({}, self._cfg())
+        assert out["flight_units"] == "metric"
+        assert out["idle_units"] == "standard"
+        assert out["height_unit"] == "m"
+        assert out["speed_unit"] == "kmh"
+        assert out["temperature_unit"] == "f"
+        assert out["precipitation_unit"] == "in"
+
+    def test_screen_unit_profiles_change_independently(self):
+        from web.app import parse_settings_form
+
+        cfg = self._cfg()
+        cfg.flight_units = "metric"
+        cfg.idle_units = "standard"
+        out = parse_settings_form(
+            {"flight_units": "standard", "idle_units": "metric"}, cfg
+        )
+        assert out["flight_units"] == "standard"
+        assert out["height_unit"] == "ft"
+        assert out["speed_unit"] == "mph"
+        assert out["idle_units"] == "metric"
+        assert out["temperature_unit"] == "c"
+        assert out["precipitation_unit"] == "mm"
+
     def test_provider_usage_logging_toggle_parse(self):
         from web.app import parse_settings_form
 
@@ -257,6 +297,26 @@ class TestParseSettingsFormProviders:
         assert out["show_emergency_squawk"] is True
         out = parse_settings_form({}, cfg)
         assert out["show_emergency_squawk"] is False
+
+    def test_flight_data_point_fields_accept_available_fields_and_reject_unknown(self):
+        from setup.configuration import DEFAULT_FLIGHT_DATA_POINTS
+        from web.app import parse_settings_form
+
+        cfg = self._cfg()
+        cfg.flight_data_points = DEFAULT_FLIGHT_DATA_POINTS
+        out = parse_settings_form(
+            {
+                "flight_data_point_1": "registration",
+                "flight_data_point_2": "vertical_speed",
+                "flight_data_point_3": "unknown_field",
+                "flight_data_point_4": "distance_to_home",
+            },
+            cfg,
+        )
+        assert out["flight_data_point_1"] == "registration"
+        assert out["flight_data_point_2"] == "vertical_speed"
+        assert out["flight_data_point_3"] == DEFAULT_FLIGHT_DATA_POINTS[2]
+        assert out["flight_data_point_4"] == "distance_to_home"
 
     def test_api_limit_mode_parse(self):
         from web.app import parse_settings_form

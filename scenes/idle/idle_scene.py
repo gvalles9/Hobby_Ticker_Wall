@@ -17,6 +17,7 @@ from setup import frames
 from setup.configuration import Config
 
 PRIORITY = 0
+IDLE_THEME_CYCLE_SECONDS = 30
 
 
 class BaseIdleScene:
@@ -96,6 +97,49 @@ class BaseIdleScene:
         raise NotImplementedError
 
 
+class CyclingIdleScene:
+    """Alternate the classic and three-day forecast idle screens."""
+
+    priority = PRIORITY
+
+    def __init__(self, classic_scene, forecast_scene):
+        self.scenes = (classic_scene, forecast_scene)
+        self.current_index = 0
+        self.frames_on_current_scene = 0
+
+    @property
+    def current_scene(self):
+        return self.scenes[self.current_index]
+
+    def poll(self) -> None:
+        for scene in self.scenes:
+            scene.poll()
+
+    def has_data(self) -> bool:
+        return True
+
+    def active(self) -> bool:
+        return True
+
+    def on_enter(self) -> None:
+        self.current_index = 0
+        self.frames_on_current_scene = 0
+        self.current_scene.on_enter()
+
+    def reset(self) -> None:
+        self.frames_on_current_scene = 0
+        self.current_scene.reset()
+
+    def draw(self) -> None:
+        self.current_scene.draw()
+        self.frames_on_current_scene += 1
+        cycle_frames = round(IDLE_THEME_CYCLE_SECONDS * frames.PER_SECOND)
+        if self.frames_on_current_scene >= cycle_frames:
+            self.current_index = (self.current_index + 1) % len(self.scenes)
+            self.frames_on_current_scene = 0
+            self.current_scene.on_enter()
+
+
 # ---------------------------------------------------------------------------
 # Theme registry - maps config string to theme class.
 # Imports are deferred to avoid circular dependencies (themes import
@@ -124,6 +168,14 @@ def IdleScene(canvas, panel):
     subclass.  Unknown theme names fall back to 'classic'.
     """
     cfg = Config.instance()
+    if cfg.idle_screen_theme == "cycle":
+        from scenes.idle.themes.classic_idle_theme import ClassicIdleTheme
+        from scenes.idle.themes.forecast_idle_theme import ForecastIdleTheme
+
+        return CyclingIdleScene(
+            ClassicIdleTheme(canvas, panel),
+            ForecastIdleTheme(canvas, panel, duration_override="3day"),
+        )
     themes = _load_themes()
     theme_class = themes.get(cfg.idle_screen_theme, themes["classic"])
     return theme_class(canvas, panel)

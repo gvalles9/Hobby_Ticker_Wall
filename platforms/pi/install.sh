@@ -1,10 +1,10 @@
 #!/bin/bash
 #
-# FlightTracker Install Script
+# Hobby Ticker Install Script
 # For Raspberry Pi (3B, 4B, Zero 2 W, Zero W) running Raspbian Trixie
 #
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/ColinWaddell/FlightTracker/main/platforms/pi/install.sh | bash
+#   curl -sSL https://raw.githubusercontent.com/gvalles9/Hobby_Ticker_Wall/main/platforms/pi/install.sh | bash
 #
 
 set -e
@@ -143,7 +143,7 @@ reconfig() {
 
 echo ""
 echo -e "${BOLD}========================================${NC}"
-echo -e "${BOLD}  FlightTracker Install Script${NC}"
+echo -e "${BOLD}  Hobby Ticker Install Script${NC}"
 echo -e "${BOLD}========================================${NC}"
 echo ""
 
@@ -165,7 +165,7 @@ info "Detected: ${PI_MODEL}"
 if echo "$PI_MODEL" | grep -q "Raspberry Pi 5"; then
     error "This script is for Pi 3/4/Zero. Detected: ${PI_MODEL}"
     error "For Pi 5, use the Pi 5 installer instead:"
-    error "  curl -sSL https://raw.githubusercontent.com/ColinWaddell/FlightTracker/main/platforms/pi5/install.sh | bash"
+    error "  curl -sSL https://raw.githubusercontent.com/gvalles9/Hobby_Ticker_Wall/main/platforms/pi5/install.sh | bash"
     exit 1
 fi
 
@@ -244,6 +244,20 @@ if [ -d "$INSTALL_DIR" ] || [ -d "$RGB_MATRIX_DIR" ]; then
             sudo systemctl daemon-reload
             success "Removed systemd service"
         fi
+        sudo systemctl disable --now FlightTracker-WifiSetup.service 2>/dev/null || true
+        sudo systemctl disable --now FlightTracker-WifiWatchdog.service 2>/dev/null || true
+        sudo systemctl disable --now FlightTracker-NightlyUpdate.timer 2>/dev/null || true
+        sudo rm -f /etc/systemd/system/FlightTracker-WifiSetup.service
+        sudo rm -f /etc/systemd/system/FlightTracker-WifiWatchdog.service
+        sudo rm -f /etc/systemd/system/FlightTracker-NightlyUpdate.service
+        sudo rm -f /etc/systemd/system/FlightTracker-NightlyUpdate.timer
+        sudo rm -f /etc/sudoers.d/flighttracker-wifi-setup
+        sudo rm -f /usr/local/sbin/flighttracker-wifi-setup
+        sudo rm -f /usr/local/sbin/flighttracker-configure-wifi
+        sudo rm -f /usr/local/sbin/flighttracker-wifi-watchdog
+        sudo rm -f /etc/flighttracker/setup-ap.json
+        sudo nmcli connection delete FlightTracker-Setup >/dev/null 2>&1 || true
+        sudo systemctl daemon-reload
 
         # Remove directories
         if [ -d "$INSTALL_DIR" ]; then
@@ -416,6 +430,9 @@ info "Installing required packages..."
 run_quiet "Installing required packages" sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
     git \
     curl \
+    avahi-daemon \
+    network-manager \
+    openssl \
     python3 \
     python3-venv \
     python3-pip \
@@ -442,13 +459,13 @@ echo ""
 echo -e "${BOLD}--- Step 2: Clone FlightTracker ---${NC}"
 echo ""
 
-run_quiet "Cloning FlightTracker (branch: ${BRANCH})" git clone --depth 1 --branch "${BRANCH}" https://github.com/ColinWaddell/FlightTracker || exit 1
+run_quiet "Cloning Hobby Ticker (branch: ${BRANCH})" git clone --depth 1 --branch "${BRANCH}" https://github.com/gvalles9/Hobby_Ticker_Wall "$INSTALL_DIR" || exit 1
 
 if [ ! -d "$INSTALL_DIR" ]; then
-    error "Failed to clone FlightTracker repository."
+    error "Failed to clone Hobby Ticker repository."
     exit 1
 fi
-success "FlightTracker cloned to ${INSTALL_DIR}"
+success "Hobby Ticker cloned to ${INSTALL_DIR}"
 
 # ============================================================================
 # STEP 3: Download & Build RGB Matrix Library
@@ -591,6 +608,10 @@ sudo systemctl daemon-reload
 sudo systemctl enable FlightTracker.service
 
 success "Service installed and enabled."
+
+info "Installing first-boot Wi-Fi setup hotspot..."
+bash "${INSTALL_DIR}/platforms/common/install-wifi-setup.sh" \
+    "$CURRENT_USER" "$INSTALL_DIR"
 
 # Inject the HAT mode choice into the config so the runtime uses the
 # matching hardware mapping (adafruit-hat-pwm for Quality, adafruit-hat

@@ -17,14 +17,16 @@ from display.scroller import (
 )
 
 
-def _make_scroller(monkeypatch, *, content_width, width, bounce):
+def _make_scroller(monkeypatch, *, content_width, width, bounce, reverse=False):
     """Build a Scroller whose rendered content is exactly ``content_width``."""
     monkeypatch.setattr(
         scroller_module,
         "_render_spans",
         lambda spans: [{} for _ in range(content_width)],
     )
-    return Scroller(MagicMock(), MagicMock(), 0, 0, width, [], bounce=bounce)
+    return Scroller(
+        MagicMock(), MagicMock(), 0, 0, width, [], bounce=bounce, reverse=reverse
+    )
 
 
 def test_bounce_fits_or_barely_overflows_never_scrolls(monkeypatch):
@@ -89,6 +91,28 @@ def test_continuous_still_scrolls_barely_overflowing_content(monkeypatch):
 
     assert scroller.position < 30  # it moved
     assert not scroller.all_looped()
+
+
+def test_reverse_continuous_scroll_moves_left_to_right(monkeypatch):
+    scroller = _make_scroller(
+        monkeypatch, content_width=80, width=30, bounce=False, reverse=True
+    )
+    assert scroller.position == -80
+
+    scroller.draw()
+
+    assert scroller.position == -79
+
+
+def test_reverse_continuous_scroll_restarts_off_left(monkeypatch):
+    scroller = _make_scroller(
+        monkeypatch, content_width=3, width=3, bounce=False, reverse=True
+    )
+    for _ in range(6):
+        scroller.draw()
+
+    assert scroller.position == -3
+    assert scroller.loop_count == 1
 
 
 # ---------------------------------------------------------------------------

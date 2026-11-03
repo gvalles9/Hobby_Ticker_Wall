@@ -4,6 +4,10 @@ import types
 from datetime import datetime, time
 
 from setup.configuration import (
+    DEFAULT_FLIGHT_LAT,
+    DEFAULT_FLIGHT_LNG,
+    DEFAULT_WEATHER_MODE,
+    _infer_legacy_location_source,
     _next_backup_path,
     migrate_config,
     migrate_legacy_json,
@@ -21,6 +25,25 @@ from utilities.sun_times import (
 def _t(hour: int, minute: int) -> time:
     """Shorthand for building time objects in schedule tests."""
     return time(hour=hour, minute=minute)
+
+
+def test_weather_is_enabled_by_default():
+    assert DEFAULT_WEATHER_MODE == 1
+
+
+def test_legacy_location_defaults_to_auto_detection():
+    assert _infer_legacy_location_source({}) == "auto"
+    assert _infer_legacy_location_source({"flight_lat": 55.87}) == "auto"
+
+
+def test_default_location_has_no_preset_city():
+    assert DEFAULT_FLIGHT_LAT == 0.0
+    assert DEFAULT_FLIGHT_LNG == 0.0
+
+
+def test_legacy_custom_location_is_preserved():
+    assert _infer_legacy_location_source({"flight_lat": 40.7}) == "manual"
+    assert _infer_legacy_location_source({"flight_observer_lng": -3.2}) == "manual"
 
 
 # ---------------------------------------------------------------------------
@@ -213,6 +236,11 @@ class TestApproxSunriseSunset:
 
 
 class TestMigrateConfig:
+    def test_default_temperature_unit_is_fahrenheit(self):
+        from setup.configuration import DEFAULT_TEMPERATURE_UNIT
+
+        assert DEFAULT_TEMPERATURE_UNIT == "f"
+
     def _make_legacy_module(self, **kwargs):
         """Create a fake module with the given attributes."""
         mod = types.ModuleType("legacy_config")
@@ -412,6 +440,70 @@ class TestThemeForecast:
         cfg = Config.__new__(Config)
         cfg.data_store = {"theme": "not a dict"}
         assert cfg.theme_forecast["duration"] == "3hour"
+
+
+class TestIdleScreenTheme:
+    def test_default_is_cycle(self):
+        from setup.configuration import DEFAULT_IDLE_SCREEN_THEME, Config
+
+        assert DEFAULT_IDLE_SCREEN_THEME == "cycle"
+        cfg = Config.__new__(Config)
+        cfg.data_store = {}
+        assert cfg.idle_screen_theme == "cycle"
+
+    def test_cycle_theme_is_supported(self):
+        from setup.configuration import Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {"idle_screen_theme": "cycle"}
+        assert cfg.idle_screen_theme == "cycle"
+
+
+class TestPrecipitationUnit:
+    def test_inches_are_default(self):
+        from setup.configuration import DEFAULT_PRECIPITATION_UNIT, Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {}
+        assert DEFAULT_PRECIPITATION_UNIT == "in"
+        assert cfg.precipitation_unit == "in"
+
+    def test_millimetres_can_be_selected(self):
+        from setup.configuration import Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {"precipitation_unit": "mm"}
+        assert cfg.precipitation_unit == "mm"
+
+    def test_invalid_unit_uses_inches(self):
+        from setup.configuration import Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {"precipitation_unit": "cm"}
+        assert cfg.precipitation_unit == "in"
+
+
+class TestUnitProfiles:
+    def test_profiles_are_independent(self):
+        from setup.configuration import Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {"flight_units": "metric", "idle_units": "standard"}
+        assert cfg.height_unit == "m"
+        assert cfg.speed_unit == "kmh"
+        assert cfg.temperature_unit == "f"
+        assert cfg.precipitation_unit == "in"
+        assert cfg.idle_speed_unit == "mph"
+
+        cfg.data_store["flight_units"] = "standard"
+        assert cfg.height_unit == "ft"
+        assert cfg.speed_unit == "mph"
+        assert cfg.temperature_unit == "f"
+
+        cfg.data_store["idle_units"] = "metric"
+        assert cfg.temperature_unit == "c"
+        assert cfg.precipitation_unit == "mm"
+        assert cfg.height_unit == "ft"
 
 
 class TestThemeConditions:
@@ -742,6 +834,32 @@ class TestDetailsCustomTemplate:
         from setup.configuration import DEFAULT_DETAILS_CUSTOM_TEMPLATE, DEFAULTS
 
         assert DEFAULTS["details_custom_template"] == DEFAULT_DETAILS_CUSTOM_TEMPLATE
+
+
+class TestFlightDataPoints:
+    def test_default_values(self):
+        from setup.configuration import DEFAULT_FLIGHT_DATA_POINTS, Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {}
+        assert cfg.flight_data_points == DEFAULT_FLIGHT_DATA_POINTS
+
+    def test_stored_values_and_invalid_fallback(self):
+        from setup.configuration import DEFAULT_FLIGHT_DATA_POINTS, Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {
+            "flight_data_point_1": "registration",
+            "flight_data_point_2": "unknown_field",
+            "flight_data_point_3": "altitude",
+            "flight_data_point_4": "distance_to_home",
+        }
+        assert cfg.flight_data_points == (
+            "registration",
+            DEFAULT_FLIGHT_DATA_POINTS[1],
+            "altitude",
+            "distance_to_home",
+        )
 
 
 class TestShowEmergencySquawk:

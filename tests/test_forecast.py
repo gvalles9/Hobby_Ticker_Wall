@@ -1,7 +1,11 @@
 """Tests for the forecast idle theme and weather icon helper."""
 
 from datetime import datetime
+from types import SimpleNamespace
+from unittest.mock import MagicMock, call
 
+from scenes.idle.themes import forecast_idle_theme
+from scenes.idle.themes.forecast_idle_theme import ForecastIdleTheme
 from scenes.idle.themes.icons.weather.codes import code_to_icon, code_to_weather
 from scenes.idle.themes.theme_utilities import _parse_hourly
 
@@ -128,3 +132,164 @@ class TestParseHourly:
         result = _parse_hourly(raw_days)
         current_hour = datetime.now().hour
         assert len(result) == 24 - current_hour
+
+
+def test_forecast_idle_shows_no_weather_when_data_is_unavailable():
+    theme = ForecastIdleTheme.__new__(ForecastIdleTheme)
+    theme.bar = MagicMock()
+    theme.weather = SimpleNamespace(get=lambda: None)
+    theme.panel = MagicMock()
+    theme.canvas = object()
+
+    theme.draw_content(1)
+
+    theme.bar.draw.assert_called_once()
+    theme.panel.clear.assert_not_called()
+    theme.panel.draw_text.assert_not_called()
+
+
+def test_three_day_forecast_draws_vertical_day_dividers(monkeypatch):
+    theme = ForecastIdleTheme.__new__(ForecastIdleTheme)
+    theme.panel = MagicMock()
+    theme.canvas = object()
+    monkeypatch.setattr(
+        "scenes.idle.themes.forecast_idle_theme.TC", lambda colour: colour
+    )
+
+    theme._draw_day_dividers()
+
+    assert theme.panel.draw_line.call_args_list == [
+        call(
+            theme.canvas,
+            64,
+            forecast_idle_theme.DAY_DIVIDER_TOP_Y,
+            64,
+            forecast_idle_theme.screen.HEIGHT - 1,
+            forecast_idle_theme.THEME_FORECAST_TOP_TEXT,
+        ),
+        call(
+            theme.canvas,
+            128,
+            forecast_idle_theme.DAY_DIVIDER_TOP_Y,
+            128,
+            forecast_idle_theme.screen.HEIGHT - 1,
+            forecast_idle_theme.THEME_FORECAST_TOP_TEXT,
+        ),
+    ]
+
+
+def test_three_day_forecast_icons_are_centered_in_each_day_column():
+    positions = ForecastIdleTheme._icon_positions_for_duration("3day")
+    column_width = forecast_idle_theme.screen.WIDTH // 3
+
+    assert positions == (24, 88, 152)
+    assert all(
+        abs(
+            x
+            + forecast_idle_theme.SPRITE_WIDTH / 2
+            - (index * column_width + column_width / 2)
+        )
+        <= 0.5
+        for index, x in enumerate(positions)
+    )
+
+
+def test_daily_forecast_handles_missing_minimum_or_maximum_temperature(monkeypatch):
+    monkeypatch.setattr(
+        ForecastIdleTheme,
+        "_convert_temp",
+        staticmethod(lambda temp_c: temp_c),
+    )
+    monkeypatch.setattr(
+        "scenes.idle.themes.forecast_idle_theme.TC", lambda colour: colour
+    )
+    monkeypatch.setattr(
+        "scenes.idle.themes.forecast_idle_theme.temperature_to_colour",
+        lambda temp: "temperature",
+    )
+    monkeypatch.setattr(
+        "scenes.idle.themes.forecast_idle_theme.is_daytime",
+        lambda lat, lng, now: True,
+    )
+    monkeypatch.setattr(
+        "scenes.idle.themes.forecast_idle_theme.Config.instance",
+        lambda: SimpleNamespace(temperature_unit="c"),
+    )
+    theme = ForecastIdleTheme.__new__(ForecastIdleTheme)
+
+    slots = theme._daily_slots(
+        {
+            "daily": [
+                {"mintemp_c": None, "maxtemp_c": 20.0, "condition_code": 1000},
+                {"mintemp_c": 10.0, "maxtemp_c": None, "condition_code": 1000},
+                {"mintemp_c": None, "maxtemp_c": None, "condition_code": 1000},
+            ]
+        },
+        datetime.now(),
+        40.0,
+        -75.0,
+    )
+
+    assert slots is not None
+    assert ["".join(segment[0] for segment in slot[3]) for slot in slots] == [
+        "Lo --°C Hi 20°C",
+        "Lo 10°C Hi --°C",
+        "Lo --°C Hi --°C",
+    ]
+    assert [slot[4] for slot in slots] == [20.0, 10.0, None]
+
+
+def test_daily_forecast_labels_low_high_and_temperature_unit(monkeypatch):
+    monkeypatch.setattr(
+        ForecastIdleTheme,
+        "_convert_temp",
+        staticmethod(lambda temp_c: temp_c),
+    )
+    monkeypatch.setattr(
+        "scenes.idle.themes.forecast_idle_theme.TC", lambda colour: colour
+    )
+    monkeypatch.setattr(
+        "scenes.idle.themes.forecast_idle_theme.temperature_to_colour",
+        lambda temp: "temperature",
+    )
+    monkeypatch.setattr(
+        "scenes.idle.themes.forecast_idle_theme.Config.instance",
+        lambda: SimpleNamespace(temperature_unit="c"),
+    )
+    theme = ForecastIdleTheme.__new__(ForecastIdleTheme)
+
+    segments = theme._format_daily_temperatures(8.0, 19.0)
+
+    assert "".join(segment[0] for segment in segments) == "Lo 8°C Hi 19°C"
+    assert segments[1][1] == segments[4][1]
+    assert segments[2][1] == segments[5][1]
+
+
+def test_fahrenheit_is_default_temperature_unit():
+    from setup.configuration import DEFAULT_TEMPERATURE_UNIT
+
+    assert DEFAULT_TEMPERATURE_UNIT == "f"
+
+
+def test_daily_forecast_uses_fahrenheit_label(monkeypatch):
+    monkeypatch.setattr(
+        ForecastIdleTheme,
+        "_convert_temp",
+        staticmethod(lambda temp_c: temp_c),
+    )
+    monkeypatch.setattr(
+        "scenes.idle.themes.forecast_idle_theme.TC", lambda colour: colour
+    )
+    monkeypatch.setattr(
+        "scenes.idle.themes.forecast_idle_theme.temperature_to_colour",
+        lambda temp: "temperature",
+    )
+    monkeypatch.setattr(
+        "scenes.idle.themes.forecast_idle_theme.Config.instance",
+        lambda: SimpleNamespace(temperature_unit="f"),
+    )
+    theme = ForecastIdleTheme.__new__(ForecastIdleTheme)
+
+    segments = theme._format_daily_temperatures(8.0, 19.0)
+
+    assert "".join(segment[0] for segment in segments) == "Lo 8°F Hi 19°F"

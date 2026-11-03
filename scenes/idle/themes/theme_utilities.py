@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import datetime
 import json
+import logging
 import threading
 import urllib.request
 
@@ -40,11 +41,37 @@ _CLOCK_FONT = fonts.small
 _CLOCK_POSITION = (0, 6)
 _DATE_FONT = _CLOCK_FONT
 _DATE_POSITION_Y = _CLOCK_POSITION[1]
-# Date format: 0 = YYYY-MM-DD, 1 = DD-MM-YYYY, 2 = MM-DD-YYYY
-# Formats 0 and 1 both render as DD/MM (day before month);
-# format 2 renders as MM/DD (month before day).
-_DATE_DAY_FIRST = {0: True, 1: True, 2: False}
+# Date format: 0 = Month Dth YYYY, 1 = DD-MM-YYYY, 2 = MM-DD-YYYY.
+_DATE_DAY_FIRST = {1: True, 2: False}
 _DAY_ABBREVS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+_MONTH_NAMES = (
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+)
+
+
+def format_display_date(date: datetime.datetime, date_format: int) -> str:
+    """Format the configured calendar date consistently across idle themes."""
+    if date_format == 0:
+        day = date.day
+        if 11 <= day % 100 <= 13:
+            suffix = "th"
+        else:
+            suffix = {1: "st", 2: "nd", 3: "rd"}.get(day % 10, "th")
+        return f"{_MONTH_NAMES[date.month - 1]} {day}{suffix} {date.year}"
+
+    fmt = "%d-%m-%Y" if date_format == 1 else "%m-%d-%Y"
+    return date.strftime(fmt).replace("-0", "-").lstrip("0")
 
 
 class ClockDateBar:
@@ -120,8 +147,11 @@ class ClockDateBar:
         day = now.day
         month = now.month
 
-        day_first = _DATE_DAY_FIRST.get(cfg.date_format, True)
-        date_str = f"{day}/{month}" if day_first else f"{month}/{day}"
+        if cfg.date_format == 0:
+            date_str = format_display_date(now, cfg.date_format)
+        else:
+            day_first = _DATE_DAY_FIRST.get(cfg.date_format, True)
+            date_str = f"{day}/{month}" if day_first else f"{month}/{day}"
 
         current_date = day_name + " " + date_str
         if self.last_date == current_date:
@@ -198,6 +228,9 @@ WEATHERAPI_URL = (
     "http://api.weatherapi.com/v1/forecast.json"
     "?key={key}&q={lat},{lng}&days=3&aqi=no&alerts=no"
 )
+NOAA_POINTS_URL = "https://api.weather.gov/points/{lat},{lng}"
+NOAA_USER_AGENT = "FlightTracker/1.0 (https://github.com/ColinWaddell/FlightTracker)"
+_logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # Rainfall graph constants (shared by classic + forecast themes)
@@ -205,7 +238,7 @@ WEATHERAPI_URL = (
 
 RAINFALL_HOURS = 24
 RAINFALL_12HR_MARKERS = True
-RAINFALL_GRAPH_ORIGIN = (39, 15)
+RAINFALL_GRAPH_ORIGIN = (SCREEN_WIDTH - 24, 15)
 RAINFALL_COLUMN_WIDTH = 1
 RAINFALL_GRAPH_HEIGHT = 8
 _RAINFALL_SENSITIVITY_LEVELS = (
@@ -417,6 +450,257 @@ def _parse_weather(raw: dict) -> dict:
     return parsed
 
 
+def _noaa_json(url: str) -> dict:
+    request = urllib.request.Request(
+        url,
+        headers={
+            "Accept": "application/geo+json",
+            "User-Agent": NOAA_USER_AGENT,
+        },
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        return json.loads(response.read().decode())
+
+
+def _noaa_observation_value(observation: dict, key: str) -> float | None:
+    value = observation.get(key, {}).get("value")
+    return _coerce(value, float, None)
+
+
+def _noaa_condition_code(description: str | None) -> int:
+    """Map NWS forecast/observation descriptions to existing weather icons."""
+    text = (description or "").lower()
+    if any(word in text for word in ("partly sunny", "mostly sunny", "mostly clear")):
+        return 1003
+    if "thunder" in text:
+        return 1087
+    if "snow" in text or "blizzard" in text:
+        return 1213
+    if "sleet" in text or "freezing rain" in text or "ice" in text:
+        return 1204
+    if "rain" in text or "shower" in text or "drizzle" in text:
+        return 1183
+    if "fog" in text or "mist" in text or "haze" in text:
+        return 1135
+    if "overcast" in text:
+        return 1009
+    if "cloud" in text:
+        if "partly" in text:
+            return 1003
+        return 1006
+    if any(word in text for word in ("sunny", "clear", "fair")):
+        return 1000
+    return 1003
+
+
+def _noaa_wind_kph(speed: str | None) -> float | None:
+    """Parse NWS wind speeds such as '10 mph' or '5 to 10 mph'."""
+    if not speed:
+        return None
+    parts = speed.split()
+    values = [_coerce(part, float, None) for part in parts]
+    values = [value for value in values if value is not None]
+    if not values:
+        return None
+    multiplier = 1.609344 if "mph" in speed.lower() else 1.0
+    return sum(values) / len(values) * multiplier
+
+
+def _noaa_temp_c(value, unit: str | None) -> float | None:
+    if value is None:
+        return None
+    temperature = _coerce(value, float, None)
+    if temperature is None:
+        return None
+    return (temperature - 32) * 5 / 9 if unit == "F" else temperature
+
+
+def _noaa_qpf_by_hour(grid_data: dict) -> dict[datetime.datetime, float]:
+    """Return quantitative precipitation keyed by its UTC start time in mm."""
+    result = {}
+    values = (
+        grid_data.get("properties", {})
+        .get("quantitativePrecipitation", {})
+        .get("values", [])
+    )
+    for entry in values:
+        try:
+            start_text, _duration = entry["validTime"].split("/", 1)
+            start = datetime.datetime.fromisoformat(start_text.replace("Z", "+00:00"))
+            amount = float(entry["value"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        unit = entry.get("unitCode", "")
+        if "m" in unit and "mm" not in unit and "kg_m-2" not in unit:
+            amount *= 1000
+        result[start] = amount
+    return result
+
+
+def _parse_noaa_weather(
+    hourly_forecast: dict,
+    daily_forecast: dict,
+    observations: dict | None,
+    grid_data: dict | None,
+    lat: float,
+    lng: float,
+) -> dict:
+    """Normalize NWS forecast/observation data for the existing idle themes."""
+    hourly_periods = hourly_forecast.get("properties", {}).get("periods", [])
+    daily_periods = daily_forecast.get("properties", {}).get("periods", [])
+    qpf = _noaa_qpf_by_hour(grid_data or {})
+    now = datetime.datetime.now(datetime.timezone.utc)
+
+    observation = None
+    if observations:
+        observation_properties = observations.get("properties", {})
+        observation = (
+            observation_properties.get("periods", [None])[0]
+            if "periods" in observation_properties
+            else observation_properties
+        )
+    if observation is None and hourly_periods:
+        period = hourly_periods[0]
+        temp_c = _noaa_temp_c(period.get("temperature"), period.get("temperatureUnit"))
+        current_description = period.get("shortForecast", "")
+        current = {
+            "temp_c": _coerce(temp_c, float, None),
+            "humidity": _coerce(
+                period.get("relativeHumidity", {}).get("value"), float, None
+            ),
+            "wind_kph": _noaa_wind_kph(period.get("windSpeed")),
+            "wind_degree": None,
+            "pressure_mb": None,
+            "precip_mm": 0.0,
+            "condition_code": _noaa_condition_code(current_description),
+            "description": current_description,
+            "uv": None,
+        }
+    elif observation is not None:
+        current_description = observation.get("textDescription", "")
+        temp_c = _noaa_observation_value(observation, "temperature")
+        wind_speed = _noaa_observation_value(observation, "windSpeed")
+        pressure = _noaa_observation_value(observation, "barometricPressure")
+        precipitation = _noaa_observation_value(observation, "precipitationLastHour")
+        current = {
+            "temp_c": temp_c,
+            "humidity": _noaa_observation_value(observation, "relativeHumidity"),
+            "wind_kph": wind_speed * 3.6 if wind_speed is not None else None,
+            "wind_degree": _noaa_observation_value(observation, "windDirection"),
+            "pressure_mb": pressure / 100 if pressure is not None else None,
+            "precip_mm": precipitation or 0.0,
+            "condition_code": _noaa_condition_code(current_description),
+            "description": current_description,
+            "uv": None,
+        }
+    else:
+        current = {
+            "temp_c": None,
+            "humidity": None,
+            "wind_kph": None,
+            "wind_degree": None,
+            "pressure_mb": None,
+            "precip_mm": 0.0,
+            "condition_code": 1003,
+            "description": "",
+            "uv": None,
+        }
+
+    hourly = []
+    for period in hourly_periods:
+        try:
+            start = datetime.datetime.fromisoformat(
+                period["startTime"].replace("Z", "+00:00")
+            )
+        except (KeyError, TypeError, ValueError):
+            continue
+        if start.astimezone(datetime.timezone.utc) < now.replace(
+            minute=0, second=0, microsecond=0
+        ):
+            continue
+        temp_c = _noaa_temp_c(period.get("temperature"), period.get("temperatureUnit"))
+        hourly.append(
+            {
+                "temp_c": _coerce(temp_c, float, 0.0),
+                "precip_mm": qpf.get(start.astimezone(datetime.timezone.utc), 0.0),
+                "condition_code": _noaa_condition_code(period.get("shortForecast")),
+            }
+        )
+
+    daily_by_date = {}
+    daily_tz_by_date = {}
+    for period in daily_periods:
+        try:
+            daily_start = datetime.datetime.fromisoformat(
+                period["startTime"].replace("Z", "+00:00")
+            )
+            day = daily_start.date()
+        except (KeyError, TypeError, ValueError):
+            continue
+        daily_tz_by_date[day] = daily_start.tzinfo or datetime.timezone.utc
+        entry = daily_by_date.setdefault(
+            day,
+            {
+                "maxtemp_c": None,
+                "mintemp_c": None,
+                "avgtemp_c": None,
+                "maxwind_kph": 0.0,
+                "totalprecip_mm": 0.0,
+                "totalsnow_cm": 0.0,
+                "avghumidity": 0,
+                "daily_will_it_rain": 0,
+                "daily_chance_of_rain": 0,
+                "daily_will_it_snow": 0,
+                "daily_chance_of_snow": 0,
+                "condition_code": 1003,
+            },
+        )
+        temp_c = _noaa_temp_c(period.get("temperature"), period.get("temperatureUnit"))
+        if period.get("isDaytime"):
+            entry["maxtemp_c"] = _coerce(temp_c, float, None)
+            entry["condition_code"] = _noaa_condition_code(period.get("shortForecast"))
+        else:
+            entry["mintemp_c"] = _coerce(temp_c, float, None)
+        entry["avgtemp_c"] = (
+            (entry["maxtemp_c"] + entry["mintemp_c"]) / 2
+            if entry["maxtemp_c"] is not None and entry["mintemp_c"] is not None
+            else entry["maxtemp_c"] or entry["mintemp_c"]
+        )
+        entry["maxwind_kph"] = max(
+            entry["maxwind_kph"], _noaa_wind_kph(period.get("windSpeed")) or 0.0
+        )
+        precip_chance = _coerce(
+            period.get("probabilityOfPrecipitation", {}).get("value"), int, 0
+        )
+        entry["daily_chance_of_rain"] = max(
+            entry["daily_chance_of_rain"], precip_chance
+        )
+        entry["daily_will_it_rain"] = int(entry["daily_chance_of_rain"] > 0)
+    for day, entry in daily_by_date.items():
+        entry["totalprecip_mm"] = sum(
+            amount
+            for start, amount in qpf.items()
+            if start.astimezone(daily_tz_by_date[day]).date() == day
+        )
+
+    from utilities.sun_times import approx_sunrise_sunset
+
+    sunrise, sunset = approx_sunrise_sunset(lat, lng)
+    return {
+        **current,
+        "hourly": hourly,
+        "daily": list(daily_by_date.values()),
+        "astro": {
+            "sunrise": sunrise.strftime("%I:%M %p"),
+            "sunset": sunset.strftime("%I:%M %p"),
+            "moonrise": "",
+            "moonset": "",
+            "moon_phase": "",
+            "moon_illumination": 0,
+        },
+    }
+
+
 # ---------------------------------------------------------------------------
 # WeatherService - singleton daemon-thread weather fetcher
 # ---------------------------------------------------------------------------
@@ -424,8 +708,9 @@ def _parse_weather(raw: dict) -> dict:
 
 class WeatherService(threading.Thread):
     """
-    Singleton daemon thread that fetches from weatherapi.com on startup and
-    then every ``weather_refresh_minutes`` minutes (configurable) thereafter.
+    Singleton daemon thread that fetches weather on startup and then every
+    ``weather_refresh_minutes`` minutes (configurable). A WeatherAPI key
+    selects WeatherAPI.com; without one, the U.S.-only NOAA/NWS API is used.
     Thread-safe via a lock.
 
     Any consumer (idle theme, future scheduler, etc.) can call
@@ -451,36 +736,84 @@ class WeatherService(threading.Thread):
         self.stop_event = threading.Event()
 
     def run(self) -> None:
+        import logging
+
         from setup.configuration import Config
 
-        self.do_fetch()  # immediate fetch on start
+        logger = logging.getLogger(__name__)
         # Re-read the interval each iteration so a config change takes
         # effect on the next refresh cycle without restarting the thread.
-        while not self.stop_event.wait(Config.instance().weather_refresh_seconds):
-            self.do_fetch()
+        while True:
+            cfg = Config.instance()
+            try:
+                from utilities.location import resolve_auto_location
+
+                resolve_auto_location(cfg)
+            except (OSError, TimeoutError, ValueError, KeyError) as exc:
+                logger.warning("Automatic location lookup failed: %s", exc)
+            else:
+                self.do_fetch()
+            if self.stop_event.wait(cfg.weather_refresh_seconds):
+                break
 
     def do_fetch(self) -> None:
         from setup.configuration import Config
 
         cfg = Config.instance()
 
-        if not cfg.weatherapi_key:
-            return
-
-        url = WEATHERAPI_URL.format(
-            key=cfg.weatherapi_key,
-            lat=cfg.observer_lat,
-            lng=cfg.observer_lng,
-        )
-
         for _ in range(3):
             try:
-                req = urllib.request.Request(url)
-
-                with urllib.request.urlopen(req, timeout=5) as resp:
-                    raw = json.loads(resp.read().decode())
-
-                parsed = _parse_weather(raw)
+                if cfg.weatherapi_key:
+                    url = WEATHERAPI_URL.format(
+                        key=cfg.weatherapi_key,
+                        lat=cfg.observer_lat,
+                        lng=cfg.observer_lng,
+                    )
+                    with urllib.request.urlopen(url, timeout=10) as response:
+                        raw = json.loads(response.read().decode())
+                    parsed = _parse_weather(raw)
+                else:
+                    point = _noaa_json(
+                        NOAA_POINTS_URL.format(
+                            lat=cfg.observer_lat,
+                            lng=cfg.observer_lng,
+                        )
+                    )
+                    point_properties = point["properties"]
+                    hourly_forecast = _noaa_json(point_properties["forecastHourly"])
+                    daily_forecast = _noaa_json(point_properties["forecast"])
+                    observations = None
+                    try:
+                        stations = _noaa_json(point_properties["observationStations"])
+                        station_list = stations.get("features", [])
+                        if station_list:
+                            observations = _noaa_json(
+                                station_list[0]["id"].rstrip("/")
+                                + "/observations/latest"
+                            )
+                    except Exception:
+                        _logger.warning(
+                            "NOAA observation fetch failed; using hourly forecast "
+                            "for current conditions",
+                            exc_info=True,
+                        )
+                    grid_data = None
+                    try:
+                        grid_data = _noaa_json(point_properties["forecastGridData"])
+                    except Exception:
+                        _logger.warning(
+                            "NOAA precipitation forecast fetch failed; rainfall "
+                            "amounts will be unavailable",
+                            exc_info=True,
+                        )
+                    parsed = _parse_noaa_weather(
+                        hourly_forecast,
+                        daily_forecast,
+                        observations,
+                        grid_data,
+                        cfg.observer_lat,
+                        cfg.observer_lng,
+                    )
 
                 with self.lock:
                     self.weather_data = parsed
@@ -488,7 +821,11 @@ class WeatherService(threading.Thread):
                 return
 
             except Exception:
-                pass  # retry
+                _logger.warning("Weather fetch failed; retrying", exc_info=True)
+        _logger.error(
+            "Weather fetch failed after retries; NOAA/NWS only supports U.S. "
+            "forecast locations when no WeatherAPI key is configured"
+        )
 
     def get(self) -> dict | None:
         with self.lock:

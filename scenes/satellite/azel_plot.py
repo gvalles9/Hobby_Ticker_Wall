@@ -17,12 +17,13 @@ from __future__ import annotations
 import math
 
 from display.rgbpanel import Colour
+from setup import screen
 
 # ---------------------------------------------------------------------------
 # Plot geometry
 # ---------------------------------------------------------------------------
 
-PLOT_CX = 48  # centre x within the canvas
+PLOT_CX = screen.WIDTH // 2  # centre x within the canvas
 PLOT_CY = 19  # centre y within the canvas
 PLOT_RADIUS = 12  # pixels from centre to horizon ring
 

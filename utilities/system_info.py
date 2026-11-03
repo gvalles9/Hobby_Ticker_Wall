@@ -19,6 +19,7 @@ import logging
 import os
 import shutil
 import socket
+import sys
 import time
 
 logger = logging.getLogger(__name__)
@@ -83,7 +84,15 @@ def cpu_temperature() -> float | None:
 
 
 def uptime_seconds() -> int | None:
-    """Seconds since boot, from /proc/uptime."""
+    """Seconds since boot, from the host's available uptime source."""
+    if sys.platform == "win32":
+        try:
+            import ctypes
+
+            return int(ctypes.windll.kernel32.GetTickCount64() // 1000)
+        except (AttributeError, OSError):
+            return None
+
     token = _read("/proc/uptime")
     if token is None:
         return None
@@ -95,8 +104,11 @@ def uptime_seconds() -> int | None:
 
 def load_average() -> tuple[float, float, float] | None:
     """1-, 5- and 15-minute load averages.  None where unsupported."""
+    getloadavg = getattr(os, "getloadavg", None)
+    if getloadavg is None:
+        return None
     try:
-        one, five, fifteen = os.getloadavg()
+        one, five, fifteen = getloadavg()
         return round(one, 2), round(five, 2), round(fifteen, 2)
     except (OSError, ValueError):
         return None

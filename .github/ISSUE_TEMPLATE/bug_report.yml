@@ -1,6 +1,6 @@
 ---
 name: Bug report
-description: Report a problem with FlightTracker
+description: Report a problem with Hobby Ticker
 title: "[BUG] "
 labels: bug
 body:
@@ -22,9 +22,9 @@ body:
   - type: input
     id: version
     attributes:
-      label: FlightTracker version
-      description: Shown on the Settings page under "Version", or run `flight-tracker --version`
-      placeholder: "v2.0.6"
+      label: Hobby Ticker version
+      description: Shown on the login page, or run `flight-tracker.py --version`
+      placeholder: "Hobby Ticker v1.0.0"
     validations:
       required: true
 

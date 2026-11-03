@@ -1,6 +1,9 @@
 # Installation Guide - Desktop Simulator
 
-Runs FlightTracker in a pygame window on your desktop machine. No Raspberry Pi or LED hardware required.
+Runs Hobby Ticker in a pygame window on your desktop machine. No Raspberry Pi or LED hardware required.
+
+To run this fork, clone your Hobby Ticker repository rather than the upstream
+FlightTracker repository; the commands below otherwise apply to either checkout.
 
 ---
 
@@ -55,4 +58,4 @@ ffmpeg -framerate 15 -i frame_%05d.png \
 
 ## Configuration
 
-The simulator uses the same `config.json` as the Pi versions. On first run, a web interface is available at `http://localhost:8584` for configuration. See the [main README](../../README.md) for the full settings reference.
+The simulator uses the same `config.json` as the Pi versions. On first run, a web interface is available at `http://localhost:8584` for configuration. **When you close the Pygame window, the simulator resets all settings in that shared config to their defaults**, including the web password. This does not happen when the app is running on Raspberry Pi hardware. See the [main README](../../README.md) for the full settings reference.

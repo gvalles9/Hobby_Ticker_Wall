@@ -10,6 +10,8 @@ Subclasses must implement all abstract methods.
 from abc import ABC, abstractmethod
 from collections import namedtuple
 
+from setup import screen
+
 # Colour type used across all panel drivers.
 # This matches the rgbmatrix graphics.Color interface (.red, .green, .blue).
 Colour = namedtuple("Colour", ["red", "green", "blue"])
@@ -48,8 +50,8 @@ class RGBPanel(ABC):
     @abstractmethod
     def init_matrix(
         self,
-        width=64,
-        height=32,
+        width=screen.WIDTH,
+        height=screen.HEIGHT,
         brightness=50,
         rotation=0,
         hat_pwm=True,

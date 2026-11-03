@@ -1,6 +1,8 @@
 # Installation Guide - Raspberry Pi 3 / 4 / Zero
 
-This guide covers both fresh installations and upgrades from previous versions of FlightTracker.
+This guide covers Hobby Ticker installation on Raspberry Pi 3 / 4 / Zero 2 W.
+The application is installed in `~/FlightTracker` to preserve its service and
+configuration conventions.
 
 > **Raspberry Pi 5 users:** Follow the separate [Raspberry Pi 5 installation guide](../pi5/INSTALL.md).
 
@@ -11,7 +13,7 @@ This guide covers both fresh installations and upgrades from previous versions o
 The automated installer:
 
 * Detects your Raspberry Pi hardware
-* Clones FlightTracker
+* Clones Hobby Ticker from `gvalles9/Hobby_Ticker_Wall`
 * Creates a Python virtual environment
 * Installs the required dependencies
 * Installs the Hzeller `rpi-rgb-led-matrix` driver
@@ -20,7 +22,7 @@ The automated installer:
 Run:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/ColinWaddell/FlightTracker/refs/heads/main/platforms/pi/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/gvalles9/Hobby_Ticker_Wall/main/platforms/pi/install.sh | bash
 ```
 
 For most users, this is the recommended installation method.
@@ -261,12 +263,11 @@ Install Git:
 sudo apt install -y git
 ```
 
-Clone FlightTracker:
+Clone Hobby Ticker into the expected application directory:
 
 ```bash
-cd ~
-git clone https://github.com/ColinWaddell/FlightTracker.git
-cd FlightTracker
+git clone https://github.com/gvalles9/Hobby_Ticker_Wall.git "$HOME/FlightTracker"
+cd "$HOME/FlightTracker"
 ```
 
 Create the FlightTracker virtual environment:
@@ -308,9 +309,19 @@ rgbmatrix bindings installed
 
 ## Configuration
 
-FlightTracker provides a browser-based configuration interface.
+FlightTracker provides a browser-based configuration interface. On the first boot after
+a fresh install, it starts a temporary, password-protected setup hotspot. The matrix QR
+code contains the hotspot join details; scan it with your phone, then open
+`http://192.168.4.1:8584/wifi-setup` to enter your home Wi-Fi name and password. The
+hotspot turns off when the Pi joins your network. The matrix then displays the regular
+settings QR code until initial settings are saved.
 
-On first boot, the matrix displays a QR code pointing to the configuration page. The QR code remains on screen until the settings are saved for the first time.
+The hotspot password is random and shown only inside the QR code. Anyone who can
+photograph or copy the QR code can also join while setup mode is active.
+
+The installer needs internet access to download FlightTracker and dependencies. Use
+Ethernet or temporary Wi-Fi during installation; the first-boot hotspot lets you set
+the Wi-Fi credentials you want to keep afterward.
 
 On subsequent boots, the QR code appears for five seconds before the normal display begins.
 
@@ -321,6 +332,21 @@ http://<pi-ip-address>:8584
 ```
 
 Replace `<pi-ip-address>` with the Raspberry Pi’s IP address.
+
+You can also use the Pi’s local hostname, such as
+`http://raspberrypi.local:8584/settings`. The installer enables mDNS discovery; this
+works when your phone/computer and Pi are on the same network.
+
+The Admin page can restore FlightTracker defaults while keeping your web password
+and Wi-Fi credentials, or reopen the protected Wi-Fi setup hotspot to change networks.
+If the saved Wi-Fi is unavailable for 10 minutes, the Pi automatically opens that
+hotspot and displays its QR. It retains the saved credentials and returns to the
+same network if it becomes available again.
+
+FlightTracker also checks its configured Git upstream every night at 2:00 AM local
+time. It updates only a clean checkout, installs changed Python dependencies, and
+restarts after a successful update; saved configuration is kept. To inspect update
+logs, run `sudo journalctl -u FlightTracker-NightlyUpdate.service`.
 
 You can find the Pi’s IP addresses with:
 

@@ -28,6 +28,7 @@ export default defineComponent({
     function updateLocation(lat, lng) {
       props.store.config.flight_lat = lat;
       props.store.config.flight_lng = lng;
+      props.store.config.location_source = "manual";
       marker.setLatLng([lat, lng]);
       circle.setLatLng([lat, lng]);
     }
@@ -87,6 +88,16 @@ export default defineComponent({
       });
 
       // -- Radius changes -> resize circle + refit --
+      watch(
+        () => [props.store.config.flight_lat, props.store.config.flight_lng],
+        ([newLat, newLng]) => {
+          if (!Number.isFinite(newLat) || !Number.isFinite(newLng)) return;
+          marker.setLatLng([newLat, newLng]);
+          circle.setLatLng([newLat, newLng]);
+          map.panTo([newLat, newLng], { animate: false });
+        },
+      );
+
       watch(
         () => props.store.config.flight_radius,
         (newRadius) => {
@@ -150,12 +161,14 @@ export default defineComponent({
       const lat = parseFloat(e.target.value);
       if (Number.isFinite(lat)) {
         this.store.config.flight_lat = lat;
+        this.store.config.location_source = "manual";
       }
     },
     onLngChange(e) {
       const lng = wrapLng(parseFloat(e.target.value));
       if (Number.isFinite(lng)) {
         this.store.config.flight_lng = lng;
+        this.store.config.location_source = "manual";
       }
     },
   },

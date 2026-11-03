@@ -13,10 +13,11 @@ import threading
 
 import pytest
 
+from setup import screen
 from utilities import image_inbox as mod
 
-# A valid frame: 6144 raw RGB bytes.
-FRAME = bytes(range(256)) * 24
+FRAME_BYTES = screen.WIDTH * screen.HEIGHT * 3
+FRAME = bytes(range(256)) * (FRAME_BYTES // 256)
 
 
 def b64(payload=None):
@@ -65,7 +66,7 @@ def test_rejects_non_object(inbox):
 
 
 def test_rejects_bad_frame_length(inbox):
-    with pytest.raises(mod.ImageSubmissionError, match="6144"):
+    with pytest.raises(mod.ImageSubmissionError, match=str(FRAME_BYTES)):
         inbox.submit(make_payload(data=[b64(FRAME[:-10])]))
 
 

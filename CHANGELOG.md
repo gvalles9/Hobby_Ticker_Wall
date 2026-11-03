@@ -1,8 +1,53 @@
-# Changelog
+# Hobby Ticker Changelog
 
-All notable changes to FlightTracker are documented here.
+All notable changes to Hobby Ticker are documented here. Earlier entries record the
+upstream FlightTracker release history on which this fork is based.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [1.0.0] - 2026-11-02
+
+### Added
+
+- Configured the display for three daisy-chained 64×32 HUB75 panels
+  (192×32 total), including platform-aware panel initialization and Pi 3 B+
+  installation guidance.
+- Added four configurable flight telemetry fields to the flight screen, with
+  heading, vertical speed, altitude, and ground speed as defaults.
+- Added an approximate flight-route progress indicator using aircraft
+  position and bundled airport coordinates. It hides when required position
+  or route data is unavailable.
+- Added independent measurement profiles for flight/satellite scenes and
+  idle screens. Flight defaults to metric; idle weather defaults to standard.
+- Added cycling between the classic idle screen and a three-day forecast,
+  clearer weather/date presentation, and improved behavior for incomplete or
+  unavailable forecast data.
+- Added first-boot Wi-Fi setup and recovery support, including a setup
+  hotspot, QR-assisted connection flow, and a watchdog for disconnected
+  networks.
+- Added a simulator exit reset: closing the Pygame window restores that
+  simulator installation's configuration to defaults. Raspberry Pi
+  configuration is not reset by this behavior.
+- Added branch-based update checks against the configured Git upstream.
+  Updates use fast-forward-only merges, refuse tracked local changes and
+  diverged branches, and synchronize platform dependencies after updating.
+
+### Changed
+
+- Rebranded user-facing startup, CLI, web, and documentation surfaces as
+  Hobby Ticker V1. Product version `1.0.0` is distinct from the retained
+  upstream compatibility version used for backup metadata.
+- Refined the flight layout with a right-aligned page count and telemetry,
+  left-to-right aircraft-model scrolling, and the route progress bar along the
+  bottom row.
+- Updated Raspberry Pi installation and recovery instructions for this fork
+  and its three-panel configuration.
+
+### Attribution
+
+- Hobby Ticker is based on Colin Waddell's FlightTracker. Original project
+  attribution and existing open-source acknowledgements are retained in the
+  README, web footer, and license documentation.
 
 ## [2.12.5]
 

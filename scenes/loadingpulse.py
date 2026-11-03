@@ -5,16 +5,16 @@ Replaces the former LoadingPulseScene mixin.  Call tick(frame) once per
 frame after the active scene has drawn.
 """
 
-from setup import colours
+from setup import colours, screen
 from setup.configuration import Config
 
 # Default blinker position (used for the classic theme and any unknown theme).
-DEFAULT_BLINKER_POSITION = (63, 0)
+DEFAULT_BLINKER_POSITION = (screen.WIDTH - 1, 0)
 
 # Per-theme blinker positions.  Falls back to DEFAULT_BLINKER_POSITION when
 # the configured idle theme is not listed here.
 BLINKER_POSITIONS = {
-    "forecast": (63, 31),
+    "forecast": (screen.WIDTH - 1, screen.HEIGHT - 1),
 }
 
 BLINKER_STEPS = 10

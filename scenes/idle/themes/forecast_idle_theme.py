@@ -39,7 +39,7 @@ from scenes.idle.themes.theme_utilities import (
     font_text_width,
     temperature_to_colour,
 )
-from setup import fonts, frames
+from setup import fonts, frames, screen
 from setup.configuration import Config
 from setup.themes import (
     TC,
@@ -54,13 +54,12 @@ from utilities.sun_times import is_daytime
 # ---------------------------------------------------------------------------
 
 LABEL_FONT = fonts.extrasmall  # 4x6
-LABEL_FONT_HEIGHT = 5  # pixel height of 4x6 glyphs
 
-ICON_POSITIONS_X = (3, 24, 45)  # x positions for 3 sprites on a 64px panel
 # Sprite is 18px tall (12px icon + 6px animation).
 # Layout: top label (~5px) + sprite (18px) + bottom label (~5px) = 28px
 # within 32px panel -> 4px spare, split as 2px top margin + 2px bottom.
 ICON_POSITIONS_Y = 12  # y position for sprite top-left
+DAY_DIVIDER_TOP_Y = 8  # keep clear of the clock/date row
 TOP_LABEL_Y = 12  # baseline for the label above the sprite
 BOTTOM_LABEL_Y = 32  # baseline for the label below the sprite
 
@@ -69,6 +68,10 @@ _DAY_ABBREVS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 
 class ForecastIdleTheme(BaseIdleScene):
     """Forecast idle layout - weather icons for upcoming periods."""
+
+    def __init__(self, canvas, panel, duration_override: str | None = None):
+        self.duration_override = duration_override
+        super().__init__(canvas, panel)
 
     # ------------------------------------------------------------------
     # Theme-specific state
@@ -122,7 +125,7 @@ class ForecastIdleTheme(BaseIdleScene):
             return
 
         cfg = Config.instance()
-        duration = cfg.theme_forecast.get("duration", "3hour")
+        duration = self.duration_override or cfg.theme_forecast.get("duration", "3hour")
         lat = cfg.observer_lat
         lng = cfg.observer_lng
 
@@ -143,10 +146,14 @@ class ForecastIdleTheme(BaseIdleScene):
         self.bar.reset()
         self.bar.draw()
 
+        if duration == "3day":
+            self._draw_day_dividers()
+
         # Create new animations and draw labels
+        icon_positions = self._icon_positions_for_duration(duration)
         for i, slot in enumerate(slots):
             condition_code, is_day, top_label, bottom_label, temp_c = slot
-            x = ICON_POSITIONS_X[i]
+            x = icon_positions[i]
 
             icon_name, animation_name, intensity = code_to_weather(
                 condition_code, not is_day
@@ -184,7 +191,13 @@ class ForecastIdleTheme(BaseIdleScene):
                 total_width = sum(
                     font_text_width(LABEL_FONT, seg[0]) for seg in bottom_label
                 )
-                seg_x = x + round((SPRITE_WIDTH - total_width) / 2)
+                seg_x = max(
+                    0,
+                    min(
+                        screen.WIDTH - total_width,
+                        x + round((SPRITE_WIDTH - total_width) / 2),
+                    ),
+                )
                 for seg_text, seg_colour in bottom_label:
                     self.panel.draw_text(
                         self.canvas,
@@ -197,6 +210,34 @@ class ForecastIdleTheme(BaseIdleScene):
                     seg_x += font_text_width(LABEL_FONT, seg_text)
 
         self.last_slots = slots
+
+    def _draw_day_dividers(self) -> None:
+        """Separate the three daily forecast columns with vertical bars."""
+        divider_colour = TC(THEME_FORECAST_TOP_TEXT)
+        for x in (screen.WIDTH // 3, 2 * screen.WIDTH // 3):
+            self.panel.draw_line(
+                self.canvas,
+                x,
+                DAY_DIVIDER_TOP_Y,
+                x,
+                screen.HEIGHT - 1,
+                divider_colour,
+            )
+
+    @staticmethod
+    def _icon_positions_for_duration(duration: str) -> tuple[int, int, int]:
+        """Return sprite positions, centring daily icons in their columns."""
+        if duration == "3day":
+            column_width = screen.WIDTH // 3
+            return tuple(
+                index * column_width + (column_width - SPRITE_WIDTH) // 2
+                for index in range(3)
+            )
+        return (
+            3,
+            (screen.WIDTH - SPRITE_WIDTH) // 2,
+            screen.WIDTH - SPRITE_WIDTH - 3,
+        )
 
     def _destroy_animations(self) -> None:
         """Blank each animation's area and clear the list."""
@@ -278,11 +319,17 @@ class ForecastIdleTheme(BaseIdleScene):
             temp_max = day_data.get("maxtemp_c", 0.0)
             day_date = now + datetime.timedelta(days=day_offset)
             top_label = _DAY_ABBREVS[day_date.weekday()]
-            min_str = self._format_temp_value(temp_min, units=False)
-            max_str = self._format_temp_value(temp_max, units=False)
-            bottom_label = min_str + max_str
-            # Use the average temperature for colouring
-            temp_avg = (temp_min + temp_max) / 2
+            bottom_label = self._format_daily_temperatures(temp_min, temp_max)
+            available_temperatures = [
+                temperature
+                for temperature in (temp_min, temp_max)
+                if temperature is not None
+            ]
+            temp_avg = (
+                sum(available_temperatures) / len(available_temperatures)
+                if available_temperatures
+                else None
+            )
             slots.append((condition_code, is_day, top_label, bottom_label, temp_avg))
 
         return slots
@@ -312,7 +359,7 @@ class ForecastIdleTheme(BaseIdleScene):
         return "°C"
 
     def _format_temp_value(
-        self, temp_c: float, units: bool = True
+        self, temp_c: float | None, units: bool = True
     ) -> list[tuple[str, object]]:
         """Format a temperature as label segments, respecting units.
 
@@ -322,6 +369,9 @@ class ForecastIdleTheme(BaseIdleScene):
         When present the unit suffix is coloured with
         ``THEME_PLANE_TLM_UNITS``.
         """
+        if temp_c is None:
+            return [("--", TC(THEME_FORECAST_TOP_TEXT))]
+
         rounded = round(self._convert_temp(temp_c))
         if units and (-10 < rounded < 100):
             return [
@@ -329,6 +379,25 @@ class ForecastIdleTheme(BaseIdleScene):
                 (self._unit_char(), TC(THEME_PLANE_TLM_UNITS)),
             ]
         return [(str(rounded), temperature_to_colour(temp_c))]
+
+    def _format_daily_temperatures(
+        self, temp_min: float | None, temp_max: float | None
+    ) -> list[tuple[str, object]]:
+        """Label the daily low and high and identify their configured unit."""
+        label_colour = TC(THEME_FORECAST_TOP_TEXT)
+        segments = [
+            ("Lo ", label_colour),
+            *self._format_temp_value(temp_min, units=False),
+            (self._unit_char(), TC(THEME_PLANE_TLM_UNITS)),
+        ]
+        segments.extend(
+            [
+                (" Hi ", label_colour),
+                *self._format_temp_value(temp_max, units=False),
+                (self._unit_char(), TC(THEME_PLANE_TLM_UNITS)),
+            ]
+        )
+        return segments
 
     def _format_temp(self, temp_c: float) -> list[tuple[str, object]]:
         """Format a temperature for the hourly label, respecting units.

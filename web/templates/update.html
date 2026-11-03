@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}" />
-  <title>FlightTracker - Update</title>
+  <title>Hobby Ticker - Update</title>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" />
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
@@ -24,16 +24,24 @@
 
     <div class="row g-3 mb-3">
       <div class="col-sm-6">
-        <div class="text-muted small">Current version</div>
+        <div class="text-muted small">Hobby Ticker version</div>
         <div class="version-badge" id="current-version">{{ info.current_version }}</div>
       </div>
       <div class="col-sm-6">
-        <div class="text-muted small">Latest available</div>
+        <div class="text-muted small">Latest upstream commit</div>
         <div class="version-badge" id="latest-version">
           {% if info.latest_version %}{{ info.latest_version }}{% else %}&mdash;{% endif %}
         </div>
       </div>
     </div>
+
+    {% if info.commit %}
+    <p class="small mb-3">
+      Tracking <code>{{ info.upstream_ref }}</code> in
+      <a href="{{ repository_url }}" target="_blank" rel="noopener">your GitHub repository</a>
+      · <a id="commit-link" href="{{ repository_url }}/commit/{{ info.commit }}" target="_blank" rel="noopener">view commit</a>
+    </p>
+    {% endif %}
 
     <div class="mb-3" id="status-area">
       {% if info.error %}
@@ -45,30 +53,16 @@
       {% endif %}
     </div>
 
-    {% if info.update_available and info.tag %}
-    <div class="mb-3" id="release-notes-container">
-      <div class="text-muted small mb-1"><i class="bi bi-file-text me-1"></i>Release notes</div>
-      <div id="release-notes" class="border rounded p-3 bg-light small" style="max-height:300px;overflow-y:auto;">
-        <span class="text-muted">Loading release notes...</span>
-      </div>
-      <a href="https://github.com/ColinWaddell/FlightTracker/releases/tag/{{ info.tag }}"
-         target="_blank" class="text-decoration-none small ms-1 mt-1 d-inline-block">
-        <i class="bi bi-box-arrow-up-right me-1"></i>View on GitHub
-      </a>
-    </div>
-    {% endif %}
-
     <div class="d-flex gap-2 flex-wrap align-items-center">
       <button type="button" class="btn btn-outline-primary" id="check-btn">
         <i class="bi bi-arrow-repeat me-1"></i>Check for Updates
       </button>
 
-      {% if info.update_available and info.tag %}
+      {% if info.update_available %}
       <form method="post" action="/update/apply" id="update-form" class="d-inline">
         <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
-        <input type="hidden" name="tag" value="{{ info.tag }}" />
         <button type="submit" class="btn btn-primary" id="install-btn">
-          <i class="bi bi-download me-1"></i>Install Update ({{ info.tag }})
+          <i class="bi bi-download me-1"></i>Update from {{ info.upstream_ref }}
         </button>
       </form>
       {% endif %}
@@ -78,11 +72,10 @@
   <div class="card p-3">
     <p class="text-muted small mb-0">
       <i class="bi bi-info-circle me-1"></i>
-      Updates are pulled from tagged releases on the
-      <a href="https://github.com/ColinWaddell/FlightTracker" target="_blank">GitHub repository</a>.
-      Installing an update will download the new code, update Python dependencies,
-      and restart FlightTracker. Your configuration should be preserved, but make sure
-      to back up anything important before proceeding. 
+      This updater checks the configured Git upstream and can fast-forward your checkout
+      when newer commits are available. It will not overwrite local commits or tracked
+      changes. Your configuration should be preserved, but make sure to back up anything
+      important before proceeding.
     </p>
   </div>
 
@@ -91,69 +84,8 @@
 
 <script>
 const csrfToken = "{{ csrf_token }}";
-const initialTag = "{{ info.tag if info.update_available else '' }}";
-
-// Render markdown to HTML (lightweight - handles headings, bold, italic,
-// code blocks, lists, links, and paragraphs)
-function renderMarkdown(md) {
-  if (!md) return '<span class="text-muted">No release notes available.</span>';
-  // Escape HTML first for safety
-  let html = md.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  // Code blocks
-  html = html.replace(/```([\s\S]*?)```/g, '<pre class="bg-dark text-light p-2 rounded small"><code>$1</code></pre>');
-  // Inline code
-  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
-  // Headings
-  html = html.replace(/^### (.+)$/gm, '<h6 class="fw-semibold mt-2 mb-1">$1</h6>');
-  html = html.replace(/^## (.+)$/gm, '<h5 class="fw-semibold mt-2 mb-1">$1</h5>');
-  html = html.replace(/^# (.+)$/gm, '<h5 class="fw-semibold mt-2 mb-1">$1</h5>');
-  // Bold and italic
-  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
-  // Links [text](url)
-  html = html.replace(/\[([^]]+)\]\((https?:[^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
-  // List items (group consecutive lines into <ul>)
-  html = html.replace(/((?:^- .+$\n?)+)/gm, match => {
-    const items = match.trim().split('\n').map(l => '<li class="mb-1">' + l.replace(/^- /, '') + '</li>').join('');
-    return '<ul class="mb-1">' + items + '</ul>';
-  });
-  html = html.replace(/((?:^[0-9]+\. .+$\n?)+)/gm, match => {
-    const items = match.trim().split('\n').map(l => '<li class="mb-1">' + l.replace(/^[0-9]+\. /, '') + '</li>').join('');
-    return '<ul class="mb-1">' + items + '</ul>';
-  });
-  // Wrap orphan non-empty lines that aren't already HTML tags in <p>
-  html = html.split('\n').map(line => {
-    const t = line.trim();
-    if (t && !t.startsWith('<') && !t.startsWith('&lt;')) return '<p class="mb-1">' + t + '</p>';
-    return line;
-  }).join('\n');
-  return html;
-}
-
-async function loadReleaseNotes(tag) {
-  const container = document.getElementById('release-notes');
-  if (!container || !tag) return;
-  container.innerHTML = '<span class="text-muted"><span class="spinner-border spinner-border-sm me-1"></span>Loading release notes...</span>';
-  try {
-    const formData = new FormData();
-    formData.append('csrf_token', csrfToken);
-    formData.append('tag', tag);
-    const resp = await fetch('/update/notes', { method: 'POST', body: formData });
-    const data = await resp.json();
-    if (data.error) {
-      container.innerHTML = '<span class="text-muted">' + data.error + '</span>';
-    } else {
-      container.innerHTML = renderMarkdown(data.notes);
-    }
-  } catch (err) {
-    container.innerHTML = '<span class="text-muted">Unable to load release notes.</span>';
-  }
-}
-
-// Load notes on page load if update is available
-if (initialTag) {
-  loadReleaseNotes(initialTag);
-}
+const repositoryUrl = "{{ repository_url }}";
+const commitLink = document.getElementById("commit-link");
 
 document.getElementById("check-btn").addEventListener("click", async function() {
   const btn = this;
@@ -173,8 +105,12 @@ document.getElementById("check-btn").addEventListener("click", async function() 
     if (data.error) {
       statusArea.innerHTML = '<span class="badge bg-secondary"><i class="bi bi-exclamation-triangle me-1"></i>' + data.error + '</span>';
       latestEl.textContent = '-';
+      document.getElementById("update-form")?.remove();
     } else {
       latestEl.textContent = data.latest_version || '-';
+      if (commitLink && data.commit) {
+        commitLink.href = repositoryUrl + "/commit/" + data.commit;
+      }
 
       if (data.update_available) {
         statusArea.innerHTML = '<span class="badge bg-warning text-dark"><i class="bi bi-arrow-up-circle me-1"></i>Update available</span>';
@@ -184,26 +120,15 @@ document.getElementById("check-btn").addEventListener("click", async function() 
           const formHtml =
             '<form method="post" action="/update/apply" id="update-form" class="d-inline">' +
             '<input type="hidden" name="csrf_token" value="' + csrfToken + '" />' +
-            '<input type="hidden" name="tag" value="' + data.tag + '" />' +
-            '<button type="submit" class="btn btn-primary" id="install-btn">' +
-            '<i class="bi bi-download me-1"></i>Install Update (' + data.tag + ')</button>' +
+            '<button type="submit" class="btn btn-primary" id="install-btn"></button>' +
             '</form>';
-          btn.insertAdjacentHTML("afterend", formHtml);
+            btn.insertAdjacentHTML("afterend", formHtml);
         }
-
-        // Load release notes inline
-        if (!document.getElementById('release-notes-container')) {
-          const notesHtml =
-            '<div class="mb-3" id="release-notes-container">' +
-            '<div class="text-muted small mb-1"><i class="bi bi-file-text me-1"></i>Release notes</div>' +
-            '<div id="release-notes" class="border rounded p-3 bg-light small" style="max-height:300px;overflow-y:auto;"></span></div>' +
-            '<a href="https://github.com/ColinWaddell/FlightTracker/releases/tag/' + data.tag + '" target="_blank" class="text-decoration-none small ms-1 mt-1 d-inline-block"><i class="bi bi-box-arrow-up-right me-1"></i>View on GitHub</a>' +
-            '</div>';
-          document.getElementById('status-area').insertAdjacentHTML('afterend', notesHtml);
-        }
-        loadReleaseNotes(data.tag);
+        document.querySelector("#install-btn").textContent =
+            "Update from " + data.upstream_ref;
       } else {
         statusArea.innerHTML = '<span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Up to date</span>';
+        document.getElementById("update-form")?.remove();
       }
     }
   } catch (err) {

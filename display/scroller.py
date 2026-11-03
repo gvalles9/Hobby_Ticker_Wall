@@ -157,6 +157,7 @@ class Scroller:
         spans: Spans,
         *,
         bounce: bool = False,
+        reverse: bool = False,
     ) -> None:
         if width <= 0:
             raise ValueError("Scroller width must be greater than zero")
@@ -167,12 +168,15 @@ class Scroller:
         self.y = y
         self.width = width
         self.bounce = bounce
+        self.reverse = reverse and not bounce
 
         self._spans = spans
         self._rendered = _render_spans(spans)
         self._displayed: list[PixelColumn] = [{} for _ in range(width)]
 
-        self.position = 0 if bounce else width
+        self.position = (
+            0 if bounce else (-len(self._rendered) if self.reverse else width)
+        )
         self.state = BounceState.INITIAL
         self.timer = 0
         self.loop_count = 0
@@ -226,17 +230,24 @@ class Scroller:
     def reset(self) -> None:
         """Blank the viewport and restart this scroller from its initial state."""
         self._blank_displayed()
-        self.position = 0 if self.bounce else self.width
+        self.position = (
+            0 if self.bounce else (-self.content_width if self.reverse else self.width)
+        )
         self.state = BounceState.INITIAL
         self.timer = 0
         self.loop_count = 0
         self._looped = False
 
     def _advance_continuous(self) -> None:
-        self.position -= 1
+        self.position += 1 if self.reverse else -1
 
-        if self.position + self.content_width < 0:
-            self.position = self.width
+        finished = (
+            self.position >= self.width
+            if self.reverse
+            else self.position + self.content_width < 0
+        )
+        if finished:
+            self.position = -self.content_width if self.reverse else self.width
             self.loop_count += 1
             self._looped = True
 
@@ -292,7 +303,12 @@ class Scroller:
             self.position = max(-self.scroll_max, min(0, self.position))
             return
 
-        if self.position + self.content_width < 0:
+        if self.reverse:
+            if self.position > self.width:
+                self.position = -self.content_width
+            else:
+                self.position = max(-self.content_width, self.position)
+        elif self.position + self.content_width < 0:
             self.position = self.width
 
     def _draw_viewport(self) -> None:

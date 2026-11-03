@@ -1,0 +1,11 @@
+[Unit]
+Description=Update FlightTracker from its configured Git remote
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=@APP_USER@
+WorkingDirectory=@INSTALL_DIR@
+ExecStart=/usr/bin/python3 @INSTALL_DIR@/utilities/nightly_update.py
+TimeoutStartSec=1800

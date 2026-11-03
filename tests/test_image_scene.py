@@ -12,9 +12,11 @@ stub the tests control directly.
 import pytest
 
 from scenes.image.image_scene import ImageScene
+from setup import screen
 from utilities import image_inbox as mod
 
-FRAME = bytes(range(256)) * 24
+FRAME_BYTES = screen.WIDTH * screen.HEIGHT * 3
+FRAME = bytes(range(256)) * (FRAME_BYTES // 256)
 
 
 def make_submission(frames=1, loops=1, frame_ms=500):
@@ -44,15 +46,15 @@ class FakeInbox:
 class FakePanel:
     def __init__(self):
         self.cleared = 0
-        self.pixels = bytearray(64 * 32 * 3)
+        self.pixels = bytearray(FRAME_BYTES)
         self.writes = 0  # set_pixel calls
 
     def clear(self, canvas):
         self.cleared += 1
-        self.pixels = bytearray(64 * 32 * 3)
+        self.pixels = bytearray(FRAME_BYTES)
 
     def set_pixel(self, canvas, x, y, r, g, b):
-        i = (y * 64 + x) * 3
+        i = (y * screen.WIDTH + x) * 3
         self.pixels[i : i + 3] = bytes((r, g, b))
         self.writes += 1
 
@@ -127,11 +129,11 @@ def test_draw_paints_full_screen_image(scene, fake_inbox, fake_panel):
 def test_draw_skips_pixels_already_on_canvas(scene, fake_inbox, fake_panel):
     # Black out the top row: the cleared canvas already holds those
     # pixels, so only the other rows are written.
-    frame = bytes(64 * 3) + FRAME[64 * 3 :]
+    frame = bytes(screen.WIDTH * 3) + FRAME[screen.WIDTH * 3 :]
     fake_inbox.set(mod.Submission(frames=[frame], loops=1, frame_ms=500))
     scene.on_enter()
     scene.draw()
-    assert fake_panel.writes == 64 * 31
+    assert fake_panel.writes == screen.WIDTH * (screen.HEIGHT - 1)
     assert bytes(fake_panel.pixels) == frame
 
 

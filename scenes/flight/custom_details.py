@@ -78,6 +78,31 @@ TEXT_FIELDS: frozenset[str] = frozenset(
 # radar displays, so dashes keep the width and read as "no code".
 FIELD_PLACEHOLDERS: dict[str, str] = {"squawk": "----"}
 
+DATA_POINT_LABELS: dict[str, str] = {
+    "callsign": "CALL",
+    "icao_callsign": "ICAO",
+    "airline_icao": "AIR",
+    "operator_icao": "OPER",
+    "owner": "OWNER",
+    "plane": "PLANE",
+    "icao_type": "TYPE",
+    "registration": "REG",
+    "origin": "ORIG",
+    "destination": "DEST",
+    "origin_name": "ORIG",
+    "destination_name": "DEST",
+    "origin_municipality": "CITY",
+    "destination_municipality": "CITY",
+    "origin_country": "CTRY",
+    "destination_country": "CTRY",
+    "squawk": "SQWK",
+    "altitude": "ALT",
+    "ground_speed": "SPD",
+    "heading": "HDG",
+    "vertical_speed": "VS",
+    "distance_to_home": "DIST",
+}
+
 # Telemetry fields - rendered with fonts.small_symbols, colour THEME_PLANE_TLM.
 # Each maps to a set of valid unit strings and a conversion function.
 # Conversion functions take (raw_value, unit) and return (value_str, unit_str).
@@ -433,7 +458,8 @@ def _resolve_unit(field: str, requested_unit: str | None, cfg: Config) -> str:
 
     _valid_units, _convert, config_key = TELEMETRY_FIELDS[field]
     if config_key is None:
-        # heading - no unit
+        if field == "vertical_speed":
+            return "fpm" if cfg.height_unit == "ft" else "ms"
         return ""
 
     config_val = getattr(cfg, config_key)
@@ -541,6 +567,16 @@ def _build_field_spans(token: FieldToken, flight: Flight, cfg: Config) -> Spans:
         return result
 
     return []
+
+
+def format_data_point_value(field: str, flight: Flight, cfg: Config) -> str:
+    """Return one available flight field as compact display text."""
+    if field not in AVAILABLE_FIELDS:
+        return ""
+    if field == "distance_to_home" and not flight.distance_to_home:
+        return ""
+    spans = _build_field_spans(FieldToken(field, None, None), flight, cfg)
+    return "".join(span.text for span in spans)
 
 
 # ---------------------------------------------------------------------------

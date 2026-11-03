@@ -5,10 +5,10 @@ Shown when one or more tracked satellites are currently above the configured
 minimum elevation.  Priority 2 (beats FlightScene at 1 and IdleScene at 0).
 
 Display layout:
-    Left  32x32  Az-El circular plot (horizon ring, north notch, trajectory
-                 arcs, bright current-position dots).
-    Right 32 col Cycling name + telemetry (speed / altitude), each satellite
-                 rendered in its matching palette colour.
+    Centre Az-El circular plot (horizon ring, north notch, trajectory arcs,
+          bright current-position dots).
+    Right  Cycling name + telemetry (speed / altitude), each satellite
+          rendered in its matching palette colour.
 
 Data flow:
     TLEManager  ->  passes.compute_passes()  ->  list[PassWindow]
@@ -45,7 +45,8 @@ NO_TLE_RETRY_SECONDS = 60
 NO_TLE_LOG_INTERVAL = 600
 
 # Right-column text positions (extrasmall 4x6 font, 6 lines)
-TEXT_COL_X = 0
+TEXT_COL_X = screen.WIDTH - 40
+NAME_RIGHT_MARGIN = 4
 NAME_Y = 5  # satellite name (yellow)
 # blank line at y=6
 LINE1_Y = 13  # "Speed" label
@@ -162,7 +163,12 @@ class SatelliteScene:
         if not self.ring_drawn:
             # Clear plot area before redrawing ring + trajectories
             self.panel.draw_square(
-                self.canvas, 0, 0, 31, screen.HEIGHT, Colour(0, 0, 0)
+                self.canvas,
+                azel_plot.PLOT_CX - azel_plot.PLOT_RADIUS - 1,
+                0,
+                azel_plot.PLOT_CX + azel_plot.PLOT_RADIUS + 1,
+                screen.HEIGHT,
+                Colour(0, 0, 0),
             )
             azel_plot.draw_horizon_ring(self.panel, self.canvas)
             self.draw_trajectories(active)
@@ -367,14 +373,19 @@ class SatelliteScene:
         # Build the set of text elements for this frame.
         # Each entry is a PlacedSpan (a Span positioned at an x, y baseline).
         f = fonts.extrasmall
+        name_width = font_text_width(f, window.name)
+        name_x = max(
+            0,
+            min(TEXT_COL_X, screen.WIDTH - name_width - NAME_RIGHT_MARGIN),
+        )
         new_texts: dict[str, PlacedSpan] = {
-            "name": PlacedSpan(Span(YELLOW, f, window.name), TEXT_COL_X, NAME_Y),
+            "name": PlacedSpan(Span(YELLOW, f, window.name), name_x, NAME_Y),
             "spd_label": PlacedSpan(Span(PEACH, f, "Speed"), TEXT_COL_X, LINE1_Y),
             "spd_value": PlacedSpan(Span(WHITE, f, speed_val), TEXT_COL_X, LINE2_Y),
-            "spd_unit": PlacedSpan(Span(PINK, f, speed_unit), 0, LINE2_Y),
+            "spd_unit": PlacedSpan(Span(PINK, f, speed_unit), TEXT_COL_X, LINE2_Y),
             "alt_label": PlacedSpan(Span(PEACH, f, "Altitude"), TEXT_COL_X, LINE3_Y),
             "alt_value": PlacedSpan(Span(WHITE, f, alt_val), TEXT_COL_X, LINE4_Y),
-            "alt_unit": PlacedSpan(Span(PINK, f, alt_unit), 0, LINE4_Y),
+            "alt_unit": PlacedSpan(Span(PINK, f, alt_unit), TEXT_COL_X, LINE4_Y),
         }
 
         # Compute unit x-positions (right after the value text)

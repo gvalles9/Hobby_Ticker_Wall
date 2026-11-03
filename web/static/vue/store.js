@@ -128,6 +128,7 @@ export const SIDEBAR_GROUPS = [
       { section: "group-logging", icon: "bi-terminal", label: "Logging" },
       { section: "group-clear-cache", icon: "bi-database", label: "Cache" },
       { section: "group-backup", icon: "bi-file-earmark-arrow-down", label: "Backup" },
+      { section: "group-recovery", icon: "bi-arrow-counterclockwise", label: "Recovery" },
       { section: "group-password", icon: "bi-key", label: "Change Password" },
       { section: "group-version", icon: "bi-info-circle", label: "Version" },
       { section: "group-help", icon: "bi-question-circle", label: "Help & Support" },
@@ -152,7 +153,7 @@ export function createStore(initialConfig, pageData) {
   // UI-only state (not submitted to the backend)
   const ui = reactive({
     saving: false,
-    weatherKeyError: false,
+    locationStatus: "",
     templateErrors: pageData.templateErrors || [],
     serverError: pageData.error || null,
     importFailed: pageData.importFailed || false,

@@ -364,38 +364,26 @@ export default defineComponent({
     <div id="group-defaults" class="card mb-3 p-3">
       <p class="section-heading"><i class="bi bi-rulers me-2"></i>Defaults</p>
 
-      <h5>Units</h5>
+      <h5>Screen Units</h5>
 
       <div class="mb-3">
-        <label class="form-label small">Temperature</label>
-        <select class="form-select form-select-sm" name="temperature_unit" style="max-width:180px"
-                v-model="store.config.temperature_unit">
-          <option value="c">Celsius (°C)</option>
-          <option value="f">Fahrenheit (°F)</option>
-          <option value="k">Kelvin (K)</option>
+        <label class="form-label small">Flight scenes</label>
+        <select class="form-select form-select-sm" name="flight_units" style="max-width:220px"
+                v-model="store.config.flight_units">
+          <option value="metric">Metric (m, km/h, m/s)</option>
+          <option value="standard">Standard (ft, mph, ft/min)</option>
         </select>
-        <div class="form-text text-muted small">How temperatures are shown on the display.</div>
+        <div class="form-text text-muted small">Applies to the flight data panel, custom flight details, and satellite altitude/speed.</div>
       </div>
 
       <div class="mb-3">
-        <label class="form-label small">Speed</label>
-        <select class="form-select form-select-sm" name="speed_unit" style="max-width:180px"
-                v-model="store.config.speed_unit">
-          <option value="kmh">km/h</option>
-          <option value="mph">mph</option>
-          <option value="kts">knots</option>
+        <label class="form-label small">Idle screens</label>
+        <select class="form-select form-select-sm" name="idle_units" style="max-width:220px"
+                v-model="store.config.idle_units">
+          <option value="metric">Metric (°C, mm, km/h)</option>
+          <option value="standard">Standard (°F, in, mph)</option>
         </select>
-        <div class="form-text text-muted small">How aircraft and wind speeds are shown.</div>
-      </div>
-
-      <div class="mb-3">
-        <label class="form-label small">Height and Distance</label>
-        <select class="form-select form-select-sm" name="height_unit" style="max-width:180px"
-                v-model="store.config.height_unit">
-          <option value="m">Metres (m)</option>
-          <option value="ft">Feet (ft)</option>
-        </select>
-        <div class="form-text text-muted small">How aircraft and satellite altitudes are shown.</div>
+        <div class="form-text text-muted small">Applies to idle-screen weather and forecast values. Standard units are the default.</div>
       </div>
 
       <div class="mb-3">
@@ -423,7 +411,7 @@ export default defineComponent({
         <label class="form-label small">Date format</label>
         <select class="form-select form-select-sm" name="date_format" style="max-width:200px"
                 v-model.number="store.config.date_format">
-          <option :value="0">YYYY-MM-DD</option>
+          <option :value="0">Month Name Day Year (November 1st 2026)</option>
           <option :value="1">DD-MM-YYYY</option>
           <option :value="2">MM-DD-YYYY</option>
         </select>

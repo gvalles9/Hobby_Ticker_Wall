@@ -40,8 +40,8 @@ DEFAULT_PASSWORD = b"flighttracker"
 
 # Location / flight zone
 DEFAULT_FLIGHT_LOCATION_MODE = "simple"  # "simple" or "advanced"
-DEFAULT_FLIGHT_LAT = 55.87
-DEFAULT_FLIGHT_LNG = -4.25
+DEFAULT_FLIGHT_LAT = 0.0
+DEFAULT_FLIGHT_LNG = 0.0
 DEFAULT_FLIGHT_RADIUS = 20.0  # km
 DEFAULT_FLIGHT_MIN_ALTITUDE = 100.0  # metres
 DEFAULT_FLIGHT_MAX_ALTITUDE = 10000.0  # metres
@@ -51,8 +51,8 @@ DEFAULT_FLIGHT_ZONE_TL_X = -4.25 - 0.32  # west
 DEFAULT_FLIGHT_ZONE_BR_Y = 55.87 - 0.18  # south
 DEFAULT_FLIGHT_ZONE_BR_X = -4.25 + 0.32  # east
 # Advanced mode: observer position (weather + distance sorting)
-DEFAULT_FLIGHT_OBSERVER_LAT = 55.87
-DEFAULT_FLIGHT_OBSERVER_LNG = -4.25
+DEFAULT_FLIGHT_OBSERVER_LAT = 0.0
+DEFAULT_FLIGHT_OBSERVER_LNG = 0.0
 
 # Airport display
 DEFAULT_AIRPORT_DISPLAY_STYLE = 0  # 0=short code, 1=name, 2=name abbreviated, 3=municipality, 4=municipality+country
@@ -72,18 +72,41 @@ DEFAULT_DETAILS_CUSTOM_TEMPLATE = (
     "{plane} | {symbol:altitude} {altitude} {symbol:speed} {ground_speed} "
     "{symbol:heading} {heading}{symbol:degree}"
 )
+DEFAULT_FLIGHT_UNITS = "metric"
+DEFAULT_IDLE_UNITS = "standard"
+DEFAULT_FLIGHT_DATA_POINTS = (
+    "heading",
+    "vertical_speed",
+    "altitude",
+    "ground_speed",
+)
+
+
+def unit_profile_values(flight_units: str, idle_units: str) -> dict[str, str]:
+    """Map the independent screen profiles onto their concrete display units."""
+    flight_standard = flight_units == "standard"
+    idle_standard = idle_units == "standard"
+    return {
+        "height_unit": "ft" if flight_standard else "m",
+        "speed_unit": "mph" if flight_standard else "kmh",
+        "temperature_unit": "f" if idle_standard else "c",
+        "precipitation_unit": "in" if idle_standard else "mm",
+    }
+
+
 DEFAULT_SHOW_EMERGENCY_SQUAWK = (
     False  # pin a 7500/7600/7700 squawk to the left of the details scroller
 )
 
 # Weather
-DEFAULT_WEATHERAPI_KEY = ""  # empty = weather disabled
+DEFAULT_WEATHERAPI_KEY = ""  # empty = use NOAA/NWS weather (U.S. only)
 DEFAULT_IMAGE_API_KEY = ""  # empty = image upload disabled
-DEFAULT_WEATHER_MODE = 0  # 0 = off, 1 = temperature only, 2 = temperature + rainfall
+DEFAULT_WEATHER_MODE = 1  # 0 = off, 1 = temperature only, 2 = temperature + rainfall
 DEFAULT_RAIN_SENSITIVITY = (
     1  # 0 = dry (Egypt/1mm), 1 = moderate (UK/3mm), 2 = wet (Singapore/9mm)
 )
-DEFAULT_TEMPERATURE_UNIT = "c"  # 'c' = Celsius, 'f' = Fahrenheit, 'k' = Kelvin
+DEFAULT_TEMPERATURE_UNIT = "f"  # 'c' = Celsius, 'f' = Fahrenheit, 'k' = Kelvin
+DEFAULT_PRECIPITATION_UNIT = "in"  # 'mm' = millimetres, 'in' = inches
 DEFAULT_SPEED_UNIT = "kmh"  # 'kmh' = km/h, 'mph' = miles/h, 'kts' = knots
 DEFAULT_HEIGHT_UNIT = "m"  # 'm' = metres, 'ft' = feet
 DEFAULT_WEATHER_REFRESH_MINUTES = 5  # how often (minutes) to re-fetch weather data
@@ -120,13 +143,13 @@ BRIGHTNESS_LEVEL_PERCENT = {0: 0, 1: 20, 2: 40, 3: 60, 4: 80, 5: 100}
 
 # Clock / date
 DEFAULT_CLOCK_24HR = True
-DEFAULT_DATE_FORMAT = 0  # 0 = YYYY-MM-DD, 1 = DD-MM-YYYY, 2 = MM-DD-YYYY
+DEFAULT_DATE_FORMAT = 0  # 0 = Month Dth YYYY, 1 = DD-MM-YYYY, 2 = MM-DD-YYYY
 
 # Number formatting
 DEFAULT_NUMBER_SEPARATOR = "none"  # 'none', 'comma', 'period'
 
 # Idle screen theme
-DEFAULT_IDLE_SCREEN_THEME = "classic"  # classic / forecast
+DEFAULT_IDLE_SCREEN_THEME = "cycle"  # classic / forecast / conditions / cycle
 
 # Web interface
 DEFAULT_WEB_INTERFACE_ENABLED = True
@@ -208,6 +231,7 @@ DEFAULT_API_LIMIT_MODE = (
 
 DEFAULTS: dict[str, Any] = {
     # Location / flight zone
+    "location_source": "auto",
     "flight_location_mode": DEFAULT_FLIGHT_LOCATION_MODE,
     "flight_lat": DEFAULT_FLIGHT_LAT,
     "flight_lng": DEFAULT_FLIGHT_LNG,
@@ -232,12 +256,19 @@ DEFAULTS: dict[str, Any] = {
     # Plane info row
     "details": DEFAULT_DETAILS,
     "details_custom_template": DEFAULT_DETAILS_CUSTOM_TEMPLATE,
+    "flight_units": DEFAULT_FLIGHT_UNITS,
+    "idle_units": DEFAULT_IDLE_UNITS,
+    "flight_data_point_1": DEFAULT_FLIGHT_DATA_POINTS[0],
+    "flight_data_point_2": DEFAULT_FLIGHT_DATA_POINTS[1],
+    "flight_data_point_3": DEFAULT_FLIGHT_DATA_POINTS[2],
+    "flight_data_point_4": DEFAULT_FLIGHT_DATA_POINTS[3],
     "show_emergency_squawk": DEFAULT_SHOW_EMERGENCY_SQUAWK,
     # Weather
     "weatherapi_key": DEFAULT_WEATHERAPI_KEY,
     "weather_mode": DEFAULT_WEATHER_MODE,
     "rain_sensitivity": DEFAULT_RAIN_SENSITIVITY,
     "temperature_unit": DEFAULT_TEMPERATURE_UNIT,
+    "precipitation_unit": DEFAULT_PRECIPITATION_UNIT,
     "speed_unit": DEFAULT_SPEED_UNIT,
     "height_unit": DEFAULT_HEIGHT_UNIT,
     "weather_refresh_minutes": DEFAULT_WEATHER_REFRESH_MINUTES,
@@ -439,9 +470,12 @@ def migrate_config(mod) -> dict[str, Any]:
     # Units: old 'metric'/'imperial' -> per-unit settings.
     temp_units = get("TEMPERATURE_UNITS", "metric")
     is_imperial = str(temp_units).lower() == "imperial"
-    data["temperature_unit"] = "f" if is_imperial else DEFAULT_TEMPERATURE_UNIT
+    data["flight_units"] = "standard" if is_imperial else "metric"
+    data["idle_units"] = "standard" if is_imperial else "metric"
+    data["temperature_unit"] = "f" if is_imperial else "c"
     data["speed_unit"] = "mph" if is_imperial else DEFAULT_SPEED_UNIT
     data["height_unit"] = "ft" if is_imperial else DEFAULT_HEIGHT_UNIT
+    data["precipitation_unit"] = "in" if is_imperial else "mm"
 
     # Migrate old RAINFALL_ENABLED -> weather_mode
     # (WEATHER_LOCATION / OPENWEATHER_API_KEY are dropped - weatherapi uses lat/lng)
@@ -744,6 +778,22 @@ def _validated_provider_settings(spec, raw: dict[str, Any]) -> dict[str, Any]:
     return clean
 
 
+def _infer_legacy_location_source(loaded: dict[str, Any]) -> str:
+    """Keep non-default locations from older configs from being auto-replaced."""
+    legacy_default_locations = {
+        "flight_lat": (0.0, 55.87),
+        "flight_lng": (0.0, -4.25),
+        "flight_observer_lat": (0.0, 55.87),
+        "flight_observer_lng": (0.0, -4.25),
+    }
+    if any(
+        key in loaded and loaded[key] not in allowed_values
+        for key, allowed_values in legacy_default_locations.items()
+    ):
+        return "manual"
+    return "auto"
+
+
 class Config:
     """Singleton configuration object backed by config.json."""
 
@@ -779,13 +829,23 @@ class Config:
             try:
                 with open(CONFIG_PATH) as fh:
                     loaded = json.load(fh)
+                location_source = loaded.get("location_source")
+                if location_source not in ("auto", "browser", "ip", "manual"):
+                    if location_source is None:
+                        location_source = _infer_legacy_location_source(loaded)
+                    else:
+                        location_source = "manual"
                 # Merge over defaults so new keys always have a value.
                 # Deep-copied: nested subtrees (providers, theme, the
                 # provider lists) must never be shared with the
                 # module-level DEFAULTS - the validation pass below
                 # writes into them in place, which would otherwise
                 # pollute DEFAULTS for the rest of the process.
-                self.data_store = {**copy.deepcopy(DEFAULTS), **loaded}
+                self.data_store = {
+                    **copy.deepcopy(DEFAULTS),
+                    **loaded,
+                    "location_source": location_source,
+                }
 
                 # Migrate legacy single-source data-source keys onto the
                 # provider lists/schema, then validate provider settings.
@@ -823,6 +883,46 @@ class Config:
                     del self.data_store["units"]
                     self.save()
 
+                flight_units = str(
+                    loaded.get(
+                        "flight_units",
+                        (
+                            "standard"
+                            if self.data_store.get("height_unit") == "ft"
+                            or self.data_store.get("speed_unit") in ("mph", "kts")
+                            else "metric"
+                        ),
+                    )
+                ).lower()
+                if flight_units not in ("metric", "standard"):
+                    flight_units = DEFAULT_FLIGHT_UNITS
+                legacy_temperature = self.data_store.get("temperature_unit")
+                legacy_precipitation = self.data_store.get("precipitation_unit")
+                if legacy_temperature in ("f", "c", "k"):
+                    inferred_idle_units = (
+                        "standard" if legacy_temperature == "f" else "metric"
+                    )
+                elif legacy_precipitation in ("in", "mm"):
+                    inferred_idle_units = (
+                        "standard" if legacy_precipitation == "in" else "metric"
+                    )
+                else:
+                    inferred_idle_units = DEFAULT_IDLE_UNITS
+                idle_units = str(loaded.get("idle_units", inferred_idle_units)).lower()
+                if idle_units not in ("metric", "standard"):
+                    idle_units = DEFAULT_IDLE_UNITS
+                profile_values = {
+                    "flight_units": flight_units,
+                    "idle_units": idle_units,
+                    **unit_profile_values(flight_units, idle_units),
+                }
+                if any(
+                    self.data_store.get(key) != value
+                    for key, value in profile_values.items()
+                ):
+                    self.data_store.update(profile_values)
+                    self.save()
+
                 # Normalise any longitudes outside [-180, 180) that were
                 # stored due to the Leaflet multi-Earth click bug.
                 if _normalise_longitudes(self.data_store):
@@ -839,6 +939,9 @@ class Config:
         if LEGACY_PATH.exists():
             mod = import_legacy(LEGACY_PATH)
             self.data_store = migrate_config(mod)
+            self.data_store["location_source"] = _infer_legacy_location_source(
+                self.data_store
+            )
             _normalise_longitudes(self.data_store)
             _normalise_advanced_schedule(self.data_store)
             _migrate_provider_lists(self.data_store, self.data_store)
@@ -1013,11 +1116,56 @@ class Config:
         )
 
     @property
+    def flight_data_points(self) -> tuple[str, str, str, str]:
+        from scenes.flight.custom_details import AVAILABLE_FIELDS
+
+        values = tuple(
+            str(
+                self.data_store.get(
+                    f"flight_data_point_{index}", DEFAULT_FLIGHT_DATA_POINTS[index - 1]
+                )
+            )
+            for index in range(1, 5)
+        )
+        return tuple(
+            value if value in AVAILABLE_FIELDS else DEFAULT_FLIGHT_DATA_POINTS[index]
+            for index, value in enumerate(values)
+        )
+
+    @property
     def show_emergency_squawk(self) -> bool:
         """Pin a 7500/7600/7700 squawk to the left of the details scroller."""
         return bool(
             self.data_store.get("show_emergency_squawk", DEFAULT_SHOW_EMERGENCY_SQUAWK)
         )
+
+    @property
+    def flight_units(self) -> str:
+        value = str(self.data_store.get("flight_units", "")).lower()
+        if value in ("metric", "standard"):
+            return value
+        return (
+            "standard"
+            if self.data_store.get("height_unit") == "ft"
+            or self.data_store.get("speed_unit") in ("mph", "kts")
+            else DEFAULT_FLIGHT_UNITS
+        )
+
+    @property
+    def idle_units(self) -> str:
+        value = str(self.data_store.get("idle_units", "")).lower()
+        if value in ("metric", "standard"):
+            return value
+        if self.data_store.get("temperature_unit") in ("f", "c", "k"):
+            return (
+                "standard"
+                if self.data_store.get("temperature_unit") == "f"
+                else "metric"
+            )
+        precipitation = self.data_store.get("precipitation_unit")
+        if precipitation in ("in", "mm"):
+            return "standard" if precipitation == "in" else "metric"
+        return DEFAULT_IDLE_UNITS
 
     @property
     def weatherapi_key(self) -> str:
@@ -1048,23 +1196,32 @@ class Config:
 
     @property
     def temperature_unit(self) -> str:
-        """'c' = Celsius, 'f' = Fahrenheit, 'k' = Kelvin."""
-        val = str(
-            self.data_store.get("temperature_unit", DEFAULT_TEMPERATURE_UNIT)
-        ).lower()
-        return val if val in ("c", "f", "k") else DEFAULT_TEMPERATURE_UNIT
+        """Weather temperature unit selected by the idle-screen profile."""
+        return unit_profile_values(self.flight_units, self.idle_units)[
+            "temperature_unit"
+        ]
+
+    @property
+    def precipitation_unit(self) -> str:
+        """Weather precipitation unit selected by the idle-screen profile."""
+        return unit_profile_values(self.flight_units, self.idle_units)[
+            "precipitation_unit"
+        ]
+
+    @property
+    def idle_speed_unit(self) -> str:
+        """Speed unit used for weather on idle screens."""
+        return "mph" if self.idle_units == "standard" else "kmh"
 
     @property
     def speed_unit(self) -> str:
         """'kmh' = km/h, 'mph' = miles/h, 'kts' = knots."""
-        val = str(self.data_store.get("speed_unit", DEFAULT_SPEED_UNIT)).lower()
-        return val if val in ("kmh", "mph", "kts") else DEFAULT_SPEED_UNIT
+        return unit_profile_values(self.flight_units, self.idle_units)["speed_unit"]
 
     @property
     def height_unit(self) -> str:
         """'m' = metres, 'ft' = feet."""
-        val = str(self.data_store.get("height_unit", DEFAULT_HEIGHT_UNIT)).lower()
-        return val if val in ("m", "ft") else DEFAULT_HEIGHT_UNIT
+        return unit_profile_values(self.flight_units, self.idle_units)["height_unit"]
 
     @property
     def weather_refresh_minutes(self) -> int:
@@ -1355,13 +1512,13 @@ class Config:
 
     @property
     def idle_screen_theme(self) -> str:
-        """Idle screen theme name: 'classic', 'forecast', 'conditions'."""
+        """Idle screen theme name: 'classic', 'forecast', 'conditions', or 'cycle'."""
         val = str(
             self.data_store.get("idle_screen_theme", DEFAULT_IDLE_SCREEN_THEME)
         ).lower()
         return (
             val
-            if val in ("classic", "forecast", "conditions")
+            if val in ("classic", "forecast", "conditions", "cycle")
             else DEFAULT_IDLE_SCREEN_THEME
         )
 

@@ -10,7 +10,7 @@ from dataclasses import asdict
 from setup.configuration import CONFIG_PATH, DEFAULTS, Config
 from utilities.lookups import cache as routes_cache
 from utilities.tle_manager import TLE_CACHE_PATH, fetch_tle
-from version import VERSION
+from version import APP_VERSION
 
 
 def _config_exists() -> bool:
@@ -117,6 +117,7 @@ def _screen_test() -> int:
     the test itself rather than the config value.
     """
     from display.panel_factory import get_panel
+    from setup import screen
 
     # reload() creates config.json from DEFAULTS if it doesn't exist yet.
     Config.reload()
@@ -124,8 +125,8 @@ def _screen_test() -> int:
 
     panel = get_panel()
     panel.init_matrix(
-        width=64,
-        height=32,
+        width=screen.WIDTH,
+        height=screen.HEIGHT,
         brightness=cfg.brightness_percent,
         rotation=180 if cfg.screen_rotate else 0,
         hat_pwm=cfg.hat_pwm_enabled,
@@ -435,7 +436,7 @@ def dispatch_cli_command(argv: Sequence[str]) -> int:
         if command == "screen-test":
             return _screen_test()
         if command == "--version":
-            print(".".join(map(str, VERSION)))
+            print(f"Hobby Ticker v{'.'.join(map(str, APP_VERSION))}")
             return 0
         if command in {"help", "--help", "-h"}:
             _print_usage()

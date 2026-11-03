@@ -210,6 +210,8 @@ class Overhead:
             ground_speed=int(observation.ground_speed_kt or 0),
             heading=int(observation.heading_deg or 0),
             vertical_speed=int(observation.vertical_speed_fpm or 0),
+            latitude=observation.latitude,
+            longitude=observation.longitude,
             squawk=observation.squawk,
             distance_to_home=distance_to_home,
         )

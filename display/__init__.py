@@ -39,7 +39,7 @@ def build_display_class():
     from scenes.idle.idle_scene import IdleScene
     from scenes.image.image_scene import ImageScene
     from scenes.satellite.satellite_scene import SatelliteScene
-    from setup import frames
+    from setup import frames, screen
     from setup.configuration import Config
     from setup.themes import theme_set
     from utilities.scene_manager import SceneManager
@@ -87,8 +87,8 @@ def build_display_class():
             else:
                 self.panel = get_panel()
                 self.panel.init_matrix(
-                    width=64,
-                    height=64 if cfg.display_scan_rate == 32 else 32,
+                    width=screen.WIDTH,
+                    height=64 if cfg.display_scan_rate == 32 else screen.HEIGHT,
                     brightness=cfg.brightness_percent,
                     rotation=180 if cfg.screen_rotate else 0,
                     hat_pwm=cfg.hat_pwm_enabled,

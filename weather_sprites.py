@@ -22,6 +22,7 @@ from scenes.idle.themes.icons.weather.forecast_sprite import (
     blank_area,
     create_animation,
 )
+from setup import screen
 
 # ======================================================================
 # --- Tweak these to change what's displayed ---------------------------
@@ -43,13 +44,17 @@ SHOW_LABELS = True
 FRAME_PERIOD = 0.08
 
 # Panel dimensions.
-PANEL_WIDTH = 64
-PANEL_HEIGHT = 32
+PANEL_WIDTH = screen.WIDTH
+PANEL_HEIGHT = screen.HEIGHT
 PANEL_BRIGHTNESS = 50
 PANEL_ROTATION = 180
 
-# Sprite x-positions (matches forecast_idle_theme.py ICON_POSITIONS_X).
-SPRITE_X_POSITIONS = (3, 23, 43)
+# Sprite x-positions across the display.
+SPRITE_X_POSITIONS = (
+    3,
+    (PANEL_WIDTH - SPRITE_WIDTH) // 2,
+    PANEL_WIDTH - SPRITE_WIDTH - 3,
+)
 SPRITE_Y = 7
 
 # ======================================================================

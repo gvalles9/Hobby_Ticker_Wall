@@ -18,6 +18,7 @@ from utilities.overhead_utilities import (
     clean_field,
     distance_from_home,
     in_zone,
+    route_progress_fraction,
 )
 
 
@@ -33,6 +34,26 @@ class TestInZone:
     def test_outside_lon(self):
         zone = {"tl_y": 56.0, "tl_x": -5.0, "br_y": 55.0, "br_x": -3.0}
         assert in_zone(55.5, -6.0, zone) is False
+
+
+class TestRouteProgressFraction:
+    def test_estimates_progress_between_airports(self, monkeypatch):
+        import utilities.overhead_utilities as utilities
+
+        airports = {
+            "AAA": {"latitude": 0.0, "longitude": 0.0},
+            "BBB": {"latitude": 0.0, "longitude": 10.0},
+        }
+        monkeypatch.setattr(utilities, "airport_coordinates", airports.get)
+
+        assert route_progress_fraction("AAA", "BBB", 0.0, 5.0) == pytest.approx(0.5)
+
+    def test_returns_none_when_route_or_position_is_missing(self, monkeypatch):
+        import utilities.overhead_utilities as utilities
+
+        monkeypatch.setattr(utilities, "airport_coordinates", lambda code: {})
+        assert route_progress_fraction("AAA", "BBB", 0.0, 5.0) is None
+        assert route_progress_fraction("AAA", "BBB", None, 5.0) is None
 
     def test_on_boundary(self):
         zone = {"tl_y": 56.0, "tl_x": -5.0, "br_y": 55.0, "br_x": -3.0}
@@ -434,6 +455,8 @@ class TestToFlightDistance:
         )
         # Directly overhead at 10000 ft -> ~3.048 km straight up
         assert flight.distance_to_home == pytest.approx(3.048, abs=0.05)
+        assert flight.latitude == 55.5
+        assert flight.longitude == -4.0
 
     def test_distance_unknown_without_position(self):
         from utilities.overhead import Overhead

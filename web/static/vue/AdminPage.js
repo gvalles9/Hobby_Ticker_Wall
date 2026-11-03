@@ -13,7 +13,41 @@ export default defineComponent({
     return {
       newPassword: "",
       confirmPassword: "",
+      maintenanceBusy: false,
+      maintenanceMessage: "",
+      maintenanceError: "",
     };
+  },
+  methods: {
+    async runMaintenanceAction(path, confirmation, networkMaySwitch = false) {
+      if (!window.confirm(confirmation)) return;
+      this.maintenanceBusy = true;
+      this.maintenanceMessage = "";
+      this.maintenanceError = "";
+      try {
+        const response = await fetch(path, {
+          method: "POST",
+          credentials: "same-origin",
+          headers: {
+            "Content-Type": "application/x-www-form-urlencoded",
+            Accept: "application/json",
+          },
+          body: new URLSearchParams({
+            csrf_token: this.store.ui.csrfToken,
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "The action failed.");
+        this.maintenanceMessage = result.message;
+        window.setTimeout(() => window.location.reload(), 2500);
+      } catch (error) {
+        this.maintenanceError = networkMaySwitch
+          ? "The hotspot may have started and disconnected this page. Scan the Wi-Fi QR code on the display; your saved home Wi-Fi details are kept."
+          : error.message;
+      } finally {
+        this.maintenanceBusy = false;
+      }
+    },
   },
   template: `
     <div>
@@ -112,6 +146,44 @@ export default defineComponent({
             <i class="bi bi-upload me-1"></i>Restore
           </a>
         </div>
+      </div>
+    </div>
+
+    <!-- ====== Recovery ====== -->
+    <div id="group-recovery" class="card mb-3 p-3 border-danger">
+      <p class="section-heading text-danger"><i class="bi bi-arrow-counterclockwise me-2"></i>Recovery</p>
+      <div v-if="maintenanceMessage" class="alert alert-success py-2">{{ maintenanceMessage }}</div>
+      <div v-if="maintenanceError" class="alert alert-warning py-2">{{ maintenanceError }}</div>
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 border-bottom pb-3 mb-3">
+        <div>
+          <div class="fw-semibold">Reset FlightTracker settings</div>
+          <div class="text-muted small">
+            Restore application settings to defaults. Your Wi-Fi details and web password are kept.
+            FlightTracker will restart.
+          </div>
+        </div>
+        <button type="button" class="btn btn-outline-danger btn-sm"
+                :disabled="maintenanceBusy"
+                @click="runMaintenanceAction('/settings/reset',
+                  'Reset all FlightTracker settings to defaults? Your saved Wi-Fi and web password will be kept.')">
+          Reset Settings
+        </button>
+      </div>
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <div>
+          <div class="fw-semibold">Change Wi-Fi network</div>
+          <div class="text-muted small">
+            Open the protected setup hotspot and QR code. Existing Wi-Fi details are kept until
+            you successfully save new ones.
+          </div>
+        </div>
+        <button type="button" class="btn btn-outline-danger btn-sm"
+                :disabled="maintenanceBusy"
+                @click="runMaintenanceAction('/wifi-setup/reset',
+                  'Open the setup hotspot? The Pi may briefly disconnect from your home Wi-Fi.',
+                  true)">
+          <i class="bi bi-wifi me-1"></i>Reset Wi-Fi
+        </button>
       </div>
     </div>
 

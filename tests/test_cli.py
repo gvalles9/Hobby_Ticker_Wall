@@ -47,8 +47,7 @@ class TestVersion:
         result = dispatch_cli_command(["flight-tracker.py", "--version"])
         assert result == 0
         captured = capsys.readouterr()
-        # Should print something like "2.0.6"
-        assert "." in captured.out.strip()
+        assert captured.out.strip() == "Hobby Ticker v1.0.0"
 
 
 class TestHelp:

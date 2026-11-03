@@ -46,11 +46,19 @@ export default defineComponent({
           <option value="classic">Classic</option>
           <option value="conditions">Current Conditions</option>
           <option value="forecast">Forecast</option>
+          <option value="cycle">Classic + 3-day forecast (30 sec each)</option>
         </select>
         <div class="form-text text-muted small">
           Choose what to display on the idle screen when no flights or satellites are overhead.
         </div>
       </div>
+    </div>
+
+    <div v-show="store.config.idle_screen_theme === 'cycle'" class="card mb-3 p-3">
+      <p class="section-heading"><i class="bi bi-arrow-repeat me-2"></i>Automatic Idle Rotation</p>
+      <p class="text-muted small mb-0">
+        Alternates between the Classic screen and the 3-day forecast, showing each for 30 seconds.
+      </p>
     </div>
 
     <!-- ====== Classic theme ====== -->
@@ -83,9 +91,16 @@ export default defineComponent({
             <h5 class="mt-2">Rainfall Sensitivity</h5>
             <select class="form-select form-select-sm" name="rain_sensitivity" style="max-width:260px"
                     v-model.number="store.config.rain_sensitivity">
-              <option :value="0">Not very rainy - desert / arid (1 mm)</option>
-              <option :value="1">Moderately rainy - UK / Europe (3 mm)</option>
-              <option :value="2">Very rainy - tropics / monsoon (9 mm)</option>
+              <template v-if="store.config.precipitation_unit === 'in'">
+                <option :value="0">Not very rainy - desert / arid (0.04 in)</option>
+                <option :value="1">Moderately rainy - UK / Europe (0.12 in)</option>
+                <option :value="2">Very rainy - tropics / monsoon (0.35 in)</option>
+              </template>
+              <template v-else>
+                <option :value="0">Not very rainy - desert / arid (1 mm)</option>
+                <option :value="1">Moderately rainy - UK / Europe (3 mm)</option>
+                <option :value="2">Very rainy - tropics / monsoon (9 mm)</option>
+              </template>
             </select>
             <div class="form-text text-muted small">
               Sets the full-scale value of the graph. Increase if your bars are always full; decrease if they're always empty.

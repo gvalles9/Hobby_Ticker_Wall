@@ -2,7 +2,7 @@
 
 The badge is a plain anchor inside the shared page footer
 (web/templates/footer.html) holding the self-hosted logomark and a
-"Support Me" label, and linking to the Ko-fi donations page.  The
+"Support original author" label, and linking to the Ko-fi donations page.  The
 footer is included on every page of the web UI - except the login screen,
 which therefore carries no badge either.  No third-party assets, no
 JavaScript, no stylesheet of its own.
@@ -88,7 +88,7 @@ class TestBadgeInFooter:
         html = resp.data.decode()
         assert f'href="{KOFI_DONATIONS_URL}"' in html
         assert "static/kofi/logomark.png" in html
-        assert "Support Me" in html
+        assert "Support original author" in html
 
     def test_badge_lives_in_shared_footer(self):
         source = (TEMPLATE_DIR / "footer.html").read_text()
@@ -118,17 +118,17 @@ class TestBadgeInFooter:
 
 class TestBadgeIsAPlainLink:
     def test_badge_is_label_and_image_only(self):
-        """The anchor contains exactly the visible "Support Me" text and
+        """The anchor contains exactly the visible support attribution and
         the logomark image - no script, no iframe, nothing else."""
         badge = badge_anchor_from_footer().lower()
         assert "<script" not in badge
         assert "<iframe" not in badge
         assert "<img" in badge
         # Strip the opening/closing anchor tags and the img; only the
-        # "Support Me" label remains.
+        # "Support original author" label remains.
         inner = re.sub(r"<img[^>]*/?>", "", badge)
         inner = re.sub(r"^<a[^>]*>", "", inner).replace("</a>", "")
-        assert inner.split() == ["support", "me"]
+        assert inner.split() == ["support", "original", "author"]
 
     def test_label_separated_by_padding_not_a_space_char(self):
         """Colin: no space character between badge and label - a bit of

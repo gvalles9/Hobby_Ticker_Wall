@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# FlightTracker Install Script - Raspberry Pi 5 Edition
+# Hobby Ticker Install Script - Raspberry Pi 5 Edition
 # For Raspberry Pi 5 running Raspberry Pi OS (64-bit, Debian Trixie)
 #
 # This script uses Adafruit's Adafruit_Blinka_Raspberry_Pi5_Piomatter library
@@ -8,7 +8,7 @@
 # needed, unlike the Pi 3/4 installer which builds hzeller's rpi-rgb-led-matrix.
 #
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/ColinWaddell/FlightTracker/main/platforms/pi5/install.sh | bash
+#   curl -sSL https://raw.githubusercontent.com/gvalles9/Hobby_Ticker_Wall/main/platforms/pi5/install.sh | bash
 #
 
 set -e
@@ -110,7 +110,7 @@ run_quiet() {
 
 echo ""
 echo -e "${BOLD}========================================${NC}"
-echo -e "${BOLD}  FlightTracker Install (Pi 5)${NC}"
+echo -e "${BOLD}  Hobby Ticker Install (Pi 5)${NC}"
 echo -e "${BOLD}========================================${NC}"
 echo ""
 
@@ -132,7 +132,7 @@ info "Detected: ${PI_MODEL}"
 if ! echo "$PI_MODEL" | grep -q "Raspberry Pi 5"; then
     error "This script is for Raspberry Pi 5 only. Detected: ${PI_MODEL}"
     error "For Pi 3/4/Zero, use the Pi installer instead:"
-    error "  curl -sSL https://raw.githubusercontent.com/ColinWaddell/FlightTracker/main/platforms/pi/install.sh | bash"
+    error "  curl -sSL https://raw.githubusercontent.com/gvalles9/Hobby_Ticker_Wall/main/platforms/pi/install.sh | bash"
     exit 1
 fi
 
@@ -232,6 +232,20 @@ if [ -d "$INSTALL_DIR" ]; then
             sudo systemctl daemon-reload
             success "Removed systemd service"
         fi
+        sudo systemctl disable --now FlightTracker-WifiSetup.service 2>/dev/null || true
+        sudo systemctl disable --now FlightTracker-WifiWatchdog.service 2>/dev/null || true
+        sudo systemctl disable --now FlightTracker-NightlyUpdate.timer 2>/dev/null || true
+        sudo rm -f /etc/systemd/system/FlightTracker-WifiSetup.service
+        sudo rm -f /etc/systemd/system/FlightTracker-WifiWatchdog.service
+        sudo rm -f /etc/systemd/system/FlightTracker-NightlyUpdate.service
+        sudo rm -f /etc/systemd/system/FlightTracker-NightlyUpdate.timer
+        sudo rm -f /etc/sudoers.d/flighttracker-wifi-setup
+        sudo rm -f /usr/local/sbin/flighttracker-wifi-setup
+        sudo rm -f /usr/local/sbin/flighttracker-configure-wifi
+        sudo rm -f /usr/local/sbin/flighttracker-wifi-watchdog
+        sudo rm -f /etc/flighttracker/setup-ap.json
+        sudo nmcli connection delete FlightTracker-Setup >/dev/null 2>&1 || true
+        sudo systemctl daemon-reload
 
         # Remove directory
         rm -rf "$INSTALL_DIR"
@@ -291,6 +305,9 @@ info "Installing required packages..."
 run_quiet "Installing required packages" sudo DEBIAN_FRONTEND=noninteractive apt-get install -y \
     git \
     curl \
+    avahi-daemon \
+    network-manager \
+    openssl \
     python3 \
     python3-venv \
     python3-pip \
@@ -326,13 +343,13 @@ echo ""
 echo -e "${BOLD}--- Step 2: Clone FlightTracker ---${NC}"
 echo ""
 
-run_quiet "Cloning FlightTracker (branch: ${BRANCH})" git clone --depth 1 --branch "${BRANCH}" https://github.com/ColinWaddell/FlightTracker || exit 1
+run_quiet "Cloning Hobby Ticker (branch: ${BRANCH})" git clone --depth 1 --branch "${BRANCH}" https://github.com/gvalles9/Hobby_Ticker_Wall "$INSTALL_DIR" || exit 1
 
 if [ ! -d "$INSTALL_DIR" ]; then
-    error "Failed to clone FlightTracker repository."
+    error "Failed to clone Hobby Ticker repository."
     exit 1
 fi
-success "FlightTracker cloned to ${INSTALL_DIR}"
+success "Hobby Ticker cloned to ${INSTALL_DIR}"
 
 # ============================================================================
 # STEP 3: Create Virtual Environment & Install Python Dependencies
@@ -407,6 +424,10 @@ sudo systemctl daemon-reload
 sudo systemctl enable FlightTracker.service
 
 success "Service installed and enabled."
+
+info "Installing first-boot Wi-Fi setup hotspot..."
+bash "${INSTALL_DIR}/platforms/common/install-wifi-setup.sh" \
+    "$CURRENT_USER" "$INSTALL_DIR"
 
 # ============================================================================
 # STEP 5: Reboot

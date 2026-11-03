@@ -173,6 +173,8 @@ def clean_field(value) -> str:
 
 _airports_cache: dict[str, dict] = {}
 _airports_loaded = False
+_airport_coordinates_cache: dict[str, dict[str, float]] = {}
+_airport_coordinates_loaded = False
 
 
 def _selected_airports_filename() -> str:
@@ -212,6 +214,70 @@ def airport_info(iata: str) -> dict:
     """Return the full airport dict {name, municipality, country_name} or {}."""
     _load_airports()
     return _airports_cache.get(iata.upper(), {})
+
+
+def airport_coordinates(code: str) -> dict[str, float]:
+    """Return coordinates for an airport code, or {} when unavailable."""
+    global _airport_coordinates_cache, _airport_coordinates_loaded
+    if not _airport_coordinates_loaded:
+        _airport_coordinates_loaded = True
+        path = Path(__file__).parent.parent / "assets" / "airport_coordinates.json"
+        try:
+            with open(path, encoding="utf-8") as file:
+                _airport_coordinates_cache = json.load(file)
+        except Exception as e:
+            logger.warning("Failed to load %s: %s", path, e)
+            _airport_coordinates_cache = {}
+    return _airport_coordinates_cache.get((code or "").upper(), {})
+
+
+def route_progress_fraction(
+    origin: str, destination: str, latitude: float | None, longitude: float | None
+) -> float | None:
+    """Estimate route progress as direct distance travelled from origin."""
+    if latitude is None or longitude is None:
+        return None
+    try:
+        lat, lon = float(latitude), float(longitude)
+    except (TypeError, ValueError):
+        return None
+    if not (
+        math.isfinite(lat)
+        and math.isfinite(lon)
+        and -90 <= lat <= 90
+        and -180 <= lon <= 180
+    ):
+        return None
+
+    start = airport_coordinates(origin)
+    end = airport_coordinates(destination)
+    if not start or not end:
+        return None
+
+    def distance_km(point: dict[str, float]) -> float:
+        return distance_from_home(
+            lat,
+            lon,
+            0,
+            [point["latitude"], point["longitude"], EARTH_RADIUS_KM],
+        )
+
+    total_distance = distance_from_home(
+        end["latitude"],
+        end["longitude"],
+        0,
+        [start["latitude"], start["longitude"], EARTH_RADIUS_KM],
+    )
+    if (
+        not math.isfinite(total_distance)
+        or total_distance <= 0
+        or total_distance >= DISTANCE_SENTINEL_KM
+    ):
+        return None
+    travelled = distance_km(start)
+    if not math.isfinite(travelled) or travelled >= DISTANCE_SENTINEL_KM:
+        return None
+    return min(1.0, max(0.0, travelled / total_distance))
 
 
 def airport_name(iata: str) -> str:

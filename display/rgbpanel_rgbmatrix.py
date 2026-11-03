@@ -8,6 +8,7 @@ behind the unified RGBPanel interface.
 from rgbmatrix import RGBMatrix, RGBMatrixOptions, graphics
 
 from display.rgbpanel import RGBPanel, channel_permutation
+from setup import screen
 
 # The rgbmatrix graphics.Font is a C++ binding object with no __dict__, so
 # we cannot stash the BDF path on it.  Instead we keep a module-level
@@ -42,8 +43,8 @@ class RGBMatrixPanel(RGBPanel):
 
     def init_matrix(
         self,
-        width=64,
-        height=32,
+        width=screen.WIDTH,
+        height=screen.HEIGHT,
         brightness=50,
         rotation=0,
         hat_pwm=True,
@@ -53,8 +54,13 @@ class RGBMatrixPanel(RGBPanel):
         options = RGBMatrixOptions()
         options.hardware_mapping = "adafruit-hat-pwm" if hat_pwm else "adafruit-hat"
         options.rows = height
-        options.cols = width
-        options.chain_length = 1
+        if width % screen.PANEL_COUNT:
+            raise ValueError(
+                f"Display width {width} must be divisible by panel count "
+                f"{screen.PANEL_COUNT}"
+            )
+        options.cols = width // screen.PANEL_COUNT
+        options.chain_length = screen.PANEL_COUNT
         options.parallel = 1
         options.row_address_type = 0
         options.multiplexing = 0

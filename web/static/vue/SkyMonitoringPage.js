@@ -7,12 +7,16 @@ import { defineComponent } from "./vendor.js";
 import SimpleMap from "./SimpleMap.js";
 import AdvancedMap from "./AdvancedMap.js";
 import TemplateEditor from "./TemplateEditor.js";
+import { TEMPLATE_FIELDS } from "./store.js";
 
 export default defineComponent({
   name: "SkyMonitoringPage",
   components: { SimpleMap, AdvancedMap, TemplateEditor },
   props: {
     store: { type: Object, required: true },
+  },
+  setup() {
+    return { flightDataFields: TEMPLATE_FIELDS };
   },
   template: `
     <div>
@@ -21,6 +25,15 @@ export default defineComponent({
     <!-- ====== Location ====== -->
     <div id="group-sky-monitoring" class="card mb-3 p-3">
       <p class="section-heading"><i class="bi bi-geo-alt me-2"></i>Location</p>
+      <input type="hidden" name="location_source" :value="store.config.location_source" />
+      <div v-if="store.ui.locationStatus" class="alert alert-info py-2 small" role="status">
+        {{ store.ui.locationStatus }}
+      </div>
+      <p v-if="['auto', 'ip'].includes(store.config.location_source)" class="form-text small text-muted">
+        The browser tries device location when this page opens. The app uses an approximate
+        location from its public IP through ipwho.is when device location is unavailable.
+        This sends the server's public IP to that service. Manually entered locations are preserved.
+      </p>
 
       <h5>Tracking Mode</h5>
       <div class="mb-3">
@@ -288,6 +301,27 @@ export default defineComponent({
       </div>
       <div class="form-text text-muted small">
         Shown in the scrolling bar at the bottom of the display while a flight is overhead.
+      </div>
+
+      <h5 class="mt-3">Flight Data Panel</h5>
+      <p class="form-text text-muted small">
+        Choose four fields for the compact panel in the upper-right. The first two appear in the left column;
+        the last two appear in the right column.
+      </p>
+      <div class="row g-2 mb-3">
+        <div class="col-6 col-md-3" v-for="slot in [1, 2, 3, 4]" :key="'flight_data_point_' + slot">
+          <label class="form-label small" :for="'flight_data_point_' + slot">
+            {{ ['Left top', 'Left bottom', 'Right top', 'Right bottom'][slot - 1] }}
+          </label>
+          <select class="form-select form-select-sm"
+                  :id="'flight_data_point_' + slot"
+                  :name="'flight_data_point_' + slot"
+                  v-model="store.config['flight_data_point_' + slot]">
+            <option v-for="field in flightDataFields" :key="field.name" :value="field.name">
+              {{ field.label }}
+            </option>
+          </select>
+        </div>
       </div>
 
       <template-editor v-if="store.config.details === 2" :store="store" />

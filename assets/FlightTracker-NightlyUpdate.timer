@@ -1,0 +1,10 @@
+[Unit]
+Description=Run the FlightTracker nightly update
+
+[Timer]
+OnCalendar=*-*-* 02:00:00
+Persistent=true
+Unit=FlightTracker-NightlyUpdate.service
+
+[Install]
+WantedBy=timers.target

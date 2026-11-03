@@ -13,7 +13,7 @@ source produces a fresh result; the scene decides internally whether that
 warrants a full reset (callsigns changed) or a silent telemetry swap.
 
 Screen layout:
-    rows  0-15  JourneyWidget (origin -> destination)
+    rows  0-15  JourneyWidget (origin -> destination) + right-side telemetry
     rows 16-24  Callsign bar + optional N/M index
     rows 23-31  Scrolling plane details (make/model or telemetry)
 """
@@ -27,19 +27,26 @@ from display.scroller import Scroller, spans_width
 from display.spans import Span, Spans
 from scenes.flight.airline_logo import AirlineLogoWidget, NullWidget
 from scenes.flight.callsign_bar import make_callsign_bar
-from scenes.flight.custom_details import build_custom_spans, format_number
+from scenes.flight.custom_details import (
+    DATA_POINT_LABELS,
+    build_custom_spans,
+    format_data_point_value,
+    format_number,
+)
 from scenes.flight.journey import make_label
 from setup import colours, fonts, screen
 from setup.configuration import Config
 from setup.themes import (
     TC,
     THEME_BG,
+    THEME_DIVIDING_BAR,
     THEME_PLANE,
     THEME_PLANE_TLM,
     THEME_PLANE_TLM_UNITS,
     THEME_SQUAWK_EMERGENCY,
 )
 from utilities.flight import EMERGENCY_SQUAWKS, TELEMETRY_FIELDS
+from utilities.overhead_utilities import route_progress_fraction
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +89,9 @@ def telemetry_changed(old: list, new: list) -> bool:
 # Plane details (scrolling bar)
 # ---------------------------------------------------------------------------
 
-PLANE_DETAILS_Y = 30
+PLANE_DETAILS_Y = 29
 PLANE_DETAILS_HEIGHT = 8
+HEADER_TELEMETRY_WIDTH = 104
 
 # Emergency-squawk prefix blink: seconds per colour phase, and how bright
 # the darker phase is expressed as a fraction of the theme colour (no
@@ -197,6 +205,8 @@ class FlightScene:
         # Prefix blink state: current phase and when the next flip is due.
         self.squawk_blink_dark: bool = False
         self.squawk_blink_at: float = 0.0
+        self.last_header_telemetry: tuple | None = None
+        self.last_bottom_progress: int | None = -1
 
         # Error backoff - log once, hold off before retrying
         self.error_logged: bool = False
@@ -328,6 +338,8 @@ class FlightScene:
         self.details_viewport = None
         self.squawk_blink_dark = False
         self.squawk_blink_at = 0.0
+        self.last_header_telemetry = None
+        self.last_bottom_progress = -1
 
     def draw(self) -> None:
         # Consume the deferred background clear from reset().  This only
@@ -343,7 +355,9 @@ class FlightScene:
         self.airline_logo.draw(self.canvas, self.flights[self.flight_index])
         self.draw_callsign()
         self.draw_journey()
+        self.draw_header_telemetry()
         self.draw_plane_details()
+        self.draw_bottom_progress()
 
     # ------------------------------------------------------------------
     # Callsign bar
@@ -380,18 +394,104 @@ class FlightScene:
         # Journey text starts after the icon (1px gap) when an icon was
         # drawn; otherwise starts at x=1 (the original margin).
         icon_width = self.airline_logo.width
-        if icon_width:
-            # Icon mode: start at x=16 (no gap) and extend 1px wider.
-            journey_x = icon_width + 1
-            journey_width = screen.WIDTH - journey_x
-        else:
-            journey_x = 1
-            journey_width = screen.WIDTH - journey_x
+        journey_x = icon_width + 1 if icon_width else 1
+        journey_width = max(1, screen.WIDTH - journey_x - HEADER_TELEMETRY_WIDTH)
         icon_required = icon_width > 0
 
         self.journey_label.draw(
             self.canvas, flight, journey_x, journey_width, icon_required
         )
+
+    def draw_header_telemetry(self) -> None:
+        """Show four configurable live data points in a compact 2x2 grid."""
+        cfg = Config.instance()
+        flight = self.flights[self.flight_index]
+        fields = cfg.flight_data_points
+        texts = tuple(
+            self._header_data_point_text(field, flight, cfg) for field in fields
+        )
+        signature = (
+            flight.flight_id,
+            fields,
+            texts,
+            cfg.height_unit,
+            cfg.speed_unit,
+            cfg.number_separator,
+        )
+        if signature == self.last_header_telemetry:
+            return
+
+        x = max(0, screen.WIDTH - HEADER_TELEMETRY_WIDTH)
+        column_width = 50
+        column_gap = 4
+        right_column_x = x + column_width + column_gap
+        right_edge = screen.WIDTH - 2
+        font = fonts.extrasmall
+        colour = TC(THEME_PLANE_TLM)
+        self.panel.draw_square(
+            self.canvas,
+            x,
+            0,
+            screen.WIDTH - 1,
+            15,
+            TC(THEME_BG),
+        )
+        for index, text in enumerate(texts):
+            column_x = x if index < 2 else right_column_x
+            column_right = column_x + column_width - 2 if index < 2 else right_edge
+            text = self._fit_header_text(text, font, column_right - column_x)
+            text_width = font.text_width(text)
+            self.panel.draw_text(
+                self.canvas,
+                font,
+                max(column_x, column_right - text_width),
+                6 if index % 2 == 0 else 14,
+                colour,
+                text.upper(),
+            )
+        self.last_header_telemetry = signature
+
+    @staticmethod
+    def _header_data_point_text(field, flight, cfg) -> str:
+        label = DATA_POINT_LABELS[field]
+        value = format_data_point_value(field, flight, cfg) or "--"
+        return f"{label} {value}"
+
+    @staticmethod
+    def _fit_header_text(text, font, max_width: int) -> str:
+        while text and font.text_width(text) > max_width:
+            text = text[:-1]
+        return text
+
+    def draw_bottom_progress(self) -> None:
+        """Draw approximate origin-to-destination progress along the bottom row."""
+        flight = self.flights[self.flight_index]
+        fraction = route_progress_fraction(
+            flight.origin, flight.destination, flight.latitude, flight.longitude
+        )
+        pixel_count = (
+            None
+            if fraction is None
+            else min(
+                screen.WIDTH,
+                int(fraction * screen.WIDTH + 0.5),
+            )
+        )
+        if pixel_count == self.last_bottom_progress:
+            return
+
+        y = screen.HEIGHT - 1
+        self.panel.draw_square(self.canvas, 0, y, screen.WIDTH - 1, y, TC(THEME_BG))
+        if pixel_count:
+            self.panel.draw_line(
+                self.canvas,
+                0,
+                y,
+                pixel_count - 1,
+                y,
+                TC(THEME_DIVIDING_BAR),
+            )
+        self.last_bottom_progress = pixel_count
 
     # ------------------------------------------------------------------
     # Plane details (scrolling bar)
@@ -543,6 +643,7 @@ class FlightScene:
                 details_width,
                 spans,
                 bounce=False,
+                reverse=current_mode == 0,
             )
             self.details_spans = spans
             self.last_details_mode = current_mode

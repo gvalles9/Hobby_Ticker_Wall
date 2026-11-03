@@ -1,25 +1,18 @@
-"""
-FlightTracker update manager.
-
-Checks for tagged releases on GitHub and applies updates via git + pip.
-"""
+"""Hobby Ticker update manager for the configured Git upstream."""
 
 from __future__ import annotations
 
-import json
 import logging
 import subprocess
-import urllib.error
-import urllib.request
 from pathlib import Path
 
-from version import VERSION
+from version import APP_VERSION
 
 logger = logging.getLogger("updater")
 
-GITHUB_OWNER = "ColinWaddell"
-GITHUB_REPO = "FlightTracker"
-GITHUB_TAGS_URL = f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/tags"
+GITHUB_OWNER = "gvalles9"
+GITHUB_REPO = "Hobby_Ticker_Wall"
+GITHUB_REPOSITORY_URL = f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}"
 
 # Project root is the parent of the utilities/ directory.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -88,96 +81,58 @@ def version_string(version: list[int]) -> str:
     return "v" + ".".join(map(str, version))
 
 
-# ---------------------------------------------------------------------------
-# GitHub API
-# ---------------------------------------------------------------------------
-
-
-def get_latest_tag() -> tuple[str | None, str | None, str | None]:
-    """Query GitHub for the latest tag.
-
-    Returns (tag_name, commit_sha, error_message).
-    On failure, tag_name and commit_sha are None and error_message is set.
-    """
-    try:
-        req = urllib.request.Request(
-            GITHUB_TAGS_URL,
-            headers={
-                "User-Agent": f"{GITHUB_OWNER}/{GITHUB_REPO} update-checker",
-                "Accept": "application/vnd.github+json",
-            },
-        )
-        with urllib.request.urlopen(req, timeout=100) as resp:
-            tags = json.loads(resp.read().decode("utf-8"))
-
-        if not tags:
-            return None, None, "No tags found on GitHub."
-
-        latest = tags[0]
-        tag_name = latest.get("name", "")
-        commit_sha = latest.get("commit", {}).get("sha", "")
-        return tag_name, commit_sha, None
-
-    except urllib.error.URLError as exc:
-        logger.error("Network error fetching tags: %s", exc)
-        return None, None, f"Network error: {exc.reason}"
-    except Exception as exc:  # noqa: BLE001
-        logger.error("Error fetching tags: %s", exc)
-        return None, None, f"Error: {exc}"
-
-
 def get_update_info() -> dict:
-    """Get full update status as a dict suitable for the web UI.
-
-    Keys: current_version, latest_version, update_available, tag, error
-    """
-    tag_name, _commit_sha, error = get_latest_tag()
-
-    current = version_string(VERSION)
-
-    if error:
-        return {
-            "current_version": current,
-            "latest_version": None,
-            "update_available": False,
-            "tag": None,
-            "error": error,
-        }
-
-    remote_version = parse_version(tag_name)
-    update_available = is_newer(remote_version, VERSION)
-
-    return {
-        "current_version": current,
-        "latest_version": version_string(remote_version),
-        "update_available": update_available,
-        "tag": tag_name,
+    """Compare the local checkout with its configured Git upstream."""
+    info = {
+        "current_version": version_string(APP_VERSION),
+        "latest_version": None,
+        "update_available": False,
+        "upstream_ref": None,
+        "commit": None,
         "error": None,
     }
 
-
-def get_release_notes(tag: str) -> str | None:
-    """Fetch the release notes (body) for a given tag from GitHub.
-
-    Returns the markdown body, or None if no release is attached to the tag
-    or the request fails.
-    """
-    url = (
-        f"https://api.github.com/repos/{GITHUB_OWNER}/{GITHUB_REPO}/releases/tags/{tag}"
+    ok, upstream_ref = _run_git(
+        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]
     )
+    if not ok or not upstream_ref:
+        info["error"] = "The current Git branch has no configured upstream."
+        return info
+
+    ok, message = _run_git(["fetch", "--quiet"], timeout=600)
+    if not ok:
+        info["error"] = f"Unable to check for updates: {message}"
+        return info
+
+    ok, counts = _run_git(
+        ["rev-list", "--left-right", "--count", f"HEAD...{upstream_ref}"]
+    )
+    if not ok:
+        info["error"] = f"Unable to compare with {upstream_ref}: {counts}"
+        return info
+
     try:
-        req = urllib.request.Request(
-            url,
-            headers={
-                "User-Agent": f"{GITHUB_OWNER}/{GITHUB_REPO} update-checker",
-                "Accept": "application/vnd.github+json",
-            },
+        local_ahead, remote_ahead = (int(value) for value in counts.split())
+    except (TypeError, ValueError):
+        info["error"] = f"Unable to parse commit comparison for {upstream_ref}."
+        return info
+
+    ok, commit = _run_git(["rev-parse", "--short", upstream_ref])
+    if not ok:
+        info["error"] = f"Unable to identify latest commit on {upstream_ref}: {commit}"
+        return info
+
+    info["latest_version"] = commit
+    info["upstream_ref"] = upstream_ref
+    info["commit"] = commit
+    if local_ahead and remote_ahead:
+        info["error"] = (
+            f"The local branch and {upstream_ref} have diverged; "
+            "a fast-forward update is not possible."
         )
-        with urllib.request.urlopen(req, timeout=100) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-        return data.get("body") or None
-    except Exception:
-        return None
+    else:
+        info["update_available"] = remote_ahead > 0
+    return info
 
 
 # ---------------------------------------------------------------------------
@@ -252,8 +207,8 @@ def is_dirty_tree() -> bool:
 # ---------------------------------------------------------------------------
 
 
-def perform_update(tag: str) -> tuple[bool, str]:
-    """Apply an update by checking out the given git tag and updating deps.
+def perform_update() -> tuple[bool, str]:
+    """Fast-forward to the configured Git upstream and update dependencies.
 
     Returns (success, message).
     """
@@ -265,20 +220,23 @@ def perform_update(tag: str) -> tuple[bool, str]:
             "before updating, or run 'git checkout -- .' to discard changes.",
         )
 
-    # 2. Fetch tags
-    # --force allows existing tags to be updated if they were moved on the remote
-    # (e.g. after an amended commit). Without it, git rejects any tag that would
-    # change and aborts the whole fetch.
-    logger.info("Fetching tags from origin...")
-    ok, msg = _run_git(["fetch", "--tags", "--force", "origin"], timeout=600)
+    # 2. Resolve and fetch the branch's configured upstream.
+    ok, upstream_ref = _run_git(
+        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]
+    )
+    if not ok or not upstream_ref:
+        return False, "The current Git branch has no configured upstream."
+
+    logger.info("Fetching updates for %s...", upstream_ref)
+    ok, msg = _run_git(["fetch", "--quiet"], timeout=600)
     if not ok:
         return False, f"git fetch failed: {msg}"
 
-    # 3. Checkout the tag
-    logger.info("Checking out tag %s...", tag)
-    ok, msg = _run_git(["checkout", tag], timeout=300)
+    # 3. Fast-forward only; never discard local commits.
+    logger.info("Fast-forwarding to %s...", upstream_ref)
+    ok, msg = _run_git(["merge", "--ff-only", upstream_ref], timeout=300)
     if not ok:
-        return False, f"git checkout {tag} failed: {msg}"
+        return False, f"Unable to fast-forward to {upstream_ref}: {msg}"
 
     # 4. Update Python dependencies
     platform = detect_platform()
@@ -311,4 +269,10 @@ def perform_update(tag: str) -> tuple[bool, str]:
     except Exception as exc:  # noqa: BLE001
         return False, f"pip install error: {exc}"
 
-    return True, f"Successfully updated to {tag}."
+    ok, updated_commit = _run_git(["rev-parse", "--short", "HEAD"])
+    if not ok:
+        return (
+            False,
+            f"Update installed, but could not read current commit: {updated_commit}",
+        )
+    return True, f"Successfully updated to {updated_commit}."

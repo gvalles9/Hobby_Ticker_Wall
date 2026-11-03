@@ -130,3 +130,39 @@ class TestHealthyPathCooldown:
 
         scene.poll()  # next tick: gated, try_get not called again
         assert manager.try_get_calls == 1
+
+
+def test_satellite_name_is_shifted_left_to_keep_closing_parenthesis_visible(
+    monkeypatch,
+):
+    class Panel:
+        def __init__(self):
+            self.drawn = []
+
+        def draw_text(self, canvas, font, x, y, colour, text):
+            self.drawn.append((x, y, text))
+
+    scene, _manager = _scene()
+    scene.panel = Panel()
+    scene.last_cycle_second = satellite_scene.datetime.datetime.utcnow().timestamp()
+    monkeypatch.setattr(
+        satellite_scene, "fonts", types.SimpleNamespace(extrasmall=object())
+    )
+    monkeypatch.setattr(
+        satellite_scene,
+        "font_text_width",
+        lambda font, text: len(text) * 4,
+    )
+    monkeypatch.setattr(
+        satellite_scene.passes_mod,
+        "current_position",
+        lambda window: None,
+    )
+
+    scene.update_text_panel([types.SimpleNamespace(name="ISS (ZARYA)")])
+
+    name_x, _name_y, name = next(
+        item for item in scene.panel.drawn if item[2] == "ISS (ZARYA)"
+    )
+    assert name.endswith(")")
+    assert name_x + len(name) * 4 <= satellite_scene.screen.WIDTH - 4

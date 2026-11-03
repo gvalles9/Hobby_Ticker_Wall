@@ -6,6 +6,7 @@ current working directory:
   airports.json                IATA-keyed lookup (the bundled default)
   airports-full.json           IATA + FAA/local + ICAO/gps codes (opt-in via
                                the ``airport_lookup_full`` config toggle)
+  airport_coordinates.json     IATA + FAA/local + ICAO/gps coordinates
   airports_icao_to_iata.json   ICAO -> IATA display-code mapping
   airports_iata_to_icao.json   IATA -> ICAO display-code mapping (the
                                reverse of the table above; used by the
@@ -121,6 +122,54 @@ def build_airports(rows: list[dict]) -> tuple[dict, dict, dict]:
     return airports, full, ica0, iata0
 
 
+def build_airport_coordinates(rows: list[dict]) -> dict[str, dict[str, float]]:
+    """Build a code-keyed coordinate table for IATA and full airport codes."""
+    iata_coordinates: dict[str, tuple[float, dict[str, float]]] = {}
+    other_candidates: dict[str, tuple[float, dict[str, float]]] = {}
+
+    def coordinates(row: dict) -> dict[str, float] | None:
+        try:
+            lat = float(row["latitude_deg"])
+            lon = float(row["longitude_deg"])
+        except (KeyError, TypeError, ValueError):
+            return None
+        if not (-90 <= lat <= 90 and -180 <= lon <= 180):
+            return None
+        return {"latitude": lat, "longitude": lon}
+
+    for row in rows:
+        point = coordinates(row)
+        if point is None:
+            continue
+
+        iata = row.get("iata_code", "").strip().upper()
+        if len(iata) == 3:
+            score = _score(row)
+            current = iata_coordinates.get(iata)
+            if current is None or score > current[0]:
+                iata_coordinates[iata] = (score, point)
+
+        if row.get("type") == "closed":
+            continue
+        codes = [row.get("local_code", "")]
+        if not iata:
+            codes.append(row.get("icao_code", "") or row.get("gps_code", ""))
+        for code in codes:
+            code = code.strip().upper()
+            if not code or len(code) > 4 or code in iata_coordinates:
+                continue
+            score = _score(row)
+            current = other_candidates.get(code)
+            if current is None or score > current[0]:
+                other_candidates[code] = (score, point)
+
+    result = {code: point for code, (_, point) in iata_coordinates.items()}
+    for code, (_, point) in other_candidates.items():
+        if code not in result:
+            result[code] = point
+    return result
+
+
 def _write(path: str, data: dict) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, sort_keys=True, ensure_ascii=False)
@@ -130,10 +179,12 @@ def main() -> None:
     with urllib.request.urlopen(url) as r:
         rows = list(csv.DictReader(line.decode("utf-8") for line in r))
     airports, full, ica0, iata0 = build_airports(rows)
+    coordinates = build_airport_coordinates(rows)
     _write("airports.json", airports)
     _write("airports-full.json", full)
     _write("airports_icao_to_iata.json", ica0)
     _write("airports_iata_to_icao.json", iata0)
+    _write("airport_coordinates.json", coordinates)
 
 
 if __name__ == "__main__":

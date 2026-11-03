@@ -19,6 +19,7 @@ from datetime import datetime
 from display.bdf_font import BDFFont
 from display.bdf_font import draw_text as bdf_draw_text
 from display.rgbpanel import Colour, RGBPanel
+from setup import screen
 
 # ---------------------------------------------------------------------------
 # Display constants
@@ -136,9 +137,11 @@ def _draw_square(canvas, x0: int, y0: int, x1: int, y1: int, colour) -> None:
 class SimulatorPanel(RGBPanel):
     """Desktop panel driver using pygame for LED matrix simulation."""
 
+    is_simulator = True
+
     def __init__(self):
-        self._width = 64
-        self._height = 32
+        self._width = screen.WIDTH
+        self._height = screen.HEIGHT
         self._brightness = 50
         self._screen = None
         self._pygame_ready = False
@@ -160,8 +163,8 @@ class SimulatorPanel(RGBPanel):
 
     def init_matrix(
         self,
-        width=64,
-        height=32,
+        width=screen.WIDTH,
+        height=screen.HEIGHT,
         brightness=50,
         rotation=0,
         hat_pwm=True,

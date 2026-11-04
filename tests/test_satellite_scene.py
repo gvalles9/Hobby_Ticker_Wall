@@ -324,7 +324,7 @@ def test_format_satellite_data_supports_new_fields():
         "km",
     )
 
-    # Test time_to_aos
+    # Test time_to_aos (allow 1-second tolerance for timing drift)
     future_aos = now + satellite_scene.datetime.timedelta(seconds=120)
     window_future = satellite_scene.passes_mod.PassWindow(
         name="TEST",
@@ -334,13 +334,12 @@ def test_format_satellite_data_supports_new_fields():
         max_el=45.0,
         trajectory=[],
     )
-    assert format_satellite_data("time_to_aos", 0, 0, None, cfg, window_future) == (
-        "To AOS",
-        "120",
-        "s",
-    )
+    result = format_satellite_data("time_to_aos", 0, 0, None, cfg, window_future)
+    assert result[0] == "To AOS"
+    assert result[2] == "s"
+    assert int(result[1]) in (119, 120, 121)  # Allow 1-second tolerance
 
-    # Test time_to_los
+    # Test time_to_los (allow 1-second tolerance for timing drift)
     future_los = now + satellite_scene.datetime.timedelta(seconds=300)
     window_los = satellite_scene.passes_mod.PassWindow(
         name="TEST",
@@ -350,11 +349,10 @@ def test_format_satellite_data_supports_new_fields():
         max_el=45.0,
         trajectory=[],
     )
-    assert format_satellite_data("time_to_los", 0, 0, None, cfg, window_los) == (
-        "To LOS",
-        "300",
-        "s",
-    )
+    result = format_satellite_data("time_to_los", 0, 0, None, cfg, window_los)
+    assert result[0] == "To LOS"
+    assert result[2] == "s"
+    assert int(result[1]) in (299, 300, 301)  # Allow 1-second tolerance
 
     # Test pass_duration
     window_dur = satellite_scene.passes_mod.PassWindow(

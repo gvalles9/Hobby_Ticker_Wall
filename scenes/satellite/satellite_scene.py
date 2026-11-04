@@ -366,7 +366,9 @@ class SatelliteScene:
         }
 
         for index, field in enumerate(fields):
-            label, value, unit = format_satellite_data(field, az, el, telemetry, cfg, window)
+            label, value, unit = format_satellite_data(
+                field, az, el, telemetry, cfg, window
+            )
             column_x = DATA_COL_X[index // 2]
             label_y, value_y = ROW_LAYOUT[index % 2]
             row = index + 1
@@ -375,14 +377,10 @@ class SatelliteScene:
             )
             value_key = f"row{row}_value"
             unit_key = f"row{row}_unit"
-            new_texts[value_key] = PlacedSpan(
-                Span(WHITE, f, value), column_x, value_y
-            )
+            new_texts[value_key] = PlacedSpan(Span(WHITE, f, value), column_x, value_y)
             new_texts[unit_key] = PlacedSpan(Span(PINK, f, unit), column_x, value_y)
             value_width = font_text_width(f, value)
-            new_texts[unit_key] = new_texts[unit_key]._replace(
-                x=column_x + value_width
-            )
+            new_texts[unit_key] = new_texts[unit_key]._replace(x=column_x + value_width)
 
         black = Colour(0, 0, 0)
 

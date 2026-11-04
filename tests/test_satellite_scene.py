@@ -388,7 +388,23 @@ def test_format_satellite_data_supports_new_fields():
 
     # Test None window returns placeholder
     assert format_satellite_data("range", 0, 0, None, cfg, None) == ("Range", "--", "")
-    assert format_satellite_data("time_to_aos", 0, 0, None, cfg, None) == ("To AOS", "--", "")
-    assert format_satellite_data("time_to_los", 0, 0, None, cfg, None) == ("To LOS", "--", "")
-    assert format_satellite_data("pass_duration", 0, 0, None, cfg, None) == ("Duration", "--", "")
-    assert format_satellite_data("max_elevation", 0, 0, None, cfg, None) == ("Max El", "--", "")
+    assert format_satellite_data("time_to_aos", 0, 0, None, cfg, None) == (
+        "To AOS",
+        "--",
+        "",
+    )
+    assert format_satellite_data("time_to_los", 0, 0, None, cfg, None) == (
+        "To LOS",
+        "--",
+        "",
+    )
+    assert format_satellite_data("pass_duration", 0, 0, None, cfg, None) == (
+        "Duration",
+        "--",
+        "",
+    )
+    assert format_satellite_data("max_elevation", 0, 0, None, cfg, None) == (
+        "Max El",
+        "--",
+        "",
+    )

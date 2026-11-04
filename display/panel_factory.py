@@ -17,7 +17,7 @@ _panel = None
 def is_pi5():
     """Detect if running on a Raspberry Pi 5."""
     try:
-        with open("/proc/device-tree/model", "r") as f:
+        with open("/proc/device-tree/model") as f:
             return "Raspberry Pi 5" in f.read()
     except Exception:
         return False

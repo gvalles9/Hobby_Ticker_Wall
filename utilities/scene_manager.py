@@ -39,7 +39,7 @@ class SceneManager:
         self.scenes.append(scene)
         self.scenes.sort(key=lambda s: s.priority)
 
-    def kick(self) -> None:
+    def kick(self, debug_scene: str = "auto") -> None:
         if not self.scenes:
             return
 
@@ -48,6 +48,22 @@ class SceneManager:
 
         fallback = self.scenes[0]
         non_fallback = self.scenes[1:]
+
+        if debug_scene != "auto":
+            forced = next(
+                (
+                    scene
+                    for scene in self.scenes
+                    if getattr(scene, "debug_name", None) == debug_scene
+                ),
+                None,
+            )
+            if forced is not None and (forced is fallback or forced.has_data()):
+                if forced is not self.current_scene:
+                    forced.on_enter()
+                    self.current_scene = forced
+                self.current_scene.draw()
+                return
 
         highest_with_data = None
         highest_active = None

@@ -153,6 +153,7 @@ class FlightScene:
     """
 
     priority = PRIORITY
+    debug_name = "flight"
 
     def __init__(self, canvas, panel, overhead, refresh_interval: float):
         """

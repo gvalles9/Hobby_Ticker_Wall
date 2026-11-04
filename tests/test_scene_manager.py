@@ -9,6 +9,7 @@ def _make_scene(priority, has_data=False, active=False):
     """Create a mock scene with the given priority and state."""
     scene = MagicMock()
     scene.priority = priority
+    scene.debug_name = None
     scene.has_data.return_value = has_data
     scene.active.return_value = active
     scene.poll = MagicMock()
@@ -104,3 +105,34 @@ class TestSceneManagerDispatch:
         sm.kick()
         s1.poll.assert_called_once()
         s2.poll.assert_called_once()
+
+    def test_debug_scene_forces_available_scene_over_higher_priority_scene(self):
+        sm = SceneManager()
+        idle = _make_scene(0, has_data=True, active=True)
+        idle.debug_name = "idle"
+        satellite = _make_scene(2, has_data=True)
+        satellite.debug_name = "satellite"
+        flight = _make_scene(1, has_data=True)
+        flight.debug_name = "flight"
+        for scene in (idle, flight, satellite):
+            sm.register(scene)
+
+        sm.kick(debug_scene="flight")
+
+        flight.on_enter.assert_called_once()
+        flight.draw.assert_called_once()
+        satellite.draw.assert_not_called()
+
+    def test_debug_scene_with_no_data_falls_back_to_normal_dispatch(self):
+        sm = SceneManager()
+        idle = _make_scene(0, has_data=True, active=True)
+        idle.debug_name = "idle"
+        flight = _make_scene(1, has_data=False)
+        flight.debug_name = "flight"
+        sm.register(idle)
+        sm.register(flight)
+
+        sm.kick(debug_scene="flight")
+
+        idle.draw.assert_called_once()
+        flight.draw.assert_not_called()

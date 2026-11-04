@@ -88,6 +88,7 @@ export const SIDEBAR_GROUPS = [
       { section: "group-airline-info", icon: "bi-ticket-perforated", label: "Airline Info" },
       { section: "group-plane-info", icon: "bi-info-circle", label: "Plane Details" },
       { section: "group-satellite", icon: "bi-rocket-takeoff", label: "Satellite Tracking" },
+      { section: "group-debug", icon: "bi-bug", label: "Debug" },
     ],
   },
   {

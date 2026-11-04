@@ -21,9 +21,10 @@ are set in `setup/screen.py`.
 - **Separate unit profiles:** flight and satellite scenes default to metric;
   idle weather defaults to standard units. Both profiles are configurable.
 - **First-boot Wi-Fi setup and recovery** for supported Pi installations.
-- **Branch-based updates** from the checkout's configured Git upstream.
-  Updates fast-forward only and refuse tracked local changes or diverged
-  branches.
+- **Fork-based updates:** the web updater checks `main` in
+  `gvalles9/Hobby_Ticker_Wall`, regardless of the inherited FlightTracker
+  upstream configuration. Updates fast-forward only and refuse tracked local
+  changes or diverged branches.
 
 The original FlightTracker documentation remains useful for general hardware
 and driver background: [build guide](https://flight-tracker.dev/build/) ·
@@ -31,20 +32,39 @@ and driver background: [build guide](https://flight-tracker.dev/build/) ·
 
 ## Installation
 
-> The Raspberry Pi installers clone the Hobby Ticker `main` branch from this
-> repository. Run the matching script from the Pi's terminal:
->
-> ```bash
-> # Raspberry Pi 3/4/Zero
-> curl -sSL https://raw.githubusercontent.com/gvalles9/Hobby_Ticker_Wall/main/platforms/pi/install.sh | bash
->
-> # Raspberry Pi 5
-> curl -sSL https://raw.githubusercontent.com/gvalles9/Hobby_Ticker_Wall/main/platforms/pi5/install.sh | bash
-> ```
->
-> The installer requires an internet connection and interactive terminal access.
-> The application remains in `~/FlightTracker` to preserve existing service and
-> configuration conventions; its Git remote points to this Hobby Ticker repo.
+### Option 1: Prebuilt OS Image (Recommended)
+
+For the easiest installation, use the prebuilt Hobby Ticker OS image. This includes everything pre-installed - no command line required.
+
+1. Download and install [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
+2. Open Imager and go to **App Options → Content Repository → Custom URL**
+3. Enter: `https://raw.githubusercontent.com/gvalles9/Hobby_Ticker_OS/main/os_list.json`
+4. Select "Hobby Ticker OS" from the OS list
+5. Choose the version for your Pi:
+   - **32-bit** for Raspberry Pi 3
+   - **64-bit** for Raspberry Pi 4/5
+6. Set your Wi-Fi details and hostname (e.g., `hobbyticker`)
+7. Flash to SD card
+8. Boot your Pi and configure at `http://hobbyticker.local:8584`
+
+See the [Hobby Ticker OS repository](https://github.com/gvalles9/Hobby_Ticker_OS) for more details.
+
+### Option 2: Manual Install
+
+The Raspberry Pi installers clone the Hobby Ticker `main` branch from this
+repository. Run the matching script from the Pi's terminal:
+
+```bash
+# Raspberry Pi 3/4/Zero
+curl -sSL https://raw.githubusercontent.com/gvalles9/Hobby_Ticker_Wall/main/platforms/pi/install.sh | bash
+
+# Raspberry Pi 5
+curl -sSL https://raw.githubusercontent.com/gvalles9/Hobby_Ticker_Wall/main/platforms/pi5/install.sh | bash
+```
+
+The installer requires an internet connection and interactive terminal access.
+The application remains in `~/FlightTracker` to preserve existing service and
+configuration conventions; its Git remote points to this Hobby Ticker repo.
 
 The optional first-boot Wi-Fi setup is available after its services have been
 installed. On first boot, the Pi starts a temporary setup hotspot. Scan the QR
@@ -71,10 +91,11 @@ minutes, the Pi automatically opens the protected setup hotspot and displays its
 The saved network credentials are retained, so if that network reconnects the Pi
 returns to it and closes the temporary hotspot.
 
-On Raspberry Pi, a systemd timer checks the checkout's configured Git upstream
-daily at 2:00 AM local time. It fast-forwards only when the working tree is clean,
-updates Python dependencies when source changes, and restarts the display service
-after a successful update. Failed dependency updates are retried the next night.
+On Raspberry Pi, a systemd timer checks the install's `origin` branch daily at
+2:00 AM local time. The Hobby Ticker installers set `origin` to this fork. It
+fast-forwards only when the working tree is clean, updates Python dependencies
+when source changes, and restarts the display service after a successful update.
+Failed dependency updates are retried the next night.
 User configuration is stored outside the source checkout and is not reset by
 code updates. Check the result with
 `sudo journalctl -u FlightTracker-NightlyUpdate.service`.
@@ -199,7 +220,11 @@ manually are not replaced.
 
 ## Satellite Tracking
 
-To see when a particular satellite is over head enter its [NORAD ID](https://celestrak.org/SATCAT/search.php) in the device config and it'll let you know where to look, its altitude and speed.
+To see when a particular satellite is overhead, enter its [NORAD ID](https://celestrak.org/SATCAT/search.php) in **Sky Monitoring → Satellite Tracking**. The panel defaults to azimuth and elevation on the left of the globe plot, with estimated speed and altitude on the right. Choose each of the four fields independently in the same section.
+To preview the scene without waiting for a real pass, open **Sky Monitoring → Debug**,
+select **Satellite**, and enable **Simulate an active satellite pass**. The synthetic
+pass is only used while Satellite is explicitly selected; set the scene back to
+**Automatic** when finished. Flight scene forcing requires a live aircraft.
 
 ## Running the tracker from the command line
 
@@ -259,15 +284,13 @@ sudo systemctl restart FlightTracker.service
    Head into the settings interface and go into the `Hardware` section and select Convenience Mode
    for a second time, then hit save.
 
-- **Only the top half of the screen is lit up:**
-  Check the panel you've bought to see if it says `32S` (1:32 scan rate) anywhere on it. These aren't supported by this code
-  yet but it should be an easy fix - [more details here](https://github.com/ColinWaddell/FlightTracker/issues/73). If you get it working
-  let me know in the ticket as I want to add this to the settings page.
+- **Only half of the screen is lit up:**
+  If your LED matrix uses a 1:32 scan rate (often marked `32S` or `1/32` on the back of the panel), navigate to **Settings → Hardware** and select `1:32` as your scan rate.
 
 - **Everything looks red**:
   Your power supply isn't supplying enough power to the screen.
 
-- **I changed a setting now the deice wont start:**
+- **I changed a setting now the device won't start:**
   Reset your settings by deleting your config and rebooting
 
 ```bash
@@ -277,7 +300,7 @@ sudo reboot
 
 # After v2.3.0
 cd ~/FlightTracker
-source env/bin/active
+source env/bin/activate
 python flight-tracker.py reset settings
 ```
 
@@ -299,12 +322,10 @@ python flight-tracker.py
 # Please remove any confidential information before posting (specifically: API keys)
 python flight-tracker.py config
 
-# If you want to resart the service
+# If you want to restart the service
 sudo systemctl start FlightTracker.service
 ```
 
-- **Only half my screen is lit up:**
-  Head into `Setting -> Hardware` and select `1:32` as your scan-rate.
 
 ---
 

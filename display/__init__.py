@@ -107,17 +107,26 @@ def build_display_class():
             self.scene_manager.register(ImageScene(self.canvas, self.panel))
             logger.info("Registered scenes: Idle, Flight, Image")
 
-            if cfg.satellite_tracking_enabled:
+            satellite_debug_preview = (
+                cfg.debug_scene == "satellite" and cfg.satellite_test_mode
+            )
+            if cfg.satellite_tracking_enabled or satellite_debug_preview:
                 tle_manager = TLEManager()
-                tle_manager.start()
+                if cfg.satellite_tracking_enabled and not satellite_debug_preview:
+                    tle_manager.start()
                 self.scene_manager.register(
                     SatelliteScene(self.canvas, self.panel, tle_manager)
                 )
-                logger.info(
-                    "Satellite tracking enabled - registered Satellite scene "
-                    "(NORAD ids: %s)",
-                    cfg.satellite_norad_ids,
-                )
+                if cfg.satellite_tracking_enabled and not satellite_debug_preview:
+                    logger.info(
+                        "Satellite tracking enabled - registered Satellite scene "
+                        "(NORAD ids: %s)",
+                        cfg.satellite_norad_ids,
+                    )
+                else:
+                    logger.info(
+                        "Satellite debug preview enabled - using a simulated pass"
+                    )
             else:
                 logger.info("Satellite tracking disabled")
 
@@ -177,7 +186,7 @@ def build_display_class():
                         self.update_brightness()
 
                     if not cfg.is_in_device_standby():
-                        self.scene_manager.kick()
+                        self.scene_manager.kick(cfg.debug_scene)
                         self.loading.tick(frame)
 
                     self.panel.swap(self.canvas)

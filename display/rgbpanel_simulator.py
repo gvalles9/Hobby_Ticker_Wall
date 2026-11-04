@@ -39,6 +39,16 @@ _CAPTURE_DIR = os.path.join(
 )
 
 
+def _fit_dimensions(
+    source: tuple[int, int], target: tuple[int, int]
+) -> tuple[int, int]:
+    """Scale source to fit inside target while preserving its aspect ratio."""
+    src_w, src_h = source
+    dst_w, dst_h = target
+    scale = min(dst_w / src_w, dst_h / src_h)
+    return max(1, round(src_w * scale)), max(1, round(src_h * scale))
+
+
 # ---------------------------------------------------------------------------
 # Canvas - flat pixel buffer matching the LED grid
 # ---------------------------------------------------------------------------
@@ -146,6 +156,7 @@ class SimulatorPanel(RGBPanel):
         self._screen = None
         self._pygame_ready = False
         self._small_buf = None
+        self._matrix_surface = None
         self._mask_surface = None
         self._off_overlay = None
         self._mask_dims = (0, 0)
@@ -240,8 +251,8 @@ class SimulatorPanel(RGBPanel):
         pygame.init()
         w = self._width * _PIXEL_SIZE
         h = self._height * _PIXEL_SIZE
-        self._screen = pygame.display.set_mode((w, h))
-        pygame.display.set_caption("RGB Matrix - desktop preview")
+        self._screen = pygame.display.set_mode((w, h), pygame.RESIZABLE)
+        pygame.display.set_caption("Hobby Ticker - desktop preview")
         self._pygame_ready = True
 
         print(
@@ -306,6 +317,10 @@ class SimulatorPanel(RGBPanel):
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit(0)
+            elif event.type == pygame.VIDEORESIZE:
+                self._screen = pygame.display.set_mode(
+                    (max(1, event.w), max(1, event.h)), pygame.RESIZABLE
+                )
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_p:
                     self._save_photo()
@@ -337,22 +352,38 @@ class SimulatorPanel(RGBPanel):
             )
         del pa  # release PixelArray lock on the surface
 
-        # --- 2. Scale up to full window size (nearest-neighbour) ----------
-        pygame.transform.scale(self._small_buf, self._screen.get_size(), self._screen)
+        # --- 2. Render the LED matrix at its native simulator size ----------
+        matrix_size = (cols * _PIXEL_SIZE, rows * _PIXEL_SIZE)
+        if (
+            self._matrix_surface is None
+            or self._matrix_surface.get_size() != matrix_size
+        ):
+            self._matrix_surface = pygame.Surface(matrix_size)
+        pygame.transform.scale(self._small_buf, matrix_size, self._matrix_surface)
 
         # --- 3. Apply circular multiply mask (built once) ----------------
         if self._mask_dims != (cols, rows):
             self._build_mask()
-        self._screen.blit(
+        self._matrix_surface.blit(
             self._mask_surface, (0, 0), special_flags=pygame.BLEND_RGB_MULT
         )
 
         # --- 4. Add dim off-LED circles so the grid is visible ----------
-        self._screen.blit(self._off_overlay, (0, 0), special_flags=pygame.BLEND_RGB_ADD)
+        self._matrix_surface.blit(
+            self._off_overlay, (0, 0), special_flags=pygame.BLEND_RGB_ADD
+        )
+
+        # --- 5. Fit the matrix into the resizable window -----------------
+        self._screen.fill(_BG_COLOUR)
+        target_size = _fit_dimensions(matrix_size, self._screen.get_size())
+        display_surface = pygame.transform.scale(self._matrix_surface, target_size)
+        x = (self._screen.get_width() - target_size[0]) // 2
+        y = (self._screen.get_height() - target_size[1]) // 2
+        self._screen.blit(display_surface, (x, y))
 
         pygame.display.flip()
 
-        # --- 5. Capture frame if recording ------------------------------
+        # --- 6. Capture frame if recording ------------------------------
         if self._recording:
             self._save_video_frame()
 

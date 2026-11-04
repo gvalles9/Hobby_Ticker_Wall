@@ -72,7 +72,9 @@
   <div class="card p-3">
     <p class="text-muted small mb-0">
       <i class="bi bi-info-circle me-1"></i>
-      This updater checks the configured Git upstream and can fast-forward your checkout
+      This updater checks {{ info.upstream_ref or "hobby-ticker/main" }} in
+      <a href="{{ repository_url }}" target="_blank" rel="noopener">your Hobby Ticker repository</a>
+      and can fast-forward your checkout
       when newer commits are available. It will not overwrite local commits or tracked
       changes. Your configuration should be preserved, but make sure to back up anything
       important before proceeding.

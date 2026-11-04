@@ -218,6 +218,20 @@ DEFAULT_SATELLITE_NORAD_IDS = [25544]  # ISS (ZARYA) = 25544; celestrak.org for 
 DEFAULT_SATELLITE_MIN_ELEVATION = 20  # degrees - passes peaking below this are ignored
 DEFAULT_SATELLITE_MAX_COUNT = 5  # max simultaneous satellites to plot
 DEFAULT_SATELLITE_TIMEOUT_ENABLED = False  # cap how long the scene is shown per pass
+DEFAULT_SATELLITE_TEST_MODE = False  # inject a synthetic active pass for testing
+SATELLITE_DATA_FIELDS = (
+    "azimuth",
+    "elevation",
+    "speed",
+    "altitude",
+    "range",
+    "time_to_aos",
+    "time_to_los",
+    "pass_duration",
+    "max_elevation",
+)
+DEFAULT_SATELLITE_DATA_POINTS = ("azimuth", "elevation", "speed", "altitude")
+DEFAULT_DEBUG_SCENE = "auto"
 DEFAULT_SATELLITE_TIMEOUT_SECONDS = (
     30  # seconds from AOS before the scene yields to lower-priority scenes
 )
@@ -353,7 +367,13 @@ DEFAULTS: dict[str, Any] = {
     "satellite_min_elevation": DEFAULT_SATELLITE_MIN_ELEVATION,
     "satellite_max_count": DEFAULT_SATELLITE_MAX_COUNT,
     "satellite_timeout_enabled": DEFAULT_SATELLITE_TIMEOUT_ENABLED,
+    "satellite_test_mode": DEFAULT_SATELLITE_TEST_MODE,
+    "satellite_data_point_1": DEFAULT_SATELLITE_DATA_POINTS[0],
+    "satellite_data_point_2": DEFAULT_SATELLITE_DATA_POINTS[1],
+    "satellite_data_point_3": DEFAULT_SATELLITE_DATA_POINTS[2],
+    "satellite_data_point_4": DEFAULT_SATELLITE_DATA_POINTS[3],
     "satellite_timeout_seconds": DEFAULT_SATELLITE_TIMEOUT_SECONDS,
+    "debug_scene": DEFAULT_DEBUG_SCENE,
     # Logging
     "log_level": DEFAULT_LOG_LEVEL,
     # Provider usage tally (see utilities/lookups/usage.py + /api)
@@ -1763,6 +1783,47 @@ class Config:
                 "satellite_timeout_enabled", DEFAULT_SATELLITE_TIMEOUT_ENABLED
             )
         )
+
+    @property
+    def satellite_test_mode(self) -> bool:
+        return bool(
+            self.data_store.get("satellite_test_mode", DEFAULT_SATELLITE_TEST_MODE)
+        )
+
+    @property
+    def satellite_data_points(self) -> tuple[str, str, str, str]:
+        # In test mode, reset to defaults on first load if not already reset
+        if self.satellite_test_mode and self.debug_scene == "satellite":
+            reset_key = "_satellite_test_mode_data_points_reset"
+            if not self.data_store.get(reset_key, False):
+                # Clear saved values to force defaults
+                for index in range(1, 5):
+                    self.data_store.pop(f"satellite_data_point_{index}", None)
+                self.data_store[reset_key] = True
+                self.save()
+
+        values = tuple(
+            str(
+                self.data_store.get(
+                    f"satellite_data_point_{index}",
+                    DEFAULT_SATELLITE_DATA_POINTS[index - 1],
+                )
+            )
+            for index in range(1, 5)
+        )
+        return tuple(
+            (
+                value
+                if value in SATELLITE_DATA_FIELDS
+                else DEFAULT_SATELLITE_DATA_POINTS[i]
+            )
+            for i, value in enumerate(values)
+        )
+
+    @property
+    def debug_scene(self) -> str:
+        value = str(self.data_store.get("debug_scene", DEFAULT_DEBUG_SCENE)).lower()
+        return value if value in ("auto", "flight", "satellite", "idle") else "auto"
 
     @property
     def satellite_timeout_seconds(self) -> int:

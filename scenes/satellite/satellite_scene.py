@@ -44,15 +44,12 @@ CYCLE_INTERVAL_S = 4
 NO_TLE_RETRY_SECONDS = 60
 NO_TLE_LOG_INTERVAL = 600
 
-# Right-column text positions (extrasmall 4x6 font, 6 lines)
-TEXT_COL_X = screen.WIDTH - 40
+# Satellite data column positions (extrasmall 4x6 font)
+DATA_COL_X = (4, screen.WIDTH - 40)
 NAME_RIGHT_MARGIN = 4
 NAME_Y = 5  # satellite name (yellow)
 # blank line at y=6
-LINE1_Y = 13  # "Speed" label
-LINE2_Y = 19  # speed value + unit
-LINE3_Y = 25  # "Altitude" label (purple)
-LINE4_Y = 31  # altitude value + unit
+ROW_LAYOUT = ((13, 19), (25, 31))
 
 
 class SatelliteScene:
@@ -62,6 +59,7 @@ class SatelliteScene:
     """
 
     priority = PRIORITY
+    debug_name = "satellite"
 
     def __init__(self, canvas, panel, tle_manager):
         self.canvas = canvas
@@ -71,6 +69,7 @@ class SatelliteScene:
         self.frame: int = 0
         self.pass_windows: list[passes_mod.PassWindow] = []
         self.windows_computed_at: float = 0.0
+        self.last_test_mode: bool | None = None
 
         # Which satellite's telemetry is currently shown in the right panel
         self.cycle_index: int = 0
@@ -111,13 +110,18 @@ class SatelliteScene:
         # Recompute if windows haven't been built yet, are all expired,
         # or are older than 1 hour (to catch new passes that overlap
         # with currently active ones).
+        test_mode_enabled = cfg.satellite_test_mode and cfg.debug_scene == "satellite"
+        test_mode_changed = (
+            self.last_test_mode is not None and test_mode_enabled != self.last_test_mode
+        )
         needs_refresh = (
             not self.pass_windows
             or all(w.los.timestamp() < now_ts for w in self.pass_windows)
             or (now_ts - self.windows_computed_at) > 3600
+            or test_mode_changed
         )
 
-        if needs_refresh and now_ts >= self.next_recompute_at:
+        if needs_refresh and (now_ts >= self.next_recompute_at or test_mode_changed):
             self.recompute_passes(cfg)
 
     def has_data(self) -> bool:
@@ -195,8 +199,10 @@ class SatelliteScene:
         self._recompute_passes(cfg, now_ts)
 
     def _recompute_passes(self, cfg, now_ts: float) -> None:
-        tles = self.tle_manager.try_get()
-        if not tles:
+        test_mode = cfg.satellite_test_mode and cfg.debug_scene == "satellite"
+        self.last_test_mode = test_mode
+        tles = [] if test_mode else self.tle_manager.try_get()
+        if not test_mode and not tles:
             # Hold off: the TLE manager is fetching (or backing off) in its
             # own loop.  Warn only once per log interval - a prolonged
             # CelesTrak outage must not spam the log.
@@ -215,6 +221,7 @@ class SatelliteScene:
                 cfg.observer_lng,
                 cfg.satellite_min_elevation,
                 cfg.satellite_max_count,
+                test_mode=test_mode,
             )
             self.windows_computed_at = datetime.datetime.utcnow().timestamp()
             # Force redraw of ring + trajectories on next draw()
@@ -319,13 +326,9 @@ class SatelliteScene:
         """
         Render the currently cycled satellite's name and telemetry.
 
-        Layout (extrasmall 4x6 font, x=0):
-            Line 1: "ISS (ZARYA)"  (yellow name)
-            Line 2: (blank)
-            Line 3: "Speed"        (purple label)
-            Line 4: "27420km/h"    (white value + pink unit)
-            Line 5: "Altitude"     (purple label)
-            Line 6: "408km"        (white value + pink unit)
+        Layout (extrasmall 4x6 font):
+            Top: satellite name
+            Two rows: configured fields, each with a label and value/unit
 
         Uses a stash-and-erase strategy: old text is redrawn in black
         before new text is drawn on top, so only changed pixels are touched.
@@ -339,36 +342,16 @@ class SatelliteScene:
 
         window = active[self.cycle_index % len(active)]
 
-        # Telemetry: speed and altitude from current position
+        # Current position and derived telemetry feed the configurable rows.
         pos = passes_mod.current_position(window)
+        az = el = None
         if pos is not None:
             az, el = pos
             telemetry = compute_telemetry(window, az, el)
-
-            cfg = Config.instance()
-            if telemetry is not None:
-                speed_kmh, alt_km = telemetry
-                if cfg.speed_unit == "mph":
-                    speed_val = f"{int(speed_kmh * 0.621371)}"
-                    speed_unit = "mph"
-                elif cfg.speed_unit == "kts":
-                    speed_val = f"{int(speed_kmh * 0.539957)}"
-                    speed_unit = "kts"
-                else:
-                    speed_val = f"{int(speed_kmh)}"
-                    speed_unit = "km/h"
-                if cfg.height_unit == "ft":
-                    alt_val = f"{int(alt_km * 3280.84)}"
-                    alt_unit = "ft"
-                else:
-                    alt_val = f"{int(alt_km * 1000)}"
-                    alt_unit = "m"
-            else:
-                speed_val, speed_unit = "--", ""
-                alt_val, alt_unit = "--", ""
         else:
-            speed_val, speed_unit = "--", ""
-            alt_val, alt_unit = "--", ""
+            telemetry = None
+        cfg = Config.instance()
+        fields = cfg.satellite_data_points
 
         # Build the set of text elements for this frame.
         # Each entry is a PlacedSpan (a Span positioned at an x, y baseline).
@@ -376,26 +359,30 @@ class SatelliteScene:
         name_width = font_text_width(f, window.name)
         name_x = max(
             0,
-            min(TEXT_COL_X, screen.WIDTH - name_width - NAME_RIGHT_MARGIN),
+            min(DATA_COL_X[1], screen.WIDTH - name_width - NAME_RIGHT_MARGIN),
         )
         new_texts: dict[str, PlacedSpan] = {
             "name": PlacedSpan(Span(YELLOW, f, window.name), name_x, NAME_Y),
-            "spd_label": PlacedSpan(Span(PEACH, f, "Speed"), TEXT_COL_X, LINE1_Y),
-            "spd_value": PlacedSpan(Span(WHITE, f, speed_val), TEXT_COL_X, LINE2_Y),
-            "spd_unit": PlacedSpan(Span(PINK, f, speed_unit), TEXT_COL_X, LINE2_Y),
-            "alt_label": PlacedSpan(Span(PEACH, f, "Altitude"), TEXT_COL_X, LINE3_Y),
-            "alt_value": PlacedSpan(Span(WHITE, f, alt_val), TEXT_COL_X, LINE4_Y),
-            "alt_unit": PlacedSpan(Span(PINK, f, alt_unit), TEXT_COL_X, LINE4_Y),
         }
 
-        # Compute unit x-positions (right after the value text)
-        for key in ("spd_unit", "alt_unit"):
-            val_key = key.replace("_unit", "_value")
-            val_ps = new_texts[val_key]
-            unit_ps = new_texts[key]
-            # Width of value text in pixels, using the real per-glyph advance
-            val_width = font_text_width(val_ps.span.font, val_ps.span.text)
-            new_texts[key] = unit_ps._replace(x=val_ps.x + val_width)
+        for index, field in enumerate(fields):
+            label, value, unit = format_satellite_data(field, az, el, telemetry, cfg, window)
+            column_x = DATA_COL_X[index // 2]
+            label_y, value_y = ROW_LAYOUT[index % 2]
+            row = index + 1
+            new_texts[f"row{row}_label"] = PlacedSpan(
+                Span(PEACH, f, label), column_x, label_y
+            )
+            value_key = f"row{row}_value"
+            unit_key = f"row{row}_unit"
+            new_texts[value_key] = PlacedSpan(
+                Span(WHITE, f, value), column_x, value_y
+            )
+            new_texts[unit_key] = PlacedSpan(Span(PINK, f, unit), column_x, value_y)
+            value_width = font_text_width(f, value)
+            new_texts[unit_key] = new_texts[unit_key]._replace(
+                x=column_x + value_width
+            )
 
         black = Colour(0, 0, 0)
 
@@ -413,9 +400,107 @@ class SatelliteScene:
         self.last_text = new_texts
 
 
+def format_satellite_data(
+    field: str,
+    azimuth: float | None,
+    elevation: float | None,
+    telemetry: tuple[float, float] | None,
+    cfg,
+    window: passes_mod.PassWindow | None = None,
+) -> tuple[str, str, str]:
+    """Return a satellite data field's label, display value, and unit."""
+    if field == "azimuth":
+        if azimuth is None:
+            return "Azimuth", "--", ""
+        return "Azimuth", f"{round(azimuth) % 360:03d}", "deg"
+    if field == "elevation":
+        if elevation is None:
+            return "Elevation", "--", ""
+        return "Elevation", f"{round(elevation):02d}", "deg"
+
+    # New window-based fields (don't depend on telemetry)
+    if field == "range":
+        range_km = get_current_range(window)
+        if range_km is None:
+            return "Range", "--", ""
+        return "Range", str(int(range_km)), "km"
+    if field == "time_to_aos":
+        if window is None:
+            return "To AOS", "--", ""
+        now = datetime.datetime.utcnow()
+        if window.aos <= now:
+            return "To AOS", "0", "s"
+        seconds = int((window.aos - now).total_seconds())
+        return "To AOS", str(seconds), "s"
+    if field == "time_to_los":
+        if window is None:
+            return "To LOS", "--", ""
+        now = datetime.datetime.utcnow()
+        if window.los <= now:
+            return "To LOS", "0", "s"
+        seconds = int((window.los - now).total_seconds())
+        return "To LOS", str(seconds), "s"
+    if field == "pass_duration":
+        if window is None:
+            return "Duration", "--", ""
+        seconds = int((window.los - window.aos).total_seconds())
+        return "Duration", str(seconds), "s"
+    if field == "max_elevation":
+        if window is None:
+            return "Max El", "--", ""
+        return "Max El", f"{round(window.max_el):02d}", "deg"
+
+    # Telemetry-dependent fields
+    if telemetry is None:
+        return ("Speed" if field == "speed" else "Altitude"), "--", ""
+
+    speed_kmh, altitude_km = telemetry
+    if field == "speed":
+        if cfg.speed_unit == "mph":
+            return "Speed", str(int(speed_kmh * 0.621371)), "mph"
+        if cfg.speed_unit == "kts":
+            return "Speed", str(int(speed_kmh * 0.539957)), "kts"
+        return "Speed", str(int(speed_kmh)), "km/h"
+    if field == "altitude":
+        if cfg.height_unit == "ft":
+            return "Altitude", str(int(altitude_km * 3280.84)), "ft"
+        return "Altitude", str(int(altitude_km * 1000)), "m"
+
+    return field, "--", ""
+
+
 # ---------------------------------------------------------------------------
 # Telemetry helpers
 # ---------------------------------------------------------------------------
+
+
+def get_current_range(window: passes_mod.PassWindow | None) -> float | None:
+    """
+    Get the current slant range to the satellite from the trajectory.
+    Returns range in km, or None if unavailable.
+    """
+    if window is None or not window.trajectory:
+        return None
+
+    now = datetime.datetime.utcnow()
+
+    # Find the trajectory segment containing the current time
+    for i in range(len(window.trajectory) - 1):
+        _, _, rng0, t0 = window.trajectory[i]
+        _, _, rng1, t1 = window.trajectory[i + 1]
+        if t0 <= now <= t1:
+            span = (t1 - t0).total_seconds()
+            if span <= 0:
+                return rng0
+            frac = (now - t0).total_seconds() / span
+            return rng0 + (rng1 - rng0) * frac
+
+    # If current time is outside the trajectory range, return the closest endpoint
+    if now < window.trajectory[0][3]:
+        _, _, rng, _ = window.trajectory[0]
+        return rng
+    _, _, rng, _ = window.trajectory[-1]
+    return rng
 
 
 def compute_telemetry(

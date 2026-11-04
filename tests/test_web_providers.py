@@ -253,6 +253,41 @@ class TestParseSettingsFormProviders:
         cfg.idle_screen_theme = "cycle"
         assert parse_settings_form({}, cfg)["idle_screen_theme"] == "cycle"
 
+    def test_debug_scene_and_satellite_test_mode_are_saved(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form(
+            {"debug_scene": "satellite", "satellite_test_mode": "on"}, self._cfg()
+        )
+        assert out["debug_scene"] == "satellite"
+        assert out["satellite_test_mode"] is True
+        assert (
+            parse_settings_form({"debug_scene": "invalid"}, self._cfg())["debug_scene"]
+            == "auto"
+        )
+
+    def test_satellite_data_panel_fields_can_be_changed_and_are_validated(self):
+        from web.app import parse_settings_form
+
+        cfg = self._cfg()
+        cfg.satellite_data_points = ("azimuth", "elevation", "speed", "altitude")
+        out = parse_settings_form(
+            {
+                "satellite_data_point_1": "speed",
+                "satellite_data_point_2": "altitude",
+                "satellite_data_point_3": "azimuth",
+                "satellite_data_point_4": "elevation",
+            },
+            cfg,
+        )
+        assert out["satellite_data_point_1"] == "speed"
+        assert out["satellite_data_point_2"] == "altitude"
+        assert out["satellite_data_point_3"] == "azimuth"
+        assert out["satellite_data_point_4"] == "elevation"
+
+        invalid = parse_settings_form({"satellite_data_point_1": "bad"}, cfg)
+        assert invalid["satellite_data_point_1"] == "azimuth"
+
     def test_screen_unit_profiles_default_independently(self):
         from web.app import parse_settings_form
 

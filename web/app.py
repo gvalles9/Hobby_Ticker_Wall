@@ -498,7 +498,12 @@ def _merge_provider_settings(cfg, partial: dict) -> dict:
 def parse_settings_form(form, cfg) -> dict:
     """Coerce the submitted HTML form into a config dict, applying clamps."""
     from scenes.flight.custom_details import AVAILABLE_FIELDS
-    from setup.configuration import DEFAULT_FLIGHT_DATA_POINTS, unit_profile_values
+    from setup.configuration import (
+        DEFAULT_FLIGHT_DATA_POINTS,
+        DEFAULT_SATELLITE_DATA_POINTS,
+        SATELLITE_DATA_FIELDS,
+        unit_profile_values,
+    )
 
     default_idle_theme = getattr(cfg, "idle_screen_theme", "cycle")
     current_flight_units = getattr(cfg, "flight_units", "")
@@ -523,6 +528,9 @@ def parse_settings_form(form, cfg) -> dict:
     unit_values = unit_profile_values(flight_units, idle_units)
     current_flight_data_points = getattr(
         cfg, "flight_data_points", DEFAULT_FLIGHT_DATA_POINTS
+    )
+    current_satellite_data_points = getattr(
+        cfg, "satellite_data_points", DEFAULT_SATELLITE_DATA_POINTS
     )
     idle_theme = str_val(form.get("idle_screen_theme"), default_idle_theme).lower()
     stored_location_source = (
@@ -599,6 +607,20 @@ def parse_settings_form(form, cfg) -> dict:
                 )
                 in AVAILABLE_FIELDS
                 else current_flight_data_points[index]
+            )
+            for index in range(4)
+        },
+        **{
+            f"satellite_data_point_{index + 1}": (
+                value
+                if (
+                    value := str_val(
+                        form.get(f"satellite_data_point_{index + 1}"),
+                        current_satellite_data_points[index],
+                    )
+                )
+                in SATELLITE_DATA_FIELDS
+                else current_satellite_data_points[index]
             )
             for index in range(4)
         },
@@ -761,8 +783,15 @@ def parse_settings_form(form, cfg) -> dict:
             1, min(10, int_val(form.get("satellite_max_count"), 5))
         ),
         "satellite_timeout_enabled": bool_val(form.get("satellite_timeout_enabled")),
+        "satellite_test_mode": bool_val(form.get("satellite_test_mode")),
         "satellite_timeout_seconds": max(
             5, min(3600, int_val(form.get("satellite_timeout_seconds"), 30))
+        ),
+        "debug_scene": (
+            value
+            if (value := str_val(form.get("debug_scene"), "auto").lower())
+            in {"auto", "flight", "satellite", "idle"}
+            else "auto"
         ),
         "_version": VERSION,
     }
@@ -1036,7 +1065,7 @@ def _settings_page_data(
         "schedule_window": schedule_window,
         "schedule_window_json": sw_json,
         "schedule_advanced_active": cfg.active_advanced_entry(),
-        "current_version": version_string(VERSION),
+        "current_version": version_string(APP_VERSION),
         "active_page": "settings",
         "providers_meta": provider_ui["providers_meta"],
         "flight_providers_order": provider_ui["flight_order"],
@@ -1712,7 +1741,7 @@ def update_check():
 @app.route("/update/apply", methods=["POST"])
 @login_required
 def update_apply():
-    """Apply a fast-forward update from the configured Git upstream."""
+    """Apply a fast-forward update from the Hobby Ticker repository."""
     if not validate_csrf(request.form):
         return (
             render_template(
@@ -1726,7 +1755,7 @@ def update_apply():
             403,
         )
 
-    logger.info("Applying update from the configured Git upstream")
+    logger.info("Applying update from the Hobby Ticker main branch")
     success, message = perform_update()
 
     if not success:

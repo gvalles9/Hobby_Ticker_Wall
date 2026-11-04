@@ -4,6 +4,7 @@ import types
 from datetime import datetime, time
 
 from setup.configuration import (
+    DEFAULT_DEBUG_SCENE,
     DEFAULT_FLIGHT_LAT,
     DEFAULT_FLIGHT_LNG,
     DEFAULT_WEATHER_MODE,
@@ -29,6 +30,43 @@ def _t(hour: int, minute: int) -> time:
 
 def test_weather_is_enabled_by_default():
     assert DEFAULT_WEATHER_MODE == 1
+
+
+def test_debug_scene_defaults_to_automatic_and_rejects_unknown_values():
+    from setup.configuration import Config
+
+    config = Config.__new__(Config)
+    config.data_store = {}
+    assert config.debug_scene == DEFAULT_DEBUG_SCENE == "auto"
+
+    config.data_store["debug_scene"] = "satellite"
+    assert config.debug_scene == "satellite"
+    config.data_store["debug_scene"] = "unknown"
+    assert config.debug_scene == "auto"
+
+
+def test_satellite_data_points_default_to_both_sides_and_validate():
+    from setup.configuration import Config
+
+    config = Config.__new__(Config)
+    config.data_store = {}
+    assert config.satellite_data_points == (
+        "azimuth",
+        "elevation",
+        "speed",
+        "altitude",
+    )
+
+    config.data_store.update(
+        satellite_data_point_1="speed",
+        satellite_data_point_2="invalid",
+    )
+    assert config.satellite_data_points == (
+        "speed",
+        "elevation",
+        "speed",
+        "altitude",
+    )
 
 
 def test_legacy_location_defaults_to_auto_detection():

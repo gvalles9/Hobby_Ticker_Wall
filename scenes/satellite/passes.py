@@ -31,13 +31,6 @@ SCAN_INTERVAL_S = 30  # coarser step used while hunting for pass windows
 EARTH_R_KM = 6378.137
 
 # ---------------------------------------------------------------------------
-# Debug flag - flip to True to inject a fake always-active pass for testing.
-# Remove once satellite scene has been validated on real hardware.
-# ---------------------------------------------------------------------------
-DEBUG_FAKE_PASS = False
-
-
-# ---------------------------------------------------------------------------
 # Data types
 # ---------------------------------------------------------------------------
 
@@ -223,13 +216,14 @@ def compute_passes(
     min_elevation: float,
     max_count: int,
     lookahead_hours: int = LOOKAHEAD_HOURS,
+    test_mode: bool = False,
 ) -> list[PassWindow]:
     """
     Compute upcoming passes for all TLEs from the observer position.
 
     Returns a list of PassWindows sorted by AOS.
     """
-    if DEBUG_FAKE_PASS:
+    if test_mode:
         return [fake_pass_window()]
 
     now = datetime.datetime.utcnow()

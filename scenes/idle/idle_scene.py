@@ -34,6 +34,7 @@ class BaseIdleScene:
     """
 
     priority = PRIORITY
+    debug_name = "idle"
 
     def __init__(self, canvas, panel):
         self.canvas = canvas

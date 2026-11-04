@@ -16,7 +16,20 @@ export default defineComponent({
     store: { type: Object, required: true },
   },
   setup() {
-    return { flightDataFields: TEMPLATE_FIELDS };
+    return {
+      flightDataFields: TEMPLATE_FIELDS,
+      satelliteDataFields: [
+        { name: "azimuth", label: "Azimuth" },
+        { name: "elevation", label: "Elevation" },
+        { name: "speed", label: "Speed" },
+        { name: "altitude", label: "Altitude" },
+        { name: "range", label: "Range" },
+        { name: "time_to_aos", label: "Time to AOS" },
+        { name: "time_to_los", label: "Time to LOS" },
+        { name: "pass_duration", label: "Pass Duration" },
+        { name: "max_elevation", label: "Max Elevation" },
+      ],
+    };
   },
   template: `
     <div>
@@ -356,6 +369,27 @@ export default defineComponent({
       </div>
 
       <div v-show="store.config.satellite_tracking_enabled">
+        <h5>Satellite Data Panel</h5>
+        <p class="form-text text-muted small">
+          Choose four fields for the satellite panel. The first two appear on the left of the sky plot;
+          the last two appear on the right.
+        </p>
+        <div class="row g-2 mb-3">
+          <div class="col-6 col-md-3" v-for="slot in [1, 2, 3, 4]" :key="'satellite_data_point_' + slot">
+            <label class="form-label small" :for="'satellite_data_point_' + slot">
+              {{ ['Left top', 'Left bottom', 'Right top', 'Right bottom'][slot - 1] }}
+            </label>
+            <select class="form-select form-select-sm"
+                    :id="'satellite_data_point_' + slot"
+                    :name="'satellite_data_point_' + slot"
+                    v-model="store.config['satellite_data_point_' + slot]">
+              <option v-for="field in satelliteDataFields" :key="field.name" :value="field.name">
+                {{ field.label }}
+              </option>
+            </select>
+          </div>
+        </div>
+
         <h5>Satellites to Track</h5>
         <div class="mb-3">
           <label class="form-label small" for="satellite_norad_ids">NORAD IDs</label>
@@ -405,6 +439,34 @@ export default defineComponent({
             The satellite scene will yield to flight tracking after this many seconds from a pass's start (AOS),
             even if the satellite is still overhead. A new pass beginning within the window will keep the scene active.
           </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ====== Debug ====== -->
+    <div id="group-debug" class="card mb-3 p-3">
+      <p class="section-heading"><i class="bi bi-bug me-2"></i>Debug</p>
+      <div class="mb-3">
+        <label class="form-label small" for="debug_scene">Force a scene</label>
+        <select class="form-select form-select-sm" id="debug_scene" name="debug_scene"
+                v-model="store.config.debug_scene">
+          <option value="auto">Automatic (normal operation)</option>
+          <option value="flight">Flight</option>
+          <option value="satellite">Satellite</option>
+          <option value="idle">Idle</option>
+        </select>
+        <div class="form-text text-muted small">
+          The selected scene is displayed when it has data. Flight testing requires a live aircraft;
+          enable satellite test mode below to simulate a pass.
+        </div>
+      </div>
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input" id="satellite_test_mode"
+               name="satellite_test_mode" :value="true"
+               v-model="store.config.satellite_test_mode" />
+        <label class="form-check-label small" for="satellite_test_mode">Simulate an active satellite pass</label>
+        <div class="form-text text-muted small">
+          Used only when Satellite is selected above; it won't affect automatic operation.
         </div>
       </div>
     </div>

@@ -28,6 +28,43 @@ def test_footer_attributes_flighttracker_upstream():
     assert "Colin Waddell" in html
 
 
+def test_settings_version_tab_uses_hobby_ticker_product_version(monkeypatch):
+    from web import app as web_app
+
+    class ConfigStub:
+        brightness_schedule_window = None
+
+        def get(self, key):
+            return "manual"
+
+        def is_in_brightness_schedule(self):
+            return False
+
+        def active_advanced_entry(self):
+            return None
+
+    monkeypatch.setattr(
+        web_app,
+        "_provider_ui_data",
+        lambda _cfg: {
+            "cfg": {},
+            "providers_meta": [],
+            "flight_order": [],
+            "route_order": [],
+            "mask_token": "",
+        },
+    )
+    monkeypatch.setattr(web_app, "airports_json", lambda: "[]")
+    monkeypatch.setattr(web_app, "csrf_token", lambda: "token")
+
+    with web_app.app.test_request_context():
+        page_data = web_app._settings_page_data(ConfigStub())
+
+    assert page_data["current_version"] == "v1.0.0"
+    assert page_data["current_version"] == web_app.version_string(web_app.APP_VERSION)
+    assert page_data["current_version"] != web_app.version_string(web_app.VERSION)
+
+
 def test_update_page_tracks_fork_branch_and_displays_product_version(monkeypatch):
     from web import app as web_app
 
@@ -41,7 +78,7 @@ def test_update_page_tracks_fork_branch_and_displays_product_version(monkeypatch
             "current_version": "v1.0.0",
             "latest_version": "abcdef1",
             "update_available": False,
-            "upstream_ref": "origin/main",
+            "upstream_ref": "hobby-ticker/main",
             "commit": "abcdef1234567890",
             "error": None,
         },
@@ -55,7 +92,7 @@ def test_update_page_tracks_fork_branch_and_displays_product_version(monkeypatch
     assert "Latest upstream commit" in html
     assert re.search(r'id="current-version">\s*v1\.0\.0\s*</div>', html)
     assert re.search(r'id="latest-version">\s*abcdef1\s*</div>', html)
-    assert "Tracking <code>origin/main</code>" in html
+    assert "Tracking <code>hobby-ticker/main</code>" in html
     assert (
         'href="https://github.com/gvalles9/Hobby_Ticker_Wall/commit/abcdef1234567890"'
         in html

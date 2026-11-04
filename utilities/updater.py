@@ -1,4 +1,4 @@
-"""Hobby Ticker update manager for the configured Git upstream."""
+"""Hobby Ticker update manager for the fork's main branch."""
 
 from __future__ import annotations
 
@@ -13,6 +13,9 @@ logger = logging.getLogger("updater")
 GITHUB_OWNER = "gvalles9"
 GITHUB_REPO = "Hobby_Ticker_Wall"
 GITHUB_REPOSITORY_URL = f"https://github.com/{GITHUB_OWNER}/{GITHUB_REPO}"
+UPDATE_REMOTE = "hobby-ticker"
+UPDATE_BRANCH = "main"
+UPDATE_REF = f"{UPDATE_REMOTE}/{UPDATE_BRANCH}"
 
 # Project root is the parent of the utilities/ directory.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -81,8 +84,18 @@ def version_string(version: list[int]) -> str:
     return "v" + ".".join(map(str, version))
 
 
+def _ensure_update_remote() -> tuple[bool, str]:
+    """Make the updater's remote point at this fork, not an upstream project."""
+    ok, remote_url = _run_git(["remote", "get-url", UPDATE_REMOTE])
+    if not ok:
+        return _run_git(["remote", "add", UPDATE_REMOTE, GITHUB_REPOSITORY_URL])
+    if remote_url.rstrip("/").removesuffix(".git") != GITHUB_REPOSITORY_URL:
+        return _run_git(["remote", "set-url", UPDATE_REMOTE, GITHUB_REPOSITORY_URL])
+    return True, ""
+
+
 def get_update_info() -> dict:
-    """Compare the local checkout with its configured Git upstream."""
+    """Compare the local checkout with this fork's main branch."""
     info = {
         "current_version": version_string(APP_VERSION),
         "latest_version": None,
@@ -92,42 +105,42 @@ def get_update_info() -> dict:
         "error": None,
     }
 
-    ok, upstream_ref = _run_git(
-        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]
-    )
-    if not ok or not upstream_ref:
-        info["error"] = "The current Git branch has no configured upstream."
+    ok, message = _ensure_update_remote()
+    if not ok:
+        info["error"] = f"Unable to configure Hobby Ticker update source: {message}"
         return info
 
-    ok, message = _run_git(["fetch", "--quiet"], timeout=600)
+    ok, message = _run_git(
+        ["fetch", "--quiet", UPDATE_REMOTE, UPDATE_BRANCH], timeout=600
+    )
     if not ok:
         info["error"] = f"Unable to check for updates: {message}"
         return info
 
     ok, counts = _run_git(
-        ["rev-list", "--left-right", "--count", f"HEAD...{upstream_ref}"]
+        ["rev-list", "--left-right", "--count", f"HEAD...{UPDATE_REF}"]
     )
     if not ok:
-        info["error"] = f"Unable to compare with {upstream_ref}: {counts}"
+        info["error"] = f"Unable to compare with {UPDATE_REF}: {counts}"
         return info
 
     try:
         local_ahead, remote_ahead = (int(value) for value in counts.split())
     except (TypeError, ValueError):
-        info["error"] = f"Unable to parse commit comparison for {upstream_ref}."
+        info["error"] = f"Unable to parse commit comparison for {UPDATE_REF}."
         return info
 
-    ok, commit = _run_git(["rev-parse", "--short", upstream_ref])
+    ok, commit = _run_git(["rev-parse", "--short", UPDATE_REF])
     if not ok:
-        info["error"] = f"Unable to identify latest commit on {upstream_ref}: {commit}"
+        info["error"] = f"Unable to identify latest commit on {UPDATE_REF}: {commit}"
         return info
 
     info["latest_version"] = commit
-    info["upstream_ref"] = upstream_ref
+    info["upstream_ref"] = UPDATE_REF
     info["commit"] = commit
     if local_ahead and remote_ahead:
         info["error"] = (
-            f"The local branch and {upstream_ref} have diverged; "
+            f"The local branch and {UPDATE_REF} have diverged; "
             "a fast-forward update is not possible."
         )
     else:
@@ -208,7 +221,7 @@ def is_dirty_tree() -> bool:
 
 
 def perform_update() -> tuple[bool, str]:
-    """Fast-forward to the configured Git upstream and update dependencies.
+    """Fast-forward to this fork's main branch and update dependencies.
 
     Returns (success, message).
     """
@@ -220,23 +233,21 @@ def perform_update() -> tuple[bool, str]:
             "before updating, or run 'git checkout -- .' to discard changes.",
         )
 
-    # 2. Resolve and fetch the branch's configured upstream.
-    ok, upstream_ref = _run_git(
-        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"]
-    )
-    if not ok or not upstream_ref:
-        return False, "The current Git branch has no configured upstream."
+    # 2. Ensure updates always come from Hobby Ticker, never an inherited upstream.
+    ok, msg = _ensure_update_remote()
+    if not ok:
+        return False, f"Unable to configure Hobby Ticker update source: {msg}"
 
-    logger.info("Fetching updates for %s...", upstream_ref)
-    ok, msg = _run_git(["fetch", "--quiet"], timeout=600)
+    logger.info("Fetching updates for %s...", UPDATE_REF)
+    ok, msg = _run_git(["fetch", "--quiet", UPDATE_REMOTE, UPDATE_BRANCH], timeout=600)
     if not ok:
         return False, f"git fetch failed: {msg}"
 
     # 3. Fast-forward only; never discard local commits.
-    logger.info("Fast-forwarding to %s...", upstream_ref)
-    ok, msg = _run_git(["merge", "--ff-only", upstream_ref], timeout=300)
+    logger.info("Fast-forwarding to %s...", UPDATE_REF)
+    ok, msg = _run_git(["merge", "--ff-only", UPDATE_REF], timeout=300)
     if not ok:
-        return False, f"Unable to fast-forward to {upstream_ref}: {msg}"
+        return False, f"Unable to fast-forward to {UPDATE_REF}: {msg}"
 
     # 4. Update Python dependencies
     platform = detect_platform()

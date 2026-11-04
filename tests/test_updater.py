@@ -1,13 +1,13 @@
 import subprocess
 
 
-def test_update_info_compares_checkout_with_configured_upstream(monkeypatch):
+def test_update_info_checks_the_hobby_ticker_main_branch(monkeypatch):
     from utilities import updater
 
     calls = []
     responses = iter(
         [
-            (True, "origin/main"),
+            (True, updater.GITHUB_REPOSITORY_URL),
             (True, ""),
             (True, "0\t2"),
             (True, "abcdef123456"),
@@ -26,15 +26,15 @@ def test_update_info_compares_checkout_with_configured_upstream(monkeypatch):
         "current_version": "v1.0.0",
         "latest_version": "abcdef123456",
         "update_available": True,
-        "upstream_ref": "origin/main",
+        "upstream_ref": "hobby-ticker/main",
         "commit": "abcdef123456",
         "error": None,
     }
     assert calls == [
-        ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{upstream}"],
-        ["fetch", "--quiet"],
-        ["rev-list", "--left-right", "--count", "HEAD...origin/main"],
-        ["rev-parse", "--short", "origin/main"],
+        ["remote", "get-url", "hobby-ticker"],
+        ["fetch", "--quiet", "hobby-ticker", "main"],
+        ["rev-list", "--left-right", "--count", "HEAD...hobby-ticker/main"],
+        ["rev-parse", "--short", "hobby-ticker/main"],
     ]
 
 
@@ -42,7 +42,12 @@ def test_update_info_reports_diverged_branch_without_offering_update(monkeypatch
     from utilities import updater
 
     responses = iter(
-        [(True, "origin/main"), (True, ""), (True, "1\t1"), (True, "abcdef1")]
+        [
+            (True, updater.GITHUB_REPOSITORY_URL),
+            (True, ""),
+            (True, "1\t1"),
+            (True, "abcdef1"),
+        ]
     )
     monkeypatch.setattr(updater, "_run_git", lambda *args, **kwargs: next(responses))
 
@@ -68,7 +73,7 @@ def test_perform_update_fast_forwards_upstream_and_installs_dependencies(
     monkeypatch.setattr(updater, "detect_platform", lambda: "pi")
     responses = iter(
         [
-            (True, "origin/main"),
+            (True, updater.GITHUB_REPOSITORY_URL),
             (True, ""),
             (True, "Updating to latest commit"),
             (True, "abcdef1"),
@@ -94,5 +99,37 @@ def test_perform_update_fast_forwards_upstream_and_installs_dependencies(
     assert [
         "merge",
         "--ff-only",
-        "origin/main",
+        "hobby-ticker/main",
     ] in git_calls
+
+
+def test_update_info_repoints_an_existing_upstream_remote_to_the_fork(monkeypatch):
+    from utilities import updater
+
+    calls = []
+    responses = iter(
+        [
+            (True, "https://github.com/ColinWaddell/FlightTracker.git"),
+            (True, ""),
+            (True, ""),
+            (True, "0\t0"),
+            (True, "abcdef1"),
+        ]
+    )
+
+    def run_git(args, timeout=60):
+        calls.append(args)
+        return next(responses)
+
+    monkeypatch.setattr(updater, "_run_git", run_git)
+
+    info = updater.get_update_info()
+
+    assert info["error"] is None
+    assert info["update_available"] is False
+    assert [
+        "remote",
+        "set-url",
+        "hobby-ticker",
+        updater.GITHUB_REPOSITORY_URL,
+    ] in calls

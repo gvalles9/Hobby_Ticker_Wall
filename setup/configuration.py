@@ -159,6 +159,9 @@ DEFAULT_WEB_PASSWORD_HASH = ""  # SHA-256 hex; empty = default password "flightt
 # Hardware
 DEFAULT_GPIO_SLOWDOWN = 1
 DEFAULT_HAT_PWM_ENABLED = True
+DEFAULT_BONNET_TYPE = "single"  # 'single' = Adafruit RGB Matrix Bonnet/HAT,
+# 'triple' = Adafruit Triple LED Matrix Bonnet (panels daisy-chained from port 1)
+BONNET_TYPES = ("single", "triple")
 DEFAULT_PANEL_COLOUR_ORDER = "RGB"  # panel LED wiring order: permutation of "RGB"
 DEFAULT_LOADING_INDICATOR = "pixel"  # none / pixel / gpio
 DEFAULT_LOADING_LED_GPIO_PIN = ""
@@ -318,6 +321,7 @@ DEFAULTS: dict[str, Any] = {
     # Hardware
     "gpio_slowdown": DEFAULT_GPIO_SLOWDOWN,
     "hat_pwm_enabled": DEFAULT_HAT_PWM_ENABLED,
+    "bonnet_type": DEFAULT_BONNET_TYPE,
     "panel_colour_order": DEFAULT_PANEL_COLOUR_ORDER,
     "loading_indicator": DEFAULT_LOADING_INDICATOR,
     "loading_led_gpio_pin": DEFAULT_LOADING_LED_GPIO_PIN,
@@ -1578,6 +1582,17 @@ class Config:
     @property
     def hat_pwm_enabled(self) -> bool:
         return bool(self.data_store.get("hat_pwm_enabled", DEFAULT_HAT_PWM_ENABLED))
+
+    @property
+    def bonnet_type(self) -> str:
+        """LED matrix bonnet family: 'single' or 'triple'.
+
+        Only affects the rgbmatrix (Pi 3/4) driver.  An invalid stored value
+        falls back to the default so a corrupted config can never leave the
+        panel uninitialised.
+        """
+        value = str(self.data_store.get("bonnet_type", DEFAULT_BONNET_TYPE)).lower()
+        return value if value in BONNET_TYPES else DEFAULT_BONNET_TYPE
 
     @property
     def loading_indicator(self) -> str:

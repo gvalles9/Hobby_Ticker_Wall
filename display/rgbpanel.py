@@ -57,12 +57,18 @@ class RGBPanel(ABC):
         hat_pwm=True,
         gpio_slowdown=1,
         colour_order="RGB",
+        bonnet_type="single",
     ):
         """Initialise the matrix hardware. Called once at startup.
 
         ``colour_order`` names the panel LED wiring order (a permutation
         of "RGB") so logical red/green/blue reach the correct physical
         LEDs on panels wired in a non-RGB order.
+
+        ``bonnet_type`` selects the LED matrix bonnet family: ``"single"``
+        for the standard Adafruit RGB Matrix Bonnet/HAT, or ``"triple"``
+        for the Adafruit Triple LED Matrix Bonnet.  Backends without a
+        hardware mapping (Pi 5, simulator) ignore it.
         """
         raise NotImplementedError
 

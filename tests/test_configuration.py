@@ -771,6 +771,37 @@ class TestLoadingIndicator:
         assert cfg.loading_indicator == "gpio"
 
 
+class TestBonnetType:
+    def test_default_value(self):
+        from setup.configuration import Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {}
+        assert cfg.bonnet_type == "single"
+
+    def test_valid_values(self):
+        from setup.configuration import Config
+
+        for bonnet_type in ("single", "triple"):
+            cfg = Config.__new__(Config)
+            cfg.data_store = {"bonnet_type": bonnet_type}
+            assert cfg.bonnet_type == bonnet_type
+
+    def test_case_insensitive(self):
+        from setup.configuration import Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {"bonnet_type": "TRIPLE"}
+        assert cfg.bonnet_type == "triple"
+
+    def test_invalid_falls_back(self):
+        from setup.configuration import Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {"bonnet_type": "quad"}
+        assert cfg.bonnet_type == "single"
+
+
 class TestWeatherRefreshMinutes:
     """Tests for the configurable weather refresh interval."""
 

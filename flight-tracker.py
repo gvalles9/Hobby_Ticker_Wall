@@ -595,6 +595,7 @@ def run_flight_tracker(disable_tests: bool = False):
         hat_pwm=cfg.hat_pwm_enabled,
         gpio_slowdown=cfg.gpio_slowdown,
         colour_order=cfg.panel_colour_order,
+        bonnet_type=cfg.bonnet_type,
     )
     canvas = panel.create_canvas()
     panel.clear(canvas)

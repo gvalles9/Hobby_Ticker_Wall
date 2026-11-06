@@ -427,6 +427,23 @@ class TestParseSettingsFormProviders:
         assert "osn_client_secret" not in out
         assert "aerodatabox_api_key" not in out
 
+    def test_bonnet_type_valid_values_pass_through(self):
+        from web.app import parse_settings_form
+
+        for bonnet_type in ("single", "triple"):
+            out = parse_settings_form({"bonnet_type": bonnet_type}, self._cfg())
+            assert out["bonnet_type"] == bonnet_type
+        out = parse_settings_form({"bonnet_type": "TRIPLE"}, self._cfg())
+        assert out["bonnet_type"] == "triple"
+
+    def test_bonnet_type_invalid_or_absent_defaults(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form({"bonnet_type": "quad"}, self._cfg())
+        assert out["bonnet_type"] == "single"
+        out = parse_settings_form({}, self._cfg())
+        assert out["bonnet_type"] == "single"
+
     def test_brightness_mode_parse(self):
         from web.app import parse_settings_form
 

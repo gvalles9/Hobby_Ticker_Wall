@@ -93,6 +93,7 @@ def build_display_class():
                     rotation=180 if cfg.screen_rotate else 0,
                     hat_pwm=cfg.hat_pwm_enabled,
                     gpio_slowdown=cfg.gpio_slowdown,
+                    bonnet_type=cfg.bonnet_type,
                 )
                 self.canvas = self.panel.create_canvas()
                 self.panel.clear(self.canvas)

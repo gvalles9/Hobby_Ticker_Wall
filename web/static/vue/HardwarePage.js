@@ -224,28 +224,55 @@ export default defineComponent({
       <p class="section-heading"><i class="bi bi-motherboard me-2"></i>Hardware</p>
 
       <div class="mb-3">
-        <h5>Adafruit HAT Mode</h5>
-        <div class="btn-group w-100" role="group" aria-label="Adafruit HAT mode">
-          <input type="radio" class="btn-check" name="hat_pwm_enabled" id="hat_pwm_quality"
-                 value="quality" autocomplete="off"
-                 :checked="store.config.hat_pwm_enabled"
-                 @change="store.config.hat_pwm_enabled = true" />
-          <label class="btn btn-outline-primary btn-sm" for="hat_pwm_quality">Quality Mode (Adafruit PWM Enabled)</label>
+        <h5>LED Matrix Bonnet</h5>
+        <div class="btn-group w-100" role="group" aria-label="LED matrix bonnet type">
+          <input type="radio" class="btn-check" name="bonnet_type" id="bonnet_type_single"
+                 value="single" autocomplete="off"
+                 :checked="store.config.bonnet_type !== 'triple'"
+                 @change="store.config.bonnet_type = 'single'" />
+          <label class="btn btn-outline-primary btn-sm" for="bonnet_type_single">Single Bonnet</label>
 
-          <input type="radio" class="btn-check" name="hat_pwm_enabled" id="hat_pwm_convenience"
-                 value="convenience" autocomplete="off"
-                 :checked="!store.config.hat_pwm_enabled"
-                 @change="store.config.hat_pwm_enabled = false" />
-          <label class="btn btn-outline-primary btn-sm" for="hat_pwm_convenience">Convenience Mode</label>
+          <input type="radio" class="btn-check" name="bonnet_type" id="bonnet_type_triple"
+                 value="triple" autocomplete="off"
+                 :checked="store.config.bonnet_type === 'triple'"
+                 @change="store.config.bonnet_type = 'triple'" />
+          <label class="btn btn-outline-primary btn-sm" for="bonnet_type_triple">Triple Bonnet</label>
         </div>
         <div class="form-text text-muted small">
-          If you soldered the bridge and selected Quality during setup, choose Quality Mode here to enable
-          Adafruit PWM mode. Otherwise choose Convenience Mode. These options have no effect on a Pi 5; they
-          only apply to older Pi models using the rgbmatrix library.
+          Choose <strong>Single Bonnet</strong> for the standard Adafruit RGB Matrix Bonnet/HAT.
+          Choose <strong>Triple Bonnet</strong> for the Adafruit Triple LED Matrix Bonnet, with all
+          three panels daisy-chained from port 1. These options only apply to older Pi models using
+          the rgbmatrix library.
         </div>
       </div>
 
       <hr class="my-3" />
+
+      <div v-show="store.config.bonnet_type !== 'triple'">
+        <div class="mb-3">
+          <h5>Adafruit HAT Mode</h5>
+          <div class="btn-group w-100" role="group" aria-label="Adafruit HAT mode">
+            <input type="radio" class="btn-check" name="hat_pwm_enabled" id="hat_pwm_quality"
+                   value="quality" autocomplete="off"
+                   :checked="store.config.hat_pwm_enabled"
+                   @change="store.config.hat_pwm_enabled = true" />
+            <label class="btn btn-outline-primary btn-sm" for="hat_pwm_quality">Quality Mode (Adafruit PWM Enabled)</label>
+
+            <input type="radio" class="btn-check" name="hat_pwm_enabled" id="hat_pwm_convenience"
+                   value="convenience" autocomplete="off"
+                   :checked="!store.config.hat_pwm_enabled"
+                   @change="store.config.hat_pwm_enabled = false" />
+            <label class="btn btn-outline-primary btn-sm" for="hat_pwm_convenience">Convenience Mode</label>
+          </div>
+          <div class="form-text text-muted small">
+            If you soldered the bridge and selected Quality during setup, choose Quality Mode here to enable
+            Adafruit PWM mode. Otherwise choose Convenience Mode. These options have no effect on a Pi 5; they
+            only apply to older Pi models using the rgbmatrix library.
+          </div>
+        </div>
+
+        <hr class="my-3" />
+      </div>
 
       <div class="mb-3">
         <h5>Display Scan Rate</h5>

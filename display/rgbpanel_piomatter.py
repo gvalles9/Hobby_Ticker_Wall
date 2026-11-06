@@ -43,9 +43,11 @@ class PiomatterPanel(RGBPanel):
         hat_pwm=True,
         gpio_slowdown=1,
         colour_order="RGB",
+        bonnet_type="single",
     ):
-        # hat_pwm and gpio_slowdown are ignored on Pi 5 - piomatter handles
-        # PWM and timing internally.
+        # hat_pwm, gpio_slowdown and bonnet_type are ignored on Pi 5 -
+        # piomatter handles PWM and timing internally, and the Triple
+        # bonnet is not supported on the Pi 5.
         self._width = width
         self._height = height
         self._brightness = brightness

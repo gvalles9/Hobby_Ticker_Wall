@@ -132,6 +132,7 @@ def _screen_test() -> int:
         hat_pwm=cfg.hat_pwm_enabled,
         gpio_slowdown=cfg.gpio_slowdown,
         colour_order=cfg.panel_colour_order,
+        bonnet_type=cfg.bonnet_type,
     )
     canvas = panel.create_canvas()
 

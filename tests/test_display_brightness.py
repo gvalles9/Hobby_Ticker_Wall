@@ -63,6 +63,7 @@ def _advanced_cfg(entries, mode="advanced", default_brightness=3):
     cfg.hat_pwm_enabled = False
     cfg.gpio_slowdown = 1
     cfg.panel_colour_order = "RGB"
+    cfg.bonnet_type = "single"
     cfg.display_speed_factor = 1.0
     return cfg
 

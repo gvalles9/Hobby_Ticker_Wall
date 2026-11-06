@@ -50,9 +50,19 @@ class RGBMatrixPanel(RGBPanel):
         hat_pwm=True,
         gpio_slowdown=1,
         colour_order="RGB",
+        bonnet_type="single",
     ):
         options = RGBMatrixOptions()
-        options.hardware_mapping = "adafruit-hat-pwm" if hat_pwm else "adafruit-hat"
+        if bonnet_type == "triple":
+            # Adafruit Triple LED Matrix Bonnet: the hzeller "regular"
+            # pinout matches its three output ports.  Panels are daisy-
+            # chained from port 1, so chain_length stays at PANEL_COUNT and
+            # parallel stays 1.
+            options.hardware_mapping = "regular"
+        elif bonnet_type == "single":
+            options.hardware_mapping = "adafruit-hat-pwm" if hat_pwm else "adafruit-hat"
+        else:
+            raise ValueError(f"Invalid bonnet type: {bonnet_type!r}")
         options.rows = height
         if width % screen.PANEL_COUNT:
             raise ValueError(

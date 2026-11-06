@@ -24,7 +24,7 @@ import logging
 import time
 
 from display.scroller import Scroller, spans_width
-from display.spans import Span, Spans
+from display.spans import Span, Spans, font_text_width
 from scenes.flight.airline_logo import AirlineLogoWidget, NullWidget
 from scenes.flight.callsign_bar import make_callsign_bar
 from scenes.flight.custom_details import (
@@ -441,7 +441,7 @@ class FlightScene:
             column_x = x if index < 2 else right_column_x
             column_right = column_x + column_width - 2 if index < 2 else right_edge
             text = self._fit_header_text(text, font, column_right - column_x)
-            text_width = font.text_width(text)
+            text_width = font_text_width(font, text)
             self.panel.draw_text(
                 self.canvas,
                 font,
@@ -460,7 +460,7 @@ class FlightScene:
 
     @staticmethod
     def _fit_header_text(text, font, max_width: int) -> str:
-        while text and font.text_width(text) > max_width:
+        while text and font_text_width(font, text) > max_width:
             text = text[:-1]
         return text
 

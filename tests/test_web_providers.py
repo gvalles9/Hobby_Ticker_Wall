@@ -440,9 +440,9 @@ class TestParseSettingsFormProviders:
         from web.app import parse_settings_form
 
         out = parse_settings_form({"bonnet_type": "quad"}, self._cfg())
-        assert out["bonnet_type"] == "single"
+        assert out["bonnet_type"] == "triple"
         out = parse_settings_form({}, self._cfg())
-        assert out["bonnet_type"] == "single"
+        assert out["bonnet_type"] == "triple"
 
     def test_brightness_mode_parse(self):
         from web.app import parse_settings_form

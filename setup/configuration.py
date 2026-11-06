@@ -159,7 +159,7 @@ DEFAULT_WEB_PASSWORD_HASH = ""  # SHA-256 hex; empty = default password "flightt
 # Hardware
 DEFAULT_GPIO_SLOWDOWN = 1
 DEFAULT_HAT_PWM_ENABLED = True
-DEFAULT_BONNET_TYPE = "single"  # 'single' = Adafruit RGB Matrix Bonnet/HAT,
+DEFAULT_BONNET_TYPE = "triple"  # 'single' = Adafruit RGB Matrix Bonnet/HAT,
 # 'triple' = Adafruit Triple LED Matrix Bonnet (panels daisy-chained from port 1)
 BONNET_TYPES = ("single", "triple")
 DEFAULT_PANEL_COLOUR_ORDER = "RGB"  # panel LED wiring order: permutation of "RGB"

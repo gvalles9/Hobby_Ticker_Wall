@@ -777,7 +777,7 @@ class TestBonnetType:
 
         cfg = Config.__new__(Config)
         cfg.data_store = {}
-        assert cfg.bonnet_type == "single"
+        assert cfg.bonnet_type == "triple"
 
     def test_valid_values(self):
         from setup.configuration import Config
@@ -799,7 +799,7 @@ class TestBonnetType:
 
         cfg = Config.__new__(Config)
         cfg.data_store = {"bonnet_type": "quad"}
-        assert cfg.bonnet_type == "single"
+        assert cfg.bonnet_type == "triple"
 
 
 class TestWeatherRefreshMinutes:

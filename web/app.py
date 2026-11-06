@@ -49,6 +49,7 @@ from display.rgbpanel import PANEL_COLOUR_ORDERS
 from setup.configuration import (
     BONNET_TYPES,
     CONFIG_PATH,
+    DEFAULT_BONNET_TYPE,
     DEFAULTS,
     PLATFORM_DATA_DIR,
     Config,
@@ -725,9 +726,9 @@ def parse_settings_form(form, cfg) -> dict:
         "gpio_slowdown": max(1, min(4, int_val(form.get("gpio_slowdown"), 1))),
         "hat_pwm_enabled": str_val(form.get("hat_pwm_enabled"), "").lower()
         == "quality",
-        "bonnet_type": (lambda v: v if v in BONNET_TYPES else "single")(
-            str_val(form.get("bonnet_type"), "single").lower()
-        ),
+        "bonnet_type": (
+            lambda v: v if v in BONNET_TYPES else DEFAULT_BONNET_TYPE
+        )(str_val(form.get("bonnet_type"), DEFAULT_BONNET_TYPE).lower()),
         "loading_indicator": (
             lambda v: v if v in ("none", "pixel", "gpio") else "pixel"
         )(str_val(form.get("loading_indicator"), "pixel").lower()),

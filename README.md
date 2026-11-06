@@ -376,7 +376,7 @@ This table is for reference if you've disabled the web interface (`web_interface
 | `web_password_hash` | SHA-256 hash for the web UI password | `""` |
 | `gpio_slowdown` | `1`-`4`; increase if the display flickers | `1` |
 | `hat_pwm_enabled` | Enable PWM via Pi audio hardware (requires a solder bridge) | `true` |
-| `bonnet_type` | LED matrix bonnet family: `"single"` for the standard Adafruit RGB Matrix Bonnet/HAT, or `"triple"` for the Adafruit Triple LED Matrix Bonnet (panels daisy-chained from port 1) | `"single"` |
+| `bonnet_type` | LED matrix bonnet family: `"single"` for the standard Adafruit RGB Matrix Bonnet/HAT, or `"triple"` for the Adafruit Triple LED Matrix Bonnet (panels daisy-chained from port 1) | `"triple"` |
 | `loading_indicator` | Loading indicator mode: `"none"`, `"pixel"` (on-screen blink), or `"gpio"` (external LED) | `"pixel"` |
 | `loading_led_gpio_pin` | GPIO pin number for the loading LED (only used when `loading_indicator` is `"gpio"`) | `""` |
 | `flight_providers` | Ordered flight-provider list: `[{"provider": "fr24", "enabled": true}, ...]` | `[{"provider": "fr24", "enabled": true}]` |

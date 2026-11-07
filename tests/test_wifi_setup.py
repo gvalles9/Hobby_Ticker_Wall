@@ -125,7 +125,7 @@ def test_wifi_change_failure_restores_saved_connection_and_setup_hotspot(
     assert not (tmp_path / "configured").exists()
 
 
-def test_wifi_watchdog_retries_saved_connection_and_keeps_hotspot_on_failure(
+def test_wifi_watchdog_retries_every_saved_network_and_keeps_hotspot_on_failure(
     monkeypatch,
 ):
     import utilities.wifi_watchdog as wifi_watchdog
@@ -134,16 +134,108 @@ def test_wifi_watchdog_retries_saved_connection_and_keeps_hotspot_on_failure(
 
     def run(args, **kwargs):
         calls.append(args)
-        code = 1 if args[2:4] == ["up", "FlightTracker-Home"] else 0
+        if args[:3] == ["nmcli", "-t", "-f"]:
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                stdout=(
+                    "FlightTracker-Setup:802-11-wireless\n"
+                    "Home Network:802-11-wireless\n"
+                    "Wired connection 1:802-3-ethernet\n"
+                ),
+            )
+        code = 1 if args[:4] == ["nmcli", "connection", "up", "Home Network"] else 0
         return subprocess.CompletedProcess(args, code)
 
     monkeypatch.setattr(wifi_watchdog.subprocess, "run", run)
 
     assert wifi_watchdog._retry_saved_connection() is False
     assert calls == [
-        ["nmcli", "connection", "up", "FlightTracker-Home", "ifname", "wlan0"],
+        ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"],
+        ["nmcli", "connection", "up", "Home Network", "ifname", "wlan0"],
         ["nmcli", "connection", "up", "FlightTracker-Setup"],
     ]
+
+
+def test_wifi_watchdog_reconnects_to_the_first_saved_profile_that_works(monkeypatch):
+    import utilities.wifi_watchdog as wifi_watchdog
+
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        if args[:3] == ["nmcli", "-t", "-f"]:
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                stdout=("Old Home:802-11-wireless\n" "New Home:802-11-wireless\n"),
+            )
+        code = 1 if args[:4] == ["nmcli", "connection", "up", "Old Home"] else 0
+        return subprocess.CompletedProcess(args, code)
+
+    monkeypatch.setattr(wifi_watchdog.subprocess, "run", run)
+
+    assert wifi_watchdog._retry_saved_connection() is True
+    assert [
+        "nmcli",
+        "connection",
+        "up",
+        "New Home",
+        "ifname",
+        "wlan0",
+    ] in calls
+    assert ["nmcli", "connection", "up", "FlightTracker-Setup"] not in calls
+
+
+def test_wifi_watchdog_reads_escaped_profile_names(monkeypatch):
+    import utilities.wifi_watchdog as wifi_watchdog
+
+    def run(args, **kwargs):
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout=(
+                "Home\\: Network:802-11-wireless\n"
+                "FlightTracker-Setup:802-11-wireless\n"
+            ),
+        )
+
+    monkeypatch.setattr(wifi_watchdog.subprocess, "run", run)
+
+    assert wifi_watchdog._saved_wifi_connections() == ["Home: Network"]
+
+
+def test_wifi_watchdog_only_treats_real_profiles_as_connected():
+    import utilities.wifi_watchdog as wifi_watchdog
+
+    assert wifi_watchdog._is_connected("Home Network") is True
+    assert wifi_watchdog._is_connected("") is False
+    assert wifi_watchdog._is_connected("--") is False
+    assert wifi_watchdog._is_connected("FlightTracker-Setup") is False
+
+
+def test_wifi_watchdog_detects_an_ethernet_default_route(monkeypatch):
+    import utilities.wifi_watchdog as wifi_watchdog
+
+    def run(args, **kwargs):
+        return subprocess.CompletedProcess(
+            args, 0, stdout="default via 192.168.1.1 dev eth0\n"
+        )
+
+    monkeypatch.setattr(wifi_watchdog.subprocess, "run", run)
+
+    assert wifi_watchdog._has_default_route() is True
+
+
+def test_wifi_watchdog_default_route_lookup_failure_is_safe(monkeypatch):
+    import utilities.wifi_watchdog as wifi_watchdog
+
+    def run(args, **kwargs):
+        raise FileNotFoundError("ip")
+
+    monkeypatch.setattr(wifi_watchdog.subprocess, "run", run)
+
+    assert wifi_watchdog._has_default_route() is False
 
 
 def test_wifi_setup_page_only_available_while_hotspot_is_active(monkeypatch):

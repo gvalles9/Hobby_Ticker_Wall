@@ -5,6 +5,33 @@ upstream FlightTracker release history on which this fork is based.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Added **Admin → Remote Access**, which shows whether SSH is running and can
+  enable or disable it. The choice persists across reboots, and the page warns
+  that SSH is reachable only from the local network. The privileged helper is
+  installed by `platforms/common/install-wifi-setup.sh`.
+- Added Wi-Fi recovery helpers to the first-boot installation path so the
+  prebuilt OS image actually installs the setup hotspot, watchdog, and sudoers
+  rules.
+
+### Changed
+
+- The default bonnet type is now `triple` (three chained 64×32 panels,
+  192×32 total). Missing or invalid values fall back to that default.
+
+### Fixed
+
+- Wi-Fi recovery now detects any saved NetworkManager Wi-Fi profile, including
+  the SSID-named profile written by Raspberry Pi Imager, instead of requiring a
+  connection named `FlightTracker-Home`.
+- The setup hotspot is no longer raised while another interface (for example
+  Ethernet) provides a default route, and retries try every saved Wi-Fi profile.
+- Fixed a flight-screen crash when the native matrix font has no `text_width`
+  attribute.
+
 ## [1.0.0] - 2026-11-02
 
 ### Added

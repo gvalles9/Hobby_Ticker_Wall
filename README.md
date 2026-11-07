@@ -67,11 +67,13 @@ The application remains in `~/FlightTracker` to preserve existing service and
 configuration conventions; its Git remote points to this Hobby Ticker repo.
 
 The optional first-boot Wi-Fi setup is available after its services have been
-installed. On first boot, the Pi starts a temporary setup hotspot. Scan the QR
-code on the matrix to join, then browse to `http://192.168.4.1:8584/wifi-setup`
-and enter your home Wi-Fi credentials. The hotspot shuts off once the Pi
-connects. To enable it on an existing installation, run the helper from the
-repository directory, then reboot:
+installed. If NetworkManager has no saved Wi-Fi profile, the Pi starts a
+temporary setup hotspot on first boot. Scan the QR code on the matrix to join,
+then browse to `http://192.168.4.1:8584/wifi-setup` and enter your home Wi-Fi
+credentials. The hotspot shuts off once the Pi connects. If Imager already saved
+a network, the hotspot stays off and that profile is used instead. To enable the
+helpers on an existing installation, run the helper from the repository
+directory, then reboot:
 
 ```bash
 cd "$HOME/FlightTracker"
@@ -86,10 +88,19 @@ on the same local network.
 
 The Admin page includes separate recovery buttons to reset Hobby Ticker settings
 (while keeping the web password and Wi-Fi credentials) or reopen the Wi-Fi setup
-hotspot to change networks. If the saved Wi-Fi connection is unavailable for 10
-minutes, the Pi automatically opens the protected setup hotspot and displays its QR.
+hotspot to change networks. If no saved Wi-Fi network is reachable for 10 minutes,
+the Pi automatically opens the protected setup hotspot and displays its QR. The
+watchdog checks every saved Wi-Fi profile, including one created by Raspberry Pi
+Imager, and leaves the hotspot closed while Ethernet provides a default route.
 The saved network credentials are retained, so if that network reconnects the Pi
 returns to it and closes the temporary hotspot.
+
+SSH is disabled in the prebuilt Hobby Ticker OS image and is not needed for the
+web interface. To troubleshoot over the local network, open **Admin → Remote
+Access** and turn SSH on. The setting persists across reboots until you turn it
+off again, and SSH is only reachable from devices on the same network. The
+helper is installed by `platforms/common/install-wifi-setup.sh`; on a standalone
+install you can also run `sudo systemctl enable --now ssh`.
 
 On Raspberry Pi, a systemd timer checks the install's `origin` branch daily at
 2:00 AM local time. The Hobby Ticker installers set `origin` to this fork. It

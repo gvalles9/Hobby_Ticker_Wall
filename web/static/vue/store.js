@@ -130,6 +130,7 @@ export const SIDEBAR_GROUPS = [
       { section: "group-clear-cache", icon: "bi-database", label: "Cache" },
       { section: "group-backup", icon: "bi-file-earmark-arrow-down", label: "Backup" },
       { section: "group-recovery", icon: "bi-arrow-counterclockwise", label: "Recovery" },
+      { section: "group-remote-access", icon: "bi-router", label: "Remote Access" },
       { section: "group-password", icon: "bi-key", label: "Change Password" },
       { section: "group-version", icon: "bi-info-circle", label: "Version" },
       { section: "group-help", icon: "bi-question-circle", label: "Help & Support" },

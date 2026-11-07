@@ -7,16 +7,24 @@ import subprocess
 import time
 from contextlib import suppress
 
-HOME_CONNECTION = "FlightTracker-Home"
 AP_CONNECTION = "FlightTracker-Setup"
 WLAN_DEVICE = "wlan0"
-CONFIGURED_MARKER = "/var/lib/flighttracker/wifi-configured"
 SETUP_MARKER = "/run/flighttracker-wifi-setup"
 DISCONNECT_TIMEOUT = 600
 POLL_INTERVAL = 15
 RECOVERY_RETRY_INTERVAL = 300
 
 logger = logging.getLogger("flighttracker-wifi-watchdog")
+
+
+def _run(args: list[str], timeout: int = 15) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        args,
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
 
 
 def _active_connection() -> str:
@@ -28,6 +36,46 @@ def _active_connection() -> str:
         timeout=10,
     )
     return result.stdout.strip()
+
+
+def _has_default_route() -> bool:
+    """Return True when another interface (for example Ethernet) is online."""
+    try:
+        result = _run(["ip", "-4", "route", "show", "default"], timeout=10)
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return result.returncode == 0 and bool(result.stdout.strip())
+
+
+def _nmcli_unescape(value: str) -> str:
+    return value.replace("\\:", ":").replace("\\\\", "\\")
+
+
+def _saved_wifi_connections() -> list[str]:
+    """Return saved infrastructure Wi-Fi profiles, excluding the setup AP."""
+    result = _run(
+        ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"],
+        timeout=10,
+    )
+    if result.returncode:
+        raise subprocess.CalledProcessError(
+            result.returncode, result.args, result.stdout, result.stderr
+        )
+
+    names = []
+    for line in result.stdout.splitlines():
+        name, separator, connection_type = line.rpartition(":")
+        if not separator or connection_type != "802-11-wireless":
+            continue
+        name = _nmcli_unescape(name)
+        if name and name != AP_CONNECTION:
+            names.append(name)
+    return names
+
+
+def _is_connected(active: str) -> bool:
+    """Return True when nmcli reports a real, non-hotspot connection."""
+    return bool(active) and active not in ("--", AP_CONNECTION)
 
 
 def _set_setup_mode(enabled: bool, reason: str = "recovery") -> None:
@@ -62,45 +110,36 @@ def _set_setup_mode(enabled: bool, reason: str = "recovery") -> None:
 
 
 def _retry_saved_connection() -> bool:
-    result = subprocess.run(
-        [
-            "nmcli",
-            "connection",
-            "up",
-            HOME_CONNECTION,
-            "ifname",
-            WLAN_DEVICE,
-        ],
-        check=False,
-        capture_output=True,
-        text=True,
-        timeout=45,
-    )
-    if result.returncode:
-        logger.info(
-            "Saved Wi-Fi network is still unavailable; keeping setup hotspot active."
-        )
-        subprocess.run(
-            ["nmcli", "connection", "up", AP_CONNECTION],
+    """Try every saved Wi-Fi profile; keep the hotspot up if none connect."""
+    for name in _saved_wifi_connections():
+        result = subprocess.run(
+            ["nmcli", "connection", "up", name, "ifname", WLAN_DEVICE],
             check=False,
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=45,
         )
-        return False
-    return True
+        if result.returncode == 0:
+            logger.info("Reconnected to saved Wi-Fi network %s.", name)
+            return True
+
+    logger.info(
+        "Saved Wi-Fi networks are still unavailable; keeping setup hotspot active."
+    )
+    subprocess.run(
+        ["nmcli", "connection", "up", AP_CONNECTION],
+        check=False,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    return False
 
 
 def run() -> None:
     disconnected_since = None
     last_recovery_attempt = None
     while True:
-        if not os.path.exists(CONFIGURED_MARKER):
-            disconnected_since = None
-            last_recovery_attempt = None
-            time.sleep(POLL_INTERVAL)
-            continue
-
         try:
             active = _active_connection()
         except (OSError, subprocess.SubprocessError) as exc:
@@ -108,7 +147,12 @@ def run() -> None:
             active = ""
 
         setup_active = os.path.exists(SETUP_MARKER)
-        if active == HOME_CONNECTION:
+        # Any active connection other than our own hotspot is a working
+        # network. Imager-created profiles use the SSID as their name, so
+        # there is no fixed "home" connection to look for.
+        connected = _is_connected(active)
+
+        if connected:
             disconnected_since = None
             last_recovery_attempt = None
             if setup_active:
@@ -116,6 +160,11 @@ def run() -> None:
                     _set_setup_mode(False)
                 except (OSError, subprocess.SubprocessError) as exc:
                     logger.error("Could not close the setup hotspot: %s", exc)
+        elif _has_default_route() and not setup_active:
+            # Ethernet or another interface is carrying traffic. Do not
+            # interrupt it by raising the Wi-Fi hotspot.
+            disconnected_since = None
+            last_recovery_attempt = None
         else:
             if disconnected_since is None:
                 disconnected_since = time.monotonic()

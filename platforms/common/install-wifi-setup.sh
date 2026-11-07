@@ -5,6 +5,18 @@ set -euo pipefail
 APP_USER="${1:?Application user is required}"
 INSTALL_DIR="${2:?Installation directory is required}"
 
+# Remote Access (SSH) helper. This is installed before the Wi-Fi checks so the
+# Admin page can still toggle SSH on a system without a wireless interface.
+sudo install -o root -g root -m 0755 \
+    "${INSTALL_DIR}/utilities/ssh_access.py" \
+    /usr/local/sbin/flighttracker-set-ssh
+
+SUDOERS_FILE="/etc/sudoers.d/flighttracker-wifi-setup"
+printf '%s ALL=(root) NOPASSWD: /usr/local/sbin/flighttracker-configure-wifi, /usr/local/sbin/flighttracker-set-ssh\n%s ALL=(root) NOPASSWD: /usr/bin/systemctl restart FlightTracker.service\n' \
+    "$APP_USER" "$APP_USER" | sudo tee "$SUDOERS_FILE" >/dev/null
+sudo chmod 0440 "$SUDOERS_FILE"
+sudo visudo -cf "$SUDOERS_FILE"
+
 if ! command -v nmcli >/dev/null 2>&1; then
     echo "NetworkManager (nmcli) is required for Wi-Fi setup mode." >&2
     exit 1
@@ -68,20 +80,24 @@ sudo install -o root -g root -m 0755 \
 sudo tee /usr/local/sbin/flighttracker-wifi-setup >/dev/null <<'EOF'
 #!/bin/bash
 set -euo pipefail
-if [ -f /var/lib/flighttracker/wifi-configured ]; then
-    exit 0
-fi
+# Prefer any saved Wi-Fi profile over the setup hotspot. This includes the
+# profile Raspberry Pi Imager writes, which is named after the SSID rather
+# than FlightTracker-Home.
+while IFS= read -r line; do
+    case "$line" in
+        *:802-11-wireless)
+            name="${line%:802-11-wireless}"
+            if [ "$name" != "FlightTracker-Setup" ]; then
+                exit 0
+            fi
+            ;;
+    esac
+done < <(nmcli -t -f NAME,TYPE connection show)
 nmcli radio wifi on
 nmcli connection up FlightTracker-Setup
 touch /run/flighttracker-wifi-setup
 EOF
 sudo chmod 0755 /usr/local/sbin/flighttracker-wifi-setup
-
-SUDOERS_FILE="/etc/sudoers.d/flighttracker-wifi-setup"
-printf '%s ALL=(root) NOPASSWD: /usr/local/sbin/flighttracker-configure-wifi\n%s ALL=(root) NOPASSWD: /usr/bin/systemctl restart FlightTracker.service\n' \
-    "$APP_USER" "$APP_USER" | sudo tee "$SUDOERS_FILE" >/dev/null
-sudo chmod 0440 "$SUDOERS_FILE"
-sudo visudo -cf "$SUDOERS_FILE"
 
 sudo install -m 0644 \
     "${INSTALL_DIR}/assets/FlightTracker-WifiSetup.service" \

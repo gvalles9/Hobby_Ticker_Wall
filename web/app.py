@@ -56,6 +56,7 @@ from setup.configuration import (
     _migrate_provider_lists,
 )
 from setup.logging import get_buffer
+from utilities import ssh_access
 from utilities.flight import Flight
 from utilities.lookups import cache as routes_cache
 from utilities.lookups import usage as usage_tally
@@ -1109,6 +1110,7 @@ def _settings_page_data(
             "backupRestore": "/backup/restore",
             "debugConfig": "/debug-config",
             "statusApi": "/api",
+            "sshAccess": _url_for("remote_access_ssh"),
         },
     }
 
@@ -1318,6 +1320,55 @@ def reset_wifi():
     return jsonify(
         message="The setup hotspot is starting. Use the QR code on the display."
     )
+
+
+@app.route("/remote-access/ssh", methods=["GET", "POST"])
+@login_required
+def remote_access_ssh():
+    """Read or change SSH availability from the Admin page."""
+    if request.method == "GET":
+        return jsonify(ssh_access.status())
+
+    if not validate_csrf(request.form):
+        abort(403, description="Invalid CSRF token.")
+
+    action = request.form.get("action", "").strip().lower()
+    if action not in ("on", "off"):
+        return jsonify(error="Invalid SSH action."), 400
+
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", "/usr/local/sbin/flighttracker-set-ssh", action],
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        logger.error("Could not change SSH state: %s", exc)
+        return jsonify(error="SSH control is not installed on this system."), 500
+
+    if result.returncode:
+        logger.error("SSH helper failed: %s", result.stderr.strip())
+        return (
+            jsonify(error=result.stderr.strip() or "Could not change SSH state."),
+            500,
+        )
+
+    try:
+        state = json.loads(result.stdout)
+    except json.JSONDecodeError:
+        state = ssh_access.status()
+
+    logger.info(
+        "SSH %s from the settings page.", "enabled" if action == "on" else "disabled"
+    )
+    message = (
+        "SSH is now enabled. It stays on until you turn it off."
+        if action == "on"
+        else "SSH is now disabled."
+    )
+    return jsonify(message=message, state=state)
 
 
 @app.route("/api/location/ip")

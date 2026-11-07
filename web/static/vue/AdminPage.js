@@ -16,9 +16,78 @@ export default defineComponent({
       maintenanceBusy: false,
       maintenanceMessage: "",
       maintenanceError: "",
+      sshState: { available: true, enabled: false, active: false },
+      sshLoading: true,
+      sshBusy: false,
+      sshMessage: "",
+      sshError: "",
     };
   },
+  mounted() {
+    this.loadSshState();
+  },
   methods: {
+    async loadSshState() {
+      this.sshError = "";
+      try {
+        const response = await fetch(
+          this.store.ui.urls.sshAccess || "/remote-access/ssh",
+          {
+            credentials: "same-origin",
+            headers: { Accept: "application/json" },
+          },
+        );
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || "Could not read the SSH state.");
+        }
+        this.sshState = result;
+      } catch (error) {
+        this.sshError = error.message;
+      } finally {
+        this.sshLoading = false;
+      }
+    },
+    async toggleSsh() {
+      const enable = !this.sshState.enabled;
+      const confirmation = enable
+        ? "Enable SSH? Anyone on this local network can try to log in with the Pi username and password. The web UI does not need SSH."
+        : "Disable SSH? Remote terminal access will stop until you enable it again.";
+      if (!window.confirm(confirmation)) return;
+
+      this.sshBusy = true;
+      this.sshMessage = "";
+      this.sshError = "";
+      try {
+        const response = await fetch(
+          this.store.ui.urls.sshAccess || "/remote-access/ssh",
+          {
+            method: "POST",
+            credentials: "same-origin",
+            headers: {
+              "Content-Type": "application/x-www-form-urlencoded",
+              Accept: "application/json",
+            },
+            body: new URLSearchParams({
+              csrf_token: this.store.ui.csrfToken,
+              action: enable ? "on" : "off",
+            }),
+          },
+        );
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || "Could not change the SSH state.");
+        }
+        this.sshMessage = result.message;
+        this.sshState =
+          result.state || { ...this.sshState, enabled: enable, active: enable };
+      } catch (error) {
+        this.sshError = error.message;
+        await this.loadSshState();
+      } finally {
+        this.sshBusy = false;
+      }
+    },
     async runMaintenanceAction(path, confirmation, networkMaySwitch = false) {
       if (!window.confirm(confirmation)) return;
       this.maintenanceBusy = true;
@@ -185,6 +254,55 @@ export default defineComponent({
           <i class="bi bi-wifi me-1"></i>Reset Wi-Fi
         </button>
       </div>
+    </div>
+
+    <!-- ====== Remote Access ====== -->
+    <div id="group-remote-access" class="card mb-3 p-3">
+      <p class="section-heading"><i class="bi bi-router me-2"></i>Remote Access</p>
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <div>
+          <div class="fw-semibold">SSH server</div>
+          <div class="text-muted small">
+            SSH opens a terminal on the Pi from another device on the same network.
+            Hobby Ticker's web pages do not need it. Leave it off unless you are
+            troubleshooting.
+          </div>
+          <div class="small mt-2" v-if="sshLoading">
+            <span class="text-muted">Checking SSH state…</span>
+          </div>
+          <div class="small mt-2" v-else-if="!sshState.available">
+            <span class="text-warning">SSH control is not installed on this system.</span>
+          </div>
+          <div class="small mt-2" v-else>
+            <span v-if="sshState.enabled" class="text-success">
+              <i class="bi bi-check-circle me-1"></i>On
+            </span>
+            <span v-else class="text-secondary">
+              <i class="bi bi-x-circle me-1"></i>Off
+            </span>
+            <span v-if="sshState.enabled && !sshState.active" class="text-warning ms-2">
+              Enabled, but not running. Toggle it off and on again.
+            </span>
+          </div>
+        </div>
+        <button type="button"
+                class="btn btn-sm"
+                :class="sshState.enabled ? 'btn-outline-danger' : 'btn-outline-primary'"
+                :disabled="sshBusy || sshLoading || !sshState.available"
+                @click="toggleSsh">
+          <span v-if="sshBusy" class="spinner-border spinner-border-sm me-1" role="status"></span>
+          <i v-else class="bi bi-terminal me-1"></i>
+          {{ sshState.enabled ? 'Disable SSH' : 'Enable SSH' }}
+        </button>
+      </div>
+      <div class="alert alert-warning py-2 mt-3 mb-0 small">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        SSH is only reachable from devices on the same local network. It is not exposed
+        to the internet. Guests on this network may still attempt a login, so keep the
+        Pi password strong.
+      </div>
+      <div v-if="sshMessage" class="alert alert-success py-2 mt-3 mb-0">{{ sshMessage }}</div>
+      <div v-if="sshError" class="alert alert-warning py-2 mt-3 mb-0">{{ sshError }}</div>
     </div>
 
     <!-- ====== Change Password ====== -->

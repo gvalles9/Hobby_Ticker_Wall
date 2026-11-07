@@ -243,6 +243,7 @@ if [ -d "$INSTALL_DIR" ]; then
         sudo rm -f /usr/local/sbin/flighttracker-wifi-setup
         sudo rm -f /usr/local/sbin/flighttracker-configure-wifi
         sudo rm -f /usr/local/sbin/flighttracker-wifi-watchdog
+        sudo rm -f /usr/local/sbin/flighttracker-set-ssh
         sudo rm -f /etc/flighttracker/setup-ap.json
         sudo nmcli connection delete FlightTracker-Setup >/dev/null 2>&1 || true
         sudo systemctl daemon-reload

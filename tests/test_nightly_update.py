@@ -97,6 +97,24 @@ def test_nightly_update_skips_when_no_new_commits(monkeypatch, tmp_path):
     assert restart == []
 
 
+def test_nightly_update_refreshes_helpers_even_without_source_changes(
+    monkeypatch, tmp_path
+):
+    import utilities.nightly_update as nightly_update
+
+    monkeypatch.setattr(
+        nightly_update, "PENDING_MARKER", tmp_path / "flighttracker-update-pending"
+    )
+    monkeypatch.setattr(nightly_update, "_update_checkout", lambda: False)
+    synced = []
+    monkeypatch.setattr(nightly_update, "_sync_helpers", lambda: synced.append(True))
+    monkeypatch.setattr(nightly_update, "_install_dependencies", lambda: None)
+
+    assert nightly_update.run_update() is False
+    # Runs regardless of source changes so a previously failed sync retries.
+    assert synced == [True]
+
+
 def test_nightly_update_retries_dependencies_after_previous_failure(
     monkeypatch, tmp_path
 ):

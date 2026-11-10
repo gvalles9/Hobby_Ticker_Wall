@@ -131,6 +131,61 @@ def build_display_class():
             else:
                 logger.info("Satellite tracking disabled")
 
+            self._init_indycar(cfg)
+
+        def _init_indycar(self, cfg):
+            """Register the live INDYCAR scenes when enabled or previewing."""
+            from scenes.indycar import ChampionScene, DriverScene, Top3Scene
+            from utilities.indycar.monitor import IndyCarMonitor
+
+            enabled = getattr(cfg, "indycar_enabled", False) is True
+            test_mode = getattr(cfg, "indycar_test_mode", False) is True
+            debug_scene = str(getattr(cfg, "debug_scene", "auto"))
+            idle_theme = str(getattr(cfg, "idle_screen_theme", "classic"))
+            include_in_cycle = getattr(cfg, "idle_cycle_include_indycar", False) is True
+            idle_themes = getattr(cfg, "idle_screen_themes", None)
+            if not isinstance(idle_themes, (list, tuple)):
+                idle_themes = [idle_theme]
+
+            # Selecting one of the INDYCAR debug scenes is an explicit
+            # preview request.  Do not require test mode: the scene layer
+            # supplies the bundled snapshot for the preview, so the forced
+            # scene always has something to show.
+            debug_preview = debug_scene in (
+                "indy_top3",
+                "indy_driver",
+                "indy_champion",
+            )
+            idle_wants = (
+                "indycar_next" in idle_themes
+                or idle_theme == "indycar_next"
+                or (idle_theme == "cycle" and include_in_cycle)
+            )
+
+            if not (enabled or debug_preview or idle_wants):
+                logger.info("INDYCAR scenes disabled")
+                return
+
+            monitor = IndyCarMonitor.instance()
+            if not (debug_preview or test_mode):
+                monitor.start()
+
+            if not (enabled or debug_preview):
+                logger.info("INDYCAR live scenes disabled (idle screen only)")
+                return
+
+            # Register in this order: equal-priority scenes are sorted
+            # stably, and the manager picks the last one, so a configured
+            # tracked driver wins over the Top 3 scene.  The champion scene
+            # has its own lower priority and a live-session guard.
+            self.scene_manager.register(Top3Scene(self.canvas, self.panel, monitor))
+            self.scene_manager.register(DriverScene(self.canvas, self.panel, monitor))
+            self.scene_manager.register(ChampionScene(self.canvas, self.panel, monitor))
+            if debug_preview:
+                logger.info("INDYCAR debug preview enabled - using bundled snapshots")
+            else:
+                logger.info("Registered INDYCAR scenes: Top 3, Driver, Champion")
+
         def _init_timing(self, cfg):
             self.frames = frames
             self.frame_period = max(

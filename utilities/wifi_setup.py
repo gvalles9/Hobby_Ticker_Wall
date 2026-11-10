@@ -164,21 +164,76 @@ def start_setup_hotspot() -> None:
         marker.write("manual\n")
 
 
+def _saved_wifi_connections() -> list[str]:
+    """Return saved infrastructure Wi-Fi profile names, excluding the setup AP.
+
+    Mirrors the watchdog's profile discovery so both scripts treat Imager
+    SSID-named profiles the same way.
+    """
+    result = subprocess.run(
+        ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    names = []
+    for line in result.stdout.splitlines():
+        name, separator, connection_type = line.rpartition(":")
+        if not separator or connection_type != "802-11-wireless":
+            continue
+        name = name.replace("\\:", ":").replace("\\\\", "\\")
+        if name and name != AP_CONNECTION:
+            names.append(name)
+    return names
+
+
+def forget_wifi_networks() -> None:
+    """Delete every saved Wi-Fi profile and open the first-boot setup hotspot.
+
+    Used before handing a device to someone else: with no saved profile the
+    next boot starts the setup hotspot exactly like a fresh install.
+    """
+    for name in _saved_wifi_connections():
+        subprocess.run(
+            ["nmcli", "connection", "delete", name],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=15,
+        )
+    with suppress(FileNotFoundError):
+        os.unlink(CONFIGURED_MARKER)
+    subprocess.run(
+        ["nmcli", "connection", "up", AP_CONNECTION],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    os.makedirs(os.path.dirname(SETUP_MARKER), exist_ok=True)
+    with open(SETUP_MARKER, "w", encoding="utf-8") as marker:
+        marker.write("manual\n")
+
+
 def configure_wifi_from_stdin() -> int:
     """Read the setup payload from stdin and configure Wi-Fi as root."""
     try:
         payload = json.load(sys.stdin)
         if not isinstance(payload, dict):
             raise ValueError("Invalid Wi-Fi setup request.")
-        if payload.get("action") == "start_setup":
+        action = payload.get("action")
+        if action == "start_setup":
             start_setup_hotspot()
+        elif action == "forget_wifi":
+            forget_wifi_networks()
         else:
             configure_wifi(payload["ssid"], payload["password"])
     except (KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
         print(str(exc), file=sys.stderr)
         return 2
     except (OSError, subprocess.SubprocessError):
-        print("Could not connect to that Wi-Fi network.", file=sys.stderr)
+        print("Could not change the Wi-Fi configuration.", file=sys.stderr)
         return 1
     return 0
 

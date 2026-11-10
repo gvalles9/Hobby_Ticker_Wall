@@ -107,7 +107,18 @@ export const SIDEBAR_GROUPS = [
     icon: "bi-house",
     route: "/default-screen",
     items: [
-      { section: "group-theme", icon: "bi-palette", label: "Theme" },
+      { section: "group-theme", icon: "bi-palette", label: "Idle Scenes" },
+      { section: "group-birthday", icon: "bi-balloon", label: "Birthday Scene" },
+    ],
+  },
+  {
+    title: "INDYCAR",
+    icon: "bi-flag-checkered",
+    route: "/indycar",
+    items: [
+      { section: "group-indycar", icon: "bi-flag", label: "Live Race Display" },
+      { section: "group-indycar-champion", icon: "bi-trophy", label: "Drivers Champion" },
+      { section: "group-indycar-testing", icon: "bi-play-circle", label: "Preview" },
     ],
   },
   {

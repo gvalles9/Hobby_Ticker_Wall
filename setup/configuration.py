@@ -148,13 +148,31 @@ DEFAULT_DATE_FORMAT = 0  # 0 = Month Dth YYYY, 1 = DD-MM-YYYY, 2 = MM-DD-YYYY
 # Number formatting
 DEFAULT_NUMBER_SEPARATOR = "none"  # 'none', 'comma', 'period'
 
-# Idle screen theme
-DEFAULT_IDLE_SCREEN_THEME = "cycle"  # classic / forecast / conditions / cycle
+# Idle screen themes
+# ``idle_screen_theme`` is the legacy single-theme setting.  New installs
+# use ``idle_screen_themes`` (an ordered list of scenes to rotate through);
+# when the list is empty the legacy value is expanded instead.
+DEFAULT_IDLE_SCREEN_THEME = "cycle"  # legacy: classic / forecast / conditions / cycle
+IDLE_SCREEN_THEMES = (
+    "classic",
+    "forecast",
+    "conditions",
+    "indycar_next",
+    "birthday",
+)
+DEFAULT_IDLE_SCREEN_THEMES: tuple[str, ...] = ()
+
+# Birthday scene (recurring yearly; only the month and day are compared)
+DEFAULT_BIRTHDAY_ENABLED = False
+DEFAULT_BIRTHDAY_DATE = ""  # YYYY-MM-DD or MM-DD
 
 # Web interface
 DEFAULT_WEB_INTERFACE_ENABLED = True
 DEFAULT_WEB_PORT = 8584  # TCP port for the Flask config server
 DEFAULT_WEB_PASSWORD_HASH = ""  # SHA-256 hex; empty = default password "flighttracker"
+# First-setup wizard: shown until a web password is set (or the wizard is
+# explicitly skipped).  Kept in the config so completion survives reboots.
+DEFAULT_FIRST_SETUP_COMPLETE = False
 
 # Hardware
 DEFAULT_GPIO_SLOWDOWN = 1
@@ -239,6 +257,16 @@ DEFAULT_SATELLITE_TIMEOUT_SECONDS = (
     30  # seconds from AOS before the scene yields to lower-priority scenes
 )
 
+# INDYCAR (opt-in; feeds are public but only useful around race weekends)
+DEFAULT_INDYCAR_ENABLED = False
+DEFAULT_INDYCAR_TRACKED_DRIVER = ""  # car number or surname
+DEFAULT_INDYCAR_CHAMPION_ENABLED = True
+DEFAULT_INDYCAR_CHAMPION_OVERRIDE = ""  # driver name/car number, off-season helper
+DEFAULT_INDYCAR_CHAMPION_FLASH_SECONDS = 60
+DEFAULT_INDYCAR_TEST_MODE = False  # inject bundled demo snapshots
+DEFAULT_INDYCAR_TEST_QUALIFYING = False  # use the qualifying demo layout
+DEFAULT_IDLE_CYCLE_INCLUDE_INDYCAR = False  # append the next-event screen to cycle
+
 # Logging
 DEFAULT_LOG_LEVEL = "INFO"  # DEBUG / INFO / WARNING / ERROR / CRITICAL
 DEFAULT_PROVIDER_USAGE_LOGGING = True  # tally provider lookups into usage.sqlite3
@@ -312,12 +340,17 @@ DEFAULTS: dict[str, Any] = {
     "date_format": DEFAULT_DATE_FORMAT,
     # Number formatting
     "number_separator": DEFAULT_NUMBER_SEPARATOR,
-    # Idle screen theme
+    # Idle screen themes
     "idle_screen_theme": DEFAULT_IDLE_SCREEN_THEME,
+    "idle_screen_themes": list(DEFAULT_IDLE_SCREEN_THEMES),
+    # Birthday scene (recurring yearly)
+    "birthday_enabled": DEFAULT_BIRTHDAY_ENABLED,
+    "birthday_date": DEFAULT_BIRTHDAY_DATE,
     # Web interface
     "web_interface_enabled": DEFAULT_WEB_INTERFACE_ENABLED,
     "web_port": DEFAULT_WEB_PORT,
     "web_password_hash": DEFAULT_WEB_PASSWORD_HASH,
+    "first_setup_complete": DEFAULT_FIRST_SETUP_COMPLETE,
     # Hardware
     "gpio_slowdown": DEFAULT_GPIO_SLOWDOWN,
     "hat_pwm_enabled": DEFAULT_HAT_PWM_ENABLED,
@@ -378,6 +411,15 @@ DEFAULTS: dict[str, Any] = {
     "satellite_data_point_4": DEFAULT_SATELLITE_DATA_POINTS[3],
     "satellite_timeout_seconds": DEFAULT_SATELLITE_TIMEOUT_SECONDS,
     "debug_scene": DEFAULT_DEBUG_SCENE,
+    # INDYCAR (opt-in)
+    "indycar_enabled": DEFAULT_INDYCAR_ENABLED,
+    "indycar_tracked_driver": DEFAULT_INDYCAR_TRACKED_DRIVER,
+    "indycar_champion_enabled": DEFAULT_INDYCAR_CHAMPION_ENABLED,
+    "indycar_champion_override": DEFAULT_INDYCAR_CHAMPION_OVERRIDE,
+    "indycar_champion_flash_seconds": DEFAULT_INDYCAR_CHAMPION_FLASH_SECONDS,
+    "indycar_test_mode": DEFAULT_INDYCAR_TEST_MODE,
+    "indycar_test_qualifying": DEFAULT_INDYCAR_TEST_QUALIFYING,
+    "idle_cycle_include_indycar": DEFAULT_IDLE_CYCLE_INCLUDE_INDYCAR,
     # Logging
     "log_level": DEFAULT_LOG_LEVEL,
     # Provider usage tally (see utilities/lookups/usage.py + /api)
@@ -1536,15 +1578,94 @@ class Config:
 
     @property
     def idle_screen_theme(self) -> str:
-        """Idle screen theme name: 'classic', 'forecast', 'conditions', or 'cycle'."""
+        """Idle screen theme name.
+
+        One of ``classic``, ``forecast``, ``conditions``, ``indycar_next``,
+        ``birthday``, or ``cycle``.
+        """
         val = str(
             self.data_store.get("idle_screen_theme", DEFAULT_IDLE_SCREEN_THEME)
         ).lower()
         return (
             val
-            if val in ("classic", "forecast", "conditions", "cycle")
+            if val
+            in (
+                "classic",
+                "forecast",
+                "conditions",
+                "indycar_next",
+                "birthday",
+                "cycle",
+            )
             else DEFAULT_IDLE_SCREEN_THEME
         )
+
+    def _legacy_idle_screen_themes(self) -> list[str]:
+        """Expand the legacy single ``idle_screen_theme`` value into a list."""
+        legacy = self.idle_screen_theme
+        if legacy == "cycle":
+            themes = ["classic", "forecast"]
+            if self.idle_cycle_include_indycar:
+                themes.append("indycar_next")
+            return themes
+        return [legacy]
+
+    @property
+    def idle_screen_themes(self) -> list[str]:
+        """Ordered idle scenes to rotate through.
+
+        New installs store an explicit list in ``idle_screen_themes``.
+        Existing installs fall back to the legacy single ``idle_screen_theme``
+        value (``cycle`` expands to Classic + Forecast, plus the INDYCAR
+        next-event scene when the old opt-in is enabled).
+        """
+        raw = self.data_store.get("idle_screen_themes", DEFAULT_IDLE_SCREEN_THEMES)
+        if isinstance(raw, str):
+            values = [raw]
+        elif isinstance(raw, (list, tuple, set)):
+            values = list(raw)
+        else:
+            values = []
+
+        themes: list[str] = []
+        for item in values:
+            name = str(item).strip().lower()
+            if name == "cycle":
+                for expanded in ("classic", "forecast"):
+                    if expanded not in themes:
+                        themes.append(expanded)
+            elif name in IDLE_SCREEN_THEMES and name not in themes:
+                themes.append(name)
+
+        return themes or self._legacy_idle_screen_themes()
+
+    @property
+    def idle_cycle_include_indycar(self) -> bool:
+        """Append the INDYCAR next-event screen to the idle cycle."""
+        return bool(
+            self.data_store.get(
+                "idle_cycle_include_indycar", DEFAULT_IDLE_CYCLE_INCLUDE_INDYCAR
+            )
+        )
+
+    @property
+    def birthday_enabled(self) -> bool:
+        """True whenever a valid birthday date is saved.
+
+        The date is the source of truth: entering one adds the scene to the
+        idle rotation on that month/day each year, and clearing it disables
+        the scene.  ``birthday_enabled`` is still written for older configs.
+        """
+        from utilities.birthday import parse_birthday_date
+
+        return parse_birthday_date(self.birthday_date) is not None
+
+    @property
+    def birthday_date(self) -> str:
+        """Saved birthday date (year is ignored when matching)."""
+        return str(
+            self.data_store.get("birthday_date", DEFAULT_BIRTHDAY_DATE) or ""
+        ).strip()
 
     @property
     def web_interface_enabled(self) -> bool:
@@ -1593,6 +1714,11 @@ class Config:
         """
         value = str(self.data_store.get("bonnet_type", DEFAULT_BONNET_TYPE)).lower()
         return value if value in BONNET_TYPES else DEFAULT_BONNET_TYPE
+
+    @property
+    def first_setup_complete(self) -> bool:
+        """True once the first-setup wizard has been completed or skipped."""
+        return bool(self.data_store.get("first_setup_complete", False))
 
     @property
     def loading_indicator(self) -> str:
@@ -1838,7 +1964,89 @@ class Config:
     @property
     def debug_scene(self) -> str:
         value = str(self.data_store.get("debug_scene", DEFAULT_DEBUG_SCENE)).lower()
-        return value if value in ("auto", "flight", "satellite", "idle") else "auto"
+        return (
+            value
+            if value
+            in (
+                "auto",
+                "flight",
+                "satellite",
+                "idle",
+                "indy_top3",
+                "indy_driver",
+                "indy_champion",
+                "birthday",
+            )
+            else "auto"
+        )
+
+    # ------------------------------------------------------------------
+    # INDYCAR (opt-in)
+    # ------------------------------------------------------------------
+    @property
+    def indycar_enabled(self) -> bool:
+        """Enable the live INDYCAR scenes and background feed monitor."""
+        return bool(self.data_store.get("indycar_enabled", DEFAULT_INDYCAR_ENABLED))
+
+    @property
+    def indycar_tracked_driver(self) -> str:
+        """Car number or surname of the driver to follow, or empty."""
+        return str(
+            self.data_store.get(
+                "indycar_tracked_driver", DEFAULT_INDYCAR_TRACKED_DRIVER
+            )
+        ).strip()
+
+    @property
+    def indycar_champion_enabled(self) -> bool:
+        """Allow the champion celebration scene."""
+        return bool(
+            self.data_store.get(
+                "indycar_champion_enabled", DEFAULT_INDYCAR_CHAMPION_ENABLED
+            )
+        )
+
+    @property
+    def indycar_champion_override(self) -> str:
+        """Manual champion name/car number for the off-season."""
+        return str(
+            self.data_store.get(
+                "indycar_champion_override", DEFAULT_INDYCAR_CHAMPION_OVERRIDE
+            )
+        ).strip()
+
+    @property
+    def indycar_champion_flash_seconds(self) -> int:
+        """How long the champion celebration may occupy the screen."""
+        try:
+            return max(
+                10,
+                min(
+                    600,
+                    int(
+                        self.data_store.get(
+                            "indycar_champion_flash_seconds",
+                            DEFAULT_INDYCAR_CHAMPION_FLASH_SECONDS,
+                        )
+                    ),
+                ),
+            )
+        except (TypeError, ValueError):
+            return DEFAULT_INDYCAR_CHAMPION_FLASH_SECONDS
+
+    @property
+    def indycar_test_mode(self) -> bool:
+        """Inject bundled demo snapshots instead of live feeds."""
+        return bool(self.data_store.get("indycar_test_mode", DEFAULT_INDYCAR_TEST_MODE))
+
+    @property
+    def indycar_test_qualifying(self) -> bool:
+        """Use the qualifying demo snapshot in test mode."""
+        return bool(
+            self.data_store.get(
+                "indycar_test_qualifying", DEFAULT_INDYCAR_TEST_QUALIFYING
+            )
+        )
 
     @property
     def satellite_timeout_seconds(self) -> int:

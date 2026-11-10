@@ -1,5 +1,7 @@
+import io
 import json
 import subprocess
+import sys
 from unittest.mock import MagicMock
 
 import pytest
@@ -94,6 +96,60 @@ def test_start_setup_hotspot_keeps_saved_home_network(monkeypatch, tmp_path):
     ]
     assert (tmp_path / "configured").exists()
     assert (tmp_path / "setup-active").exists()
+
+
+def test_forget_wifi_deletes_all_saved_profiles_and_opens_hotspot(
+    monkeypatch, tmp_path
+):
+    import utilities.wifi_setup as wifi_setup
+
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        if args[:4] == ["nmcli", "-t", "-f", "NAME,TYPE"]:
+            return subprocess.CompletedProcess(
+                args,
+                0,
+                stdout=(
+                    "FlightTracker-Home:802-11-wireless\n"
+                    "Cafe\\: Guest:802-11-wireless\n"
+                    "FlightTracker-Setup:802-11-wireless\n"
+                    "Wired connection 1:ethernet\n"
+                ),
+            )
+        return subprocess.CompletedProcess(args, 0)
+
+    monkeypatch.setattr(wifi_setup.subprocess, "run", run)
+    monkeypatch.setattr(wifi_setup, "SETUP_MARKER", str(tmp_path / "setup-active"))
+    monkeypatch.setattr(
+        wifi_setup, "CONFIGURED_MARKER", str(tmp_path / "wifi-configured")
+    )
+    (tmp_path / "wifi-configured").write_text("configured")
+
+    wifi_setup.forget_wifi_networks()
+
+    assert calls == [
+        ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"],
+        ["nmcli", "connection", "delete", "FlightTracker-Home"],
+        ["nmcli", "connection", "delete", "Cafe: Guest"],
+        ["nmcli", "connection", "up", "FlightTracker-Setup"],
+    ]
+    # The setup AP profile is kept; the configured marker is cleared so the
+    # device behaves like a fresh install.
+    assert not (tmp_path / "wifi-configured").exists()
+    assert (tmp_path / "setup-active").read_text() == "manual\n"
+
+
+def test_configure_wifi_from_stdin_dispatches_forget_action(monkeypatch):
+    import utilities.wifi_setup as wifi_setup
+
+    forget = MagicMock()
+    monkeypatch.setattr(wifi_setup, "forget_wifi_networks", forget)
+    monkeypatch.setattr(sys, "stdin", io.StringIO('{"action": "forget_wifi"}'))
+
+    assert wifi_setup.configure_wifi_from_stdin() == 0
+    forget.assert_called_once_with()
 
 
 def test_wifi_change_failure_restores_saved_connection_and_setup_hotspot(
@@ -285,7 +341,9 @@ def test_wifi_setup_page_posts_credentials_to_privileged_helper(monkeypatch):
 
     assert response.status_code == 200
     assert b"Wi-Fi details saved" in response.data
-    assert b"http://my-pi.local:8584/settings" in response.data
+    # The link points at the root, which forwards first-run users to the
+    # setup wizard and everyone else to the settings page.
+    assert b'href="http://my-pi.local:8584/"' in response.data
     args, kwargs = run.call_args
     assert args[0] == ["sudo", "-n", "/usr/local/sbin/flighttracker-configure-wifi"]
     assert json.loads(kwargs["input"]) == {
@@ -317,6 +375,162 @@ def test_reset_wifi_route_starts_hotspot_and_restarts(monkeypatch):
     assert response.json["message"]
     assert run.call_args.kwargs["input"] == '{"action": "start_setup"}'
     assert restarts == [1.0]
+
+
+def test_forget_wifi_route_deletes_profiles_and_restarts(monkeypatch):
+    import web.app as web_app
+
+    run = MagicMock(return_value=subprocess.CompletedProcess([], 0, stderr=""))
+    monkeypatch.setattr(web_app.subprocess, "run", run)
+    restarts = []
+    monkeypatch.setattr(
+        web_app, "restart_after", lambda delay=1.0: restarts.append(delay)
+    )
+
+    client = web_app.app.test_client()
+    with client.session_transaction() as session:
+        session["authenticated"] = True
+        session["csrf_token"] = "forget-csrf"
+    response = client.post("/wifi-setup/forget", data={"csrf_token": "forget-csrf"})
+
+    assert response.status_code == 200
+    assert response.json["message"]
+    assert run.call_args.kwargs["input"] == '{"action": "forget_wifi"}'
+    assert restarts == [1.0]
+
+
+def test_forget_wifi_route_reports_helper_failure(monkeypatch):
+    import web.app as web_app
+
+    run = MagicMock(return_value=subprocess.CompletedProcess([], 1, stderr="boom"))
+    monkeypatch.setattr(web_app.subprocess, "run", run)
+    restarts = []
+    monkeypatch.setattr(
+        web_app, "restart_after", lambda delay=1.0: restarts.append(delay)
+    )
+
+    client = web_app.app.test_client()
+    with client.session_transaction() as session:
+        session["authenticated"] = True
+        session["csrf_token"] = "forget-csrf"
+    response = client.post("/wifi-setup/forget", data={"csrf_token": "forget-csrf"})
+
+    assert response.status_code == 500
+    assert "Could not delete" in response.json["error"]
+    assert restarts == []
+
+
+def test_password_reset_route_restores_default_and_reopens_wizard(monkeypatch):
+    import web.app as web_app
+
+    cfg = MagicMock()
+    cfg.data_store = {
+        "web_password_hash": "existing-hash",
+        "first_setup_complete": True,
+    }
+    monkeypatch.setattr(web_app.Config, "instance", lambda: cfg)
+    restarts = []
+    monkeypatch.setattr(
+        web_app, "restart_after", lambda delay=1.0: restarts.append(delay)
+    )
+
+    client = web_app.app.test_client()
+    with client.session_transaction() as session:
+        session["authenticated"] = True
+        session["csrf_token"] = "reset-csrf"
+    response = client.post("/password/reset", data={"csrf_token": "reset-csrf"})
+
+    assert response.status_code == 200
+    assert "flighttracker" in response.json["message"]
+    assert cfg.data_store == {"web_password_hash": "", "first_setup_complete": False}
+    cfg.save.assert_called_once_with()
+    assert restarts == [1.0]
+
+
+def test_password_reset_route_requires_csrf():
+    import web.app as web_app
+
+    client = web_app.app.test_client()
+    with client.session_transaction() as session:
+        session["authenticated"] = True
+        session["csrf_token"] = "reset-csrf"
+    response = client.post("/password/reset", data={})
+
+    assert response.status_code == 403
+
+
+def test_handoff_route_resets_defaults_and_forgets_wifi(monkeypatch):
+    import web.app as web_app
+
+    cfg = MagicMock()
+    cfg.data_store = {"web_password_hash": "existing-hash", "flight_radius": 80}
+    monkeypatch.setattr(web_app.Config, "instance", lambda: cfg)
+    monkeypatch.setattr(
+        web_app,
+        "DEFAULTS",
+        {"flight_radius": 20, "web_password_hash": "", "first_setup_complete": False},
+    )
+    monkeypatch.setattr(web_app, "_migrate_provider_lists", lambda data, loaded: None)
+    run = MagicMock(return_value=subprocess.CompletedProcess([], 0, stderr=""))
+    monkeypatch.setattr(web_app.subprocess, "run", run)
+    restarts = []
+    monkeypatch.setattr(
+        web_app, "restart_after", lambda delay=1.0: restarts.append(delay)
+    )
+
+    client = web_app.app.test_client()
+    with client.session_transaction() as session:
+        session["authenticated"] = True
+        session["csrf_token"] = "handoff-csrf"
+    response = client.post("/handoff/reset", data={"csrf_token": "handoff-csrf"})
+
+    assert response.status_code == 200
+    assert response.json["message"]
+    assert cfg.data_store == {
+        "flight_radius": 20,
+        "web_password_hash": "",
+        "first_setup_complete": False,
+    }
+    cfg.save.assert_called_once_with()
+    assert run.call_args.kwargs["input"] == '{"action": "forget_wifi"}'
+    assert restarts == [1.0]
+
+
+def test_handoff_route_reports_partial_failure_when_wifi_survives(monkeypatch):
+    import web.app as web_app
+
+    cfg = MagicMock()
+    cfg.data_store = {"web_password_hash": "existing-hash", "flight_radius": 80}
+    monkeypatch.setattr(web_app.Config, "instance", lambda: cfg)
+    monkeypatch.setattr(
+        web_app,
+        "DEFAULTS",
+        {"flight_radius": 20, "web_password_hash": "", "first_setup_complete": False},
+    )
+    monkeypatch.setattr(web_app, "_migrate_provider_lists", lambda data, loaded: None)
+    run = MagicMock(return_value=subprocess.CompletedProcess([], 1, stderr="boom"))
+    monkeypatch.setattr(web_app.subprocess, "run", run)
+    restarts = []
+    monkeypatch.setattr(
+        web_app, "restart_after", lambda delay=1.0: restarts.append(delay)
+    )
+
+    client = web_app.app.test_client()
+    with client.session_transaction() as session:
+        session["authenticated"] = True
+        session["csrf_token"] = "handoff-csrf"
+    response = client.post("/handoff/reset", data={"csrf_token": "handoff-csrf"})
+
+    assert response.status_code == 500
+    assert "Forget Wi-Fi" in response.json["error"]
+    # The settings half of the handoff still completed and was saved.
+    assert cfg.data_store == {
+        "flight_radius": 20,
+        "web_password_hash": "",
+        "first_setup_complete": False,
+    }
+    cfg.save.assert_called_once_with()
+    assert restarts == []
 
 
 def test_reset_settings_route_restores_defaults_and_keeps_web_password(monkeypatch):

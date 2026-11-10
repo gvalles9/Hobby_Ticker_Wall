@@ -1,5 +1,5 @@
 /**
- * Default Screen page - idle screen theme selector and per-theme settings.
+ * Default Screen page - idle scene multi-select and per-theme settings.
  */
 
 import { defineComponent } from "./vendor.js";
@@ -31,38 +31,105 @@ export default defineComponent({
       },
     },
   },
+  methods: {
+    hasTheme(name) {
+      const selected = this.store.config.idle_screen_themes;
+      return Array.isArray(selected) && selected.includes(name);
+    },
+  },
   template: `
     <div>
     <h2 class="fs-4 fw-semibold mb-3"><i class="bi bi-house me-2"></i>Default Screen</h2>
 
     <!-- ====== Theme selector ====== -->
     <div id="group-theme" class="card mb-3 p-3">
-      <p class="section-heading"><i class="bi bi-palette me-2"></i>Theme</p>
+      <p class="section-heading"><i class="bi bi-palette me-2"></i>Idle Scenes</p>
 
-      <div class="mb-3">
-        <h5>Idle Screen Theme</h5>
-        <select class="form-select form-select-sm" name="idle_screen_theme" id="idle_screen_theme"
-                style="max-width:200px" v-model="store.config.idle_screen_theme">
-          <option value="classic">Classic</option>
-          <option value="conditions">Current Conditions</option>
-          <option value="forecast">Forecast</option>
-          <option value="cycle">Classic + 3-day forecast (30 sec each)</option>
-        </select>
+      <div class="mb-2">
+        <h5>Scenes to rotate</h5>
+        <p class="text-muted small mb-2">
+          Tick every scene you want on the idle screen when no flights or satellites are
+          overhead. Each selected scene is shown for 30 seconds, in the order listed here.
+        </p>
+        <input type="hidden" name="idle_screen_themes_submitted" value="1" />
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="idle_theme_classic"
+                 name="idle_screen_themes" value="classic"
+                 v-model="store.config.idle_screen_themes" />
+          <label class="form-check-label small" for="idle_theme_classic">
+            Classic <span class="text-muted">- clock, date and current weather</span>
+          </label>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="idle_theme_conditions"
+                 name="idle_screen_themes" value="conditions"
+                 v-model="store.config.idle_screen_themes" />
+          <label class="form-check-label small" for="idle_theme_conditions">
+            Current Conditions <span class="text-muted">- weather at a glance</span>
+          </label>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="idle_theme_forecast"
+                 name="idle_screen_themes" value="forecast"
+                 v-model="store.config.idle_screen_themes" />
+          <label class="form-check-label small" for="idle_theme_forecast">
+            Forecast <span class="text-muted">- upcoming weather icons</span>
+          </label>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="idle_theme_indycar_next"
+                 name="idle_screen_themes" value="indycar_next"
+                 v-model="store.config.idle_screen_themes" />
+          <label class="form-check-label small" for="idle_theme_indycar_next">
+            INDYCAR next event <span class="text-muted">- next race countdown</span>
+          </label>
+        </div>
+        <div class="form-check">
+          <input type="checkbox" class="form-check-input" id="idle_theme_birthday"
+                 name="idle_screen_themes" value="birthday"
+                 v-model="store.config.idle_screen_themes" />
+          <label class="form-check-label small" for="idle_theme_birthday">
+            Happy Birthday <span class="text-muted">- celebration scene</span>
+          </label>
+        </div>
+      </div>
+      <p class="text-muted small mb-0">
+        If no scene is ticked, the Classic scene is used. When several scenes are selected
+        the forecast is shown in its three-day form; a forecast-only selection uses the
+        duration chosen below.
+      </p>
+    </div>
+
+    <!-- ====== Birthday scene ====== -->
+    <div id="group-birthday" class="card mb-3 p-3">
+      <p class="section-heading"><i class="bi bi-balloon me-2"></i>Birthday Scene</p>
+      <div style="max-width:220px">
+        <label class="form-label small" for="birthday_date">Birthday date</label>
+        <input type="date" class="form-control form-control-sm" id="birthday_date"
+               name="birthday_date" v-model="store.config.birthday_date" />
         <div class="form-text text-muted small">
-          Choose what to display on the idle screen when no flights or satellites are overhead.
+          Enter a birthday date to add the scene to the idle rotation on that month and day
+          each year. The year in the picker is ignored. Clear the date to disable it. Tick
+          <strong>Happy Birthday</strong> above, or use
+          <strong>Sky Monitoring &rarr; Debug</strong>, to preview it at any time.
         </div>
       </div>
     </div>
 
-    <div v-show="store.config.idle_screen_theme === 'cycle'" class="card mb-3 p-3">
-      <p class="section-heading"><i class="bi bi-arrow-repeat me-2"></i>Automatic Idle Rotation</p>
-      <p class="text-muted small mb-0">
-        Alternates between the Classic screen and the 3-day forecast, showing each for 30 seconds.
-      </p>
+    <!-- ====== INDYCAR next event ====== -->
+    <div v-show="hasTheme('indycar_next')">
+      <div class="card mb-3 p-3">
+        <p class="section-heading"><i class="bi bi-flag-checkered me-2"></i>INDYCAR Next Event</p>
+        <p class="text-muted small mb-0">
+          Shows the next event name, track, session, date, published time, and a day-level
+          countdown. It is a fallback idle screen, so it only appears when no live session,
+          flight, satellite, or pushed image is being displayed.
+        </p>
+      </div>
     </div>
 
     <!-- ====== Classic theme ====== -->
-    <div v-show="store.config.idle_screen_theme === 'classic'">
+    <div v-show="hasTheme('classic')">
       <div id="group-weather" class="card mb-3 p-3">
         <p class="section-heading"><i class="bi bi-cloud-sun me-2"></i>Weather</p>
 
@@ -135,7 +202,7 @@ export default defineComponent({
     </div>
 
     <!-- ====== Forecast theme ====== -->
-    <div v-show="store.config.idle_screen_theme === 'forecast'">
+    <div v-show="hasTheme('forecast')">
       <div class="card mb-3 p-3">
         <p class="section-heading"><i class="bi bi-cloud-sun-fill me-2"></i>Forecast</p>
         <p class="text-muted small mb-0">Display upcoming weather forecasts as icons on the idle screen.</p>
@@ -165,7 +232,7 @@ export default defineComponent({
     </div>
 
     <!-- ====== Current Conditions theme ====== -->
-    <div v-show="store.config.idle_screen_theme === 'conditions'">
+    <div v-show="hasTheme('conditions')">
       <div class="card mb-3 p-3">
         <p class="section-heading"><i class="bi bi-thermometer-half me-2"></i>Current Conditions</p>
         <p class="text-muted small mb-0">

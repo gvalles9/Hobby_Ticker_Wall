@@ -347,6 +347,9 @@ def load_full_interface(panel, canvas, cfg: Config):
             )
     if setup_mode:
         url = f"http://192.168.4.1:{cfg.web_port}/wifi-setup"
+    elif not (cfg.first_setup_complete or cfg.get("web_password_hash")):
+        # First run: send the QR to the setup wizard instead of settings.
+        url = f"http://{local_ip()}:{cfg.web_port}/first-setup"
     else:
         url = f"http://{local_ip()}:{cfg.web_port}/settings"
     print(f"[web] Config interface: {url}", flush=True)

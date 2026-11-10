@@ -12,7 +12,7 @@ sudo install -o root -g root -m 0755 \
     /usr/local/sbin/flighttracker-set-ssh
 
 SUDOERS_FILE="/etc/sudoers.d/flighttracker-wifi-setup"
-printf '%s ALL=(root) NOPASSWD: /usr/local/sbin/flighttracker-configure-wifi, /usr/local/sbin/flighttracker-set-ssh\n%s ALL=(root) NOPASSWD: /usr/bin/systemctl restart FlightTracker.service\n' \
+printf '%s ALL=(root) NOPASSWD: /usr/local/sbin/flighttracker-configure-wifi, /usr/local/sbin/flighttracker-set-ssh, /usr/local/sbin/flighttracker-sync-helpers\n%s ALL=(root) NOPASSWD: /usr/bin/systemctl restart FlightTracker.service\n' \
     "$APP_USER" "$APP_USER" | sudo tee "$SUDOERS_FILE" >/dev/null
 sudo chmod 0440 "$SUDOERS_FILE"
 sudo visudo -cf "$SUDOERS_FILE"
@@ -98,6 +98,28 @@ nmcli connection up FlightTracker-Setup
 touch /run/flighttracker-wifi-setup
 EOF
 sudo chmod 0755 /usr/local/sbin/flighttracker-wifi-setup
+
+# Refreshes the root-owned helper copies from the application checkout.
+# The install directory is baked in below; the sudoers file above grants the
+# application user passwordless sudo for exactly this command. Both update
+# paths call it (utilities/updater.py and utilities/nightly_update.py) so
+# helper changes reach already-installed units without re-running the
+# installer. Unchanged files are skipped, making it a cheap no-op.
+sudo tee /usr/local/sbin/flighttracker-sync-helpers >/dev/null <<EOF
+#!/bin/bash
+set -euo pipefail
+INSTALL_DIR="${INSTALL_DIR}"
+sync_helper() {
+    local src="\$1" dst="\$2"
+    if [ -f "\$src" ] && ! cmp -s "\$src" "\$dst"; then
+        install -o root -g root -m 0755 "\$src" "\$dst"
+    fi
+}
+sync_helper "\$INSTALL_DIR/utilities/wifi_setup.py" /usr/local/sbin/flighttracker-configure-wifi
+sync_helper "\$INSTALL_DIR/utilities/ssh_access.py" /usr/local/sbin/flighttracker-set-ssh
+sync_helper "\$INSTALL_DIR/utilities/wifi_watchdog.py" /usr/local/sbin/flighttracker-wifi-watchdog
+EOF
+sudo chmod 0755 /usr/local/sbin/flighttracker-sync-helpers
 
 sudo install -m 0644 \
     "${INSTALL_DIR}/assets/FlightTracker-WifiSetup.service" \

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}" />
+  <title>Hobby Ticker - First Setup</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+</head>
+<body>
+<div class="container py-5" style="max-width:640px">
+  <div class="text-center mb-4">
+    <img src="{{ url_for('static', filename='images/logo.png') }}" alt="Hobby Ticker" height="48" class="mb-1" />
+    <h1 class="fs-4 fw-semibold mt-1">Welcome to Hobby Ticker</h1>
+    <p class="text-muted small">{{ app_version }}</p>
+    <p class="text-muted mb-0">A couple of required choices to get started, then a few optional
+      tweaks. Everything can be changed later on the Settings page.</p>
+  </div>
+
+  {% if error %}
+  <div class="alert alert-danger py-2" role="alert">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('first_setup') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+    <!-- ====== Required ====== -->
+    <div class="card border-0 shadow-sm p-4 mb-3">
+      <p class="section-heading mb-3"><i class="bi bi-hdd-network me-2"></i>Required</p>
+
+      <h5>Bonnet type</h5>
+      <p class="text-muted small">Which Adafruit LED matrix board drives your display.</p>
+      <div class="form-check mb-1">
+        <input type="radio" class="form-check-input" id="bonnet_triple" name="bonnet_type"
+               value="triple" {% if bonnet_type == 'triple' %}checked{% endif %} />
+        <label class="form-check-label" for="bonnet_triple">
+          Triple LED Matrix Bonnet
+          <span class="text-muted small d-block">Three chained 64&times;32 panels (192&times;32 total)</span>
+        </label>
+      </div>
+      <div class="form-check mb-2">
+        <input type="radio" class="form-check-input" id="bonnet_single" name="bonnet_type"
+               value="single" {% if bonnet_type == 'single' %}checked{% endif %} />
+        <label class="form-check-label" for="bonnet_single">
+          RGB Matrix Bonnet / HAT
+          <span class="text-muted small d-block">The standard single-port board</span>
+        </label>
+      </div>
+      <p class="form-text text-muted small">Raspberry Pi 5 ignores this choice &mdash; its driver
+        detects the wiring automatically.</p>
+
+      <hr />
+
+      <h5 class="mt-2">Web password</h5>
+      <p class="text-muted small">You signed in with the default password. Choose your own to
+        protect the settings page.</p>
+      <div class="row g-2 mb-2">
+        <div class="col-md-6">
+          <label class="form-label small" for="new_password">New password</label>
+          <input type="password" class="form-control" id="new_password" name="new_password"
+                 autocomplete="new-password" required />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small" for="confirm_password">Confirm password</label>
+          <input type="password" class="form-control" id="confirm_password" name="confirm_password"
+                 autocomplete="new-password" required />
+        </div>
+      </div>
+      <p class="form-text text-muted small">Used to sign in to this page. Change the Pi's own
+        password separately under Admin &rarr; Remote Access later if SSH is needed.</p>
+    </div>
+
+    <!-- ====== Optional: location ====== -->
+    <div class="card border-0 shadow-sm p-4 mb-3">
+      <p class="section-heading mb-3">
+        <i class="bi bi-geo-alt me-2"></i>Location
+        <span class="badge text-bg-secondary ms-1">Optional</span>
+      </p>
+      <p class="text-muted small">Hobby Ticker already estimated a location from this network's
+        IP address. Enter your own coordinates to override it, or leave these as they are.</p>
+      <div class="row g-2">
+        <div class="col-4">
+          <label class="form-label small" for="flight_lat">Latitude</label>
+          <input type="number" class="form-control" id="flight_lat" name="flight_lat"
+                 step="any" min="-90" max="90" value="{{ flight_lat }}" />
+        </div>
+        <div class="col-4">
+          <label class="form-label small" for="flight_lng">Longitude</label>
+          <input type="number" class="form-control" id="flight_lng" name="flight_lng"
+                 step="any" min="-180" max="180" value="{{ flight_lng }}" />
+        </div>
+        <div class="col-4">
+          <label class="form-label small" for="flight_radius">Radius (km)</label>
+          <input type="number" class="form-control" id="flight_radius" name="flight_radius"
+                 step="any" min="0" value="{{ flight_radius }}" />
+        </div>
+      </div>
+      <p class="form-text text-muted small">Flights and weather within this radius appear on the
+        display.</p>
+    </div>
+
+    <!-- ====== Optional: units ====== -->
+    <div class="card border-0 shadow-sm p-4 mb-3">
+      <p class="section-heading mb-3">
+        <i class="bi bi-rulers me-2"></i>Units
+        <span class="badge text-bg-secondary ms-1">Optional</span>
+      </p>
+
+      <h5>Flight screen</h5>
+      <div class="form-check">
+        <input type="radio" class="form-check-input" id="flight_units_metric" name="flight_units"
+               value="metric" {% if flight_units != 'standard' %}checked{% endif %} />
+        <label class="form-check-label" for="flight_units_metric">
+          Metric <span class="text-muted small">(metres, km/h)</span>
+        </label>
+      </div>
+      <div class="form-check mb-2">
+        <input type="radio" class="form-check-input" id="flight_units_standard" name="flight_units"
+               value="standard" {% if flight_units == 'standard' %}checked{% endif %} />
+        <label class="form-check-label" for="flight_units_standard">
+          Standard <span class="text-muted small">(feet, mph)</span>
+        </label>
+      </div>
+
+      <h5>Weather / idle screens</h5>
+      <div class="form-check">
+        <input type="radio" class="form-check-input" id="idle_units_metric" name="idle_units"
+               value="metric" {% if idle_units != 'standard' %}checked{% endif %} />
+        <label class="form-check-label" for="idle_units_metric">
+          Metric <span class="text-muted small">(&deg;C, mm)</span>
+        </label>
+      </div>
+      <div class="form-check mb-2">
+        <input type="radio" class="form-check-input" id="idle_units_standard" name="idle_units"
+               value="standard" {% if idle_units == 'standard' %}checked{% endif %} />
+        <label class="form-check-label" for="idle_units_standard">
+          Standard <span class="text-muted small">(&deg;F, inches)</span>
+        </label>
+      </div>
+    </div>
+
+    <!-- ====== Optional: brightness and clock ====== -->
+    <div class="card border-0 shadow-sm p-4 mb-3">
+      <p class="section-heading mb-3">
+        <i class="bi bi-display me-2"></i>Display
+        <span class="badge text-bg-secondary ms-1">Optional</span>
+      </p>
+
+      <div class="row g-2 mb-3">
+        <div class="col-sm-6">
+          <label class="form-label small" for="screen_brightness">Brightness</label>
+          <select class="form-select" id="screen_brightness" name="screen_brightness">
+            {% for level in [1, 2, 3, 4, 5] %}
+            <option value="{{ level }}" {% if screen_brightness == level %}selected{% endif %}>
+              {{ level }}{% if level == 1 %} (dim){% endif %}{% if level == 5 %} (bright){% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label small" for="date_format">Date format</label>
+          <select class="form-select" id="date_format" name="date_format">
+            <option value="0" {% if date_format == 0 %}selected{% endif %}>Month Dth YYYY</option>
+            <option value="1" {% if date_format == 1 %}selected{% endif %}>DD-MM-YYYY</option>
+            <option value="2" {% if date_format == 2 %}selected{% endif %}>MM-DD-YYYY</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input" id="clock_24hr" name="clock_24hr"
+               {% if clock_24hr %}checked{% endif %} />
+        <label class="form-check-label" for="clock_24hr">24-hour clock</label>
+      </div>
+    </div>
+
+    <!-- ====== Optional: idle scenes ====== -->
+    <div class="card border-0 shadow-sm p-4 mb-3">
+      <p class="section-heading mb-3">
+        <i class="bi bi-palette me-2"></i>Idle scenes
+        <span class="badge text-bg-secondary ms-1">Optional</span>
+      </p>
+      <p class="text-muted small">Shown when no flights or satellites are overhead. Each ticked
+        scene is displayed for 30 seconds in turn.</p>
+      <input type="hidden" name="idle_screen_themes_submitted" value="1" />
+      {% for theme in themes %}
+      <div class="form-check">
+        <input type="checkbox" class="form-check-input" id="idle_theme_{{ theme.value }}"
+               name="idle_screen_themes" value="{{ theme.value }}"
+               {% if theme.checked %}checked{% endif %} />
+        <label class="form-check-label" for="idle_theme_{{ theme.value }}">
+          {{ theme.label }} <span class="text-muted small">&mdash; {{ theme.description }}</span>
+        </label>
+      </div>
+      {% endfor %}
+      <p class="form-text text-muted small mb-0">If no scene is ticked, the Classic scene
+        is used.</p>
+
+      <div class="mt-3" style="max-width:220px">
+        <label class="form-label small" for="birthday_date">Birthday date</label>
+        <input type="date" class="form-control form-control-sm" id="birthday_date"
+               name="birthday_date" value="{{ birthday_date }}" />
+        <p class="form-text text-muted small">Adds a celebration scene to the rotation on this
+          day each year. Leave empty to skip.</p>
+      </div>
+    </div>
+
+    <!-- ====== Optional: satellite tracking ====== -->
+    <div class="card border-0 shadow-sm p-4 mb-3">
+      <p class="section-heading mb-3">
+        <i class="bi bi-orbit me-2"></i>Satellite tracking
+        <span class="badge text-bg-secondary ms-1">Optional</span>
+      </p>
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="satellite_tracking_enabled"
+               name="satellite_tracking_enabled"
+               {% if satellite_tracking_enabled %}checked{% endif %} />
+        <label class="form-check-label" for="satellite_tracking_enabled">
+          Show satellites passing overhead
+        </label>
+      </div>
+      <label class="form-label small" for="satellite_norad_ids">NORAD IDs</label>
+      <textarea class="form-control form-control-sm" id="satellite_norad_ids"
+                name="satellite_norad_ids" rows="2">{{ satellite_norad_ids_text }}</textarea>
+      <p class="form-text text-muted small">One ID per line. Defaults to the ISS
+        (25544); find others at celestrak.org.</p>
+    </div>
+
+    <div class="d-flex justify-content-between align-items-center mb-4">
+      <button type="submit" name="action" value="skip" class="btn btn-link"
+              title="Keep the defaults and the default password for now">Skip for now</button>
+      <button type="submit" class="btn btn-primary px-4">
+        Save and finish <i class="bi bi-check2 ms-1"></i>
+      </button>
+    </div>
+  </form>
+
+  {% include "footer.html" %}
+</div>
+</body>
+</html>

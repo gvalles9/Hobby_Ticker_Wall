@@ -1,0 +1,124 @@
+{
+  "trackactivity": {
+    "event": [
+      {
+        "seriesid": "55",
+        "eventid": "5559",
+        "eventname": "Streets of St. Petersburg",
+        "trackid": "713",
+        "tracktype": "S",
+        "sessions": {
+          "session": [
+            {
+              "sessionid": "6965",
+              "sessionlabel": "Race",
+              "sessiontype": "R",
+              "preamble": "R.I",
+              "startdatetime": "2027-03-07 05:00:00",
+              "enddatetime": "2027-03-07 05:00:00",
+              "estimatedgreenflag": "2027-03-07 05:00:00",
+              "status": "ACTIVE",
+              "hidefromschedule": "0",
+              "broadcastnetworkid": "29",
+              "broadcastnetworkname": "Fox",
+              "networks": {
+                "network": [
+                  {
+                    "id": "{507FBA21-0B44-49BF-85F7-9C73EB674675}",
+                    "name": "Fox",
+                    "url": "https://www.foxsports.com/",
+                    "logo_image_positive": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/FOX-Pos.png",
+                    "logo_image_negative": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/FOX-Neg.png"
+                  },
+                  {
+                    "id": "{D1A4EC3C-C276-42EA-9BB0-3568A03ACEDC}",
+                    "name": "INDYCAR LIVE",
+                    "url": "https://www.indycarlive.com",
+                    "logo_image_positive": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/ICLive-Pos.png",
+                    "logo_image_negative": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/ICLive-Neg.png"
+                  },
+                  {
+                    "id": "{0F6B7EAF-BF27-4BB7-81E1-5BF67850E17B}",
+                    "name": "SiriusXM",
+                    "url": "https://www.siriusxm.com/channels/siriusxm-indycar-nation",
+                    "logo_image_positive": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/SiriusXM-Pos.png",
+                    "logo_image_negative": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/SiriusXM-Neg.png"
+                  },
+                  {
+                    "id": "{89F1EE41-72ED-426C-90A5-112AFA948240}",
+                    "name": "INDYCAR Radio Network",
+                    "url": "https://www.indycar.com/Radio",
+                    "logo_image_positive": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/ICRadio-Pos-2026.png",
+                    "logo_image_negative": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/ICRadio-Neg-2026.png"
+                  }
+                ]
+              },
+              "resultsimported": "0",
+              "resultsofficial": "0",
+              "results": null
+            }
+          ]
+        }
+      },
+      {
+        "seriesid": "55",
+        "eventid": "5560",
+        "eventname": "Phoenix Raceway",
+        "trackid": "704",
+        "tracktype": "O",
+        "sessions": {
+          "session": [
+            {
+              "sessionid": "6966",
+              "sessionlabel": "Race",
+              "sessiontype": "R",
+              "preamble": "R.I",
+              "startdatetime": "2027-03-13 05:00:00",
+              "enddatetime": "2027-03-13 05:00:00",
+              "estimatedgreenflag": "2027-03-13 05:00:00",
+              "status": "ACTIVE",
+              "hidefromschedule": "0",
+              "broadcastnetworkid": "29",
+              "broadcastnetworkname": "Fox",
+              "networks": {
+                "network": [
+                  {
+                    "id": "{507FBA21-0B44-49BF-85F7-9C73EB674675}",
+                    "name": "Fox",
+                    "url": "https://www.foxsports.com/",
+                    "logo_image_positive": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/FOX-Pos.png",
+                    "logo_image_negative": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/FOX-Neg.png"
+                  },
+                  {
+                    "id": "{D1A4EC3C-C276-42EA-9BB0-3568A03ACEDC}",
+                    "name": "INDYCAR LIVE",
+                    "url": "https://www.indycarlive.com",
+                    "logo_image_positive": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/ICLive-Pos.png",
+                    "logo_image_negative": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/ICLive-Neg.png"
+                  },
+                  {
+                    "id": "{0F6B7EAF-BF27-4BB7-81E1-5BF67850E17B}",
+                    "name": "SiriusXM",
+                    "url": "https://www.siriusxm.com/channels/siriusxm-indycar-nation",
+                    "logo_image_positive": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/SiriusXM-Pos.png",
+                    "logo_image_negative": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/SiriusXM-Neg.png"
+                  },
+                  {
+                    "id": "{89F1EE41-72ED-426C-90A5-112AFA948240}",
+                    "name": "INDYCAR Radio Network",
+                    "url": "https://www.indycar.com/Radio",
+                    "logo_image_positive": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/ICRadio-Pos-2026.png",
+                    "logo_image_negative": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/ICRadio-Neg-2026.png"
+                  }
+                ]
+              },
+              "resultsimported": "0",
+              "resultsofficial": "0",
+              "results": null
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

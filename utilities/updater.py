@@ -20,6 +20,11 @@ UPDATE_REF = f"{UPDATE_REMOTE}/{UPDATE_BRANCH}"
 # Project root is the parent of the utilities/ directory.
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
+# Root-owned helper copies refreshed after updates (see
+# platforms/common/install-wifi-setup.sh, which installs this command and
+# grants the application user passwordless sudo for exactly it).
+HELPER_SYNC_COMMAND = "/usr/local/sbin/flighttracker-sync-helpers"
+
 
 # ---------------------------------------------------------------------------
 # Version comparison
@@ -220,6 +225,37 @@ def is_dirty_tree() -> bool:
 # ---------------------------------------------------------------------------
 
 
+def sync_privileged_helpers() -> bool:
+    """Refresh the root-owned helper copies under /usr/local/sbin.
+
+    The Wi-Fi setup, SSH toggle, and Wi-Fi watchdog helpers are copied
+    (root-owned) out of the checkout at install time; without this call a
+    source update would leave those copies stale.  The sync command
+    compares each file and only rewrites what changed, so this is a cheap
+    no-op on every run.  Systems without it (development machines, the
+    simulator) are skipped silently.
+    """
+    if not Path(HELPER_SYNC_COMMAND).is_file():
+        logger.debug("Helper sync command not installed; skipping.")
+        return False
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", HELPER_SYNC_COMMAND],
+            capture_output=True,
+            text=True,
+            timeout=120,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        logger.warning("Could not sync privileged helpers: %s", exc)
+        return False
+    if result.returncode:
+        logger.warning("Privileged helper sync failed: %s", result.stderr.strip())
+        return False
+    logger.info("Privileged helpers refreshed from the checkout.")
+    return True
+
+
 def perform_update() -> tuple[bool, str]:
     """Fast-forward to this fork's main branch and update dependencies.
 
@@ -279,6 +315,10 @@ def perform_update() -> tuple[bool, str]:
         return False, "pip install timed out after 120s"
     except Exception as exc:  # noqa: BLE001
         return False, f"pip install error: {exc}"
+
+    # 5. Refresh the root-owned helper copies (Wi-Fi setup, SSH toggle,
+    #    Wi-Fi watchdog) so helper changes reach already-installed units.
+    sync_privileged_helpers()
 
     ok, updated_commit = _run_git(["rev-parse", "--short", "HEAD"])
     if not ok:

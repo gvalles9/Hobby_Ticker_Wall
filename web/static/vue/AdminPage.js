@@ -238,7 +238,7 @@ export default defineComponent({
           Reset Settings
         </button>
       </div>
-      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 border-bottom pb-3 mb-3">
         <div>
           <div class="fw-semibold">Change Wi-Fi network</div>
           <div class="text-muted small">
@@ -252,6 +252,54 @@ export default defineComponent({
                   'Open the setup hotspot? The Pi may briefly disconnect from your home Wi-Fi.',
                   true)">
           <i class="bi bi-wifi me-1"></i>Reset Wi-Fi
+        </button>
+      </div>
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 border-bottom pb-3 mb-3">
+        <div>
+          <div class="fw-semibold">Reset web password</div>
+          <div class="text-muted small">
+            Restore the default password (flighttracker) and re-open the first-setup wizard.
+            Useful before handing the device to someone else.
+          </div>
+        </div>
+        <button type="button" class="btn btn-outline-danger btn-sm"
+                :disabled="maintenanceBusy"
+                @click="runMaintenanceAction('/password/reset',
+                  'Reset the web password to the default (flighttracker)? The first-setup wizard opens on the next sign-in. Anyone on this network could sign in with the default password until it is changed again.')">
+          <i class="bi bi-key me-1"></i>Reset Password
+        </button>
+      </div>
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 border-bottom pb-3 mb-3">
+        <div>
+          <div class="fw-semibold">Forget Wi-Fi networks</div>
+          <div class="text-muted small">
+            Delete all saved Wi-Fi networks and open the first-boot setup hotspot, exactly like a
+            fresh install. Scan the QR code on the display to set up Wi-Fi again.
+          </div>
+        </div>
+        <button type="button" class="btn btn-outline-danger btn-sm"
+                :disabled="maintenanceBusy"
+                @click="runMaintenanceAction('/wifi-setup/forget',
+                  'Delete all saved Wi-Fi networks and open the setup hotspot? The Pi will disconnect from this network. Scan the QR code on the display to set up Wi-Fi again.',
+                  true)">
+          <i class="bi bi-wifi-off me-1"></i>Forget Wi-Fi
+        </button>
+      </div>
+      <div class="d-flex align-items-center justify-content-between flex-wrap gap-3">
+        <div>
+          <div class="fw-semibold">Prepare for handoff</div>
+          <div class="text-muted small">
+            One click for gifting: settings to defaults, web password back to the default, all
+            Wi-Fi networks forgotten, and the setup hotspot open. The next owner starts from the
+            QR code on the display.
+          </div>
+        </div>
+        <button type="button" class="btn btn-danger btn-sm"
+                :disabled="maintenanceBusy"
+                @click="runMaintenanceAction('/handoff/reset',
+                  'Reset everything for handoff? Settings return to defaults, the web password returns to the default (flighttracker), all saved Wi-Fi networks are deleted, and the setup hotspot opens. The next owner completes setup from the QR code.',
+                  true)">
+          <i class="bi bi-gift me-1"></i>Prepare for Handoff
         </button>
       </div>
     </div>

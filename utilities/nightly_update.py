@@ -3,6 +3,7 @@
 
 import logging
 import subprocess
+import sys
 from pathlib import Path
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -61,6 +62,21 @@ def _install_dependencies() -> None:
     _run([str(pip), "install", "-r", str(requirements)], timeout=1200)
 
 
+def _sync_helpers() -> None:
+    """Refresh the root-owned helper copies from the (updated) checkout.
+
+    Shares the implementation with the web updater (utilities/updater.py)
+    so both update paths behave identically.
+    """
+    if str(PROJECT_ROOT) not in sys.path:
+        # The service runs this file directly, which puts utilities/ (not
+        # the project root) on sys.path.
+        sys.path.insert(0, str(PROJECT_ROOT))
+    from utilities.updater import sync_privileged_helpers
+
+    sync_privileged_helpers()
+
+
 def run_update() -> bool:
     """Return whether the service was restarted for an update."""
     updated = _update_checkout()
@@ -68,6 +84,10 @@ def run_update() -> bool:
         PENDING_MARKER.parent.mkdir(parents=True, exist_ok=True)
         PENDING_MARKER.write_text("pending\n", encoding="utf-8")
         logger.info("Source updated; synchronizing Python dependencies.")
+
+    # Refresh the root-owned helper copies. Runs every night: it is a no-op
+    # when nothing changed, and doubles as a retry after a failed sync.
+    _sync_helpers()
 
     if not PENDING_MARKER.exists():
         logger.info("No source updates available.")

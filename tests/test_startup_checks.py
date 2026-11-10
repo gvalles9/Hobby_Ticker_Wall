@@ -92,7 +92,7 @@ def test_splash_loading_text_uses_middle_panel(monkeypatch):
 
     assert (8, 12, "HOBBY TICKER") in panel.text
     assert (screen.PANEL_WIDTH + 1, 20, "Loading") in panel.text
-    assert (screen.PANEL_WIDTH + 1, 28, "v1.0.0") in panel.text
+    assert (screen.PANEL_WIDTH + 1, 28, "v1.1.0") in panel.text
 
 
 def test_splash_wifi_setup_qr_contains_wifi_credentials_and_portal_hint():

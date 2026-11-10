@@ -22,8 +22,16 @@ BLINKER_COLOUR = colours.DARK_GREY
 
 
 def _blinker_position() -> tuple[int, int]:
-    theme = Config.instance().idle_screen_theme
-    return BLINKER_POSITIONS.get(theme, DEFAULT_BLINKER_POSITION)
+    cfg = Config.instance()
+    themes = getattr(cfg, "idle_screen_themes", None)
+    if not isinstance(themes, (list, tuple)) or not themes:
+        themes = [getattr(cfg, "idle_screen_theme", "classic")]
+    positions = {
+        BLINKER_POSITIONS.get(str(theme), DEFAULT_BLINKER_POSITION) for theme in themes
+    }
+    # A single distinct position can be used safely.  A mixed rotation
+    # keeps the default position (the legacy cycle behaved the same way).
+    return positions.pop() if len(positions) == 1 else DEFAULT_BLINKER_POSITION
 
 
 class LoadingPulseIndicator:

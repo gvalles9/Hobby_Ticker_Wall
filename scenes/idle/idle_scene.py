@@ -1,8 +1,9 @@
 """
 IdleScene - priority-0 fallback scene with pluggable themes.
 
-Reads cfg.idle_screen_theme and instantiates the appropriate theme
-subclass.  BaseIdleScene provides the shared scene-protocol boilerplate
+Reads cfg.idle_screen_themes and instantiates every selected theme
+subclass, rotating through them when more than one is selected.
+BaseIdleScene provides the shared scene-protocol boilerplate
 (priority, has_data, active, on_enter, reset, frame-throttled draw);
 each theme implements draw_content() with its own layout.
 
@@ -14,7 +15,7 @@ from __future__ import annotations
 
 from scenes.idle.themes.theme_utilities import WeatherService
 from setup import frames
-from setup.configuration import Config
+from setup.configuration import IDLE_SCREEN_THEMES, Config
 
 PRIORITY = 0
 IDLE_THEME_CYCLE_SECONDS = 30
@@ -99,12 +100,12 @@ class BaseIdleScene:
 
 
 class CyclingIdleScene:
-    """Alternate the classic and three-day forecast idle screens."""
+    """Rotate through two or more idle theme scenes every 30 seconds."""
 
     priority = PRIORITY
 
-    def __init__(self, classic_scene, forecast_scene):
-        self.scenes = (classic_scene, forecast_scene)
+    def __init__(self, classic_scene, forecast_scene, *extra_scenes):
+        self.scenes = (classic_scene, forecast_scene, *extra_scenes)
         self.current_index = 0
         self.frames_on_current_scene = 0
 
@@ -150,33 +151,96 @@ class CyclingIdleScene:
 
 def _load_themes() -> dict:
     """Lazy-load theme classes to avoid circular imports."""
+    from scenes.idle.themes.birthday_idle_theme import BirthdayIdleTheme
     from scenes.idle.themes.classic_idle_theme import ClassicIdleTheme
     from scenes.idle.themes.conditions_idle_theme import ConditionsIdleTheme
     from scenes.idle.themes.forecast_idle_theme import ForecastIdleTheme
+    from scenes.idle.themes.indycar_next_theme import IndyCarNextTheme
 
     return {
         "classic": ClassicIdleTheme,
         "forecast": ForecastIdleTheme,
         "conditions": ConditionsIdleTheme,
+        "indycar_next": IndyCarNextTheme,
+        "birthday": BirthdayIdleTheme,
     }
+
+
+def _birthday_scheduled(cfg) -> bool:
+    """True when the birthday scene should join today's idle rotation."""
+    if getattr(cfg, "birthday_enabled", False) is not True:
+        return False
+    from utilities.birthday import is_birthday
+
+    return is_birthday(getattr(cfg, "birthday_date", ""))
+
+
+def _selected_theme_names(cfg) -> list[str]:
+    """Return the validated, de-duplicated idle theme selection."""
+    names = getattr(cfg, "idle_screen_themes", None)
+    if isinstance(names, (list, tuple)):
+        selected: list[str] = []
+        for item in names:
+            name = str(item).strip().lower()
+            if name in IDLE_SCREEN_THEMES and name not in selected:
+                selected.append(name)
+        if selected:
+            return selected
+
+    # Backwards compatibility for callers that only expose the old
+    # single-theme attribute (and for tests using a simple mock).
+    legacy = str(getattr(cfg, "idle_screen_theme", "classic")).lower()
+    if legacy == "cycle":
+        selected = ["classic", "forecast"]
+        if getattr(cfg, "idle_cycle_include_indycar", False) is True:
+            selected.append("indycar_next")
+        return selected
+    return [legacy if legacy in IDLE_SCREEN_THEMES else "classic"]
 
 
 def IdleScene(canvas, panel):
     """
-    Factory that returns the idle scene theme selected by config.
+    Factory that returns the idle scene (or rotation) selected by config.
 
-    Reads cfg.idle_screen_theme and instantiates the matching theme
-    subclass.  Unknown theme names fall back to 'classic'.
+    Every name in ``cfg.idle_screen_themes`` is instantiated in order; two
+    or more selected scenes are wrapped in a :class:`CyclingIdleScene`.
+    Unknown names fall back to ``classic``.  A multi-scene rotation shows
+    the forecast in its three-day form (matching the legacy ``cycle``
+    behaviour), while a forecast-only selection honours the configured
+    forecast duration.
+
+    Selecting the birthday theme previews it regardless of the saved date.
+    When the birthday setting is enabled and today matches, the birthday
+    scene joins the rotation even if it was not selected.
     """
     cfg = Config.instance()
-    if cfg.idle_screen_theme == "cycle":
-        from scenes.idle.themes.classic_idle_theme import ClassicIdleTheme
-        from scenes.idle.themes.forecast_idle_theme import ForecastIdleTheme
+    debug_scene = str(getattr(cfg, "debug_scene", "auto"))
 
-        return CyclingIdleScene(
-            ClassicIdleTheme(canvas, panel),
-            ForecastIdleTheme(canvas, panel, duration_override="3day"),
-        )
+    # The Debug selector forces the birthday scene even when it is not
+    # selected and today is not the saved date.
+    if debug_scene == "birthday":
+        from scenes.idle.themes.birthday_idle_theme import BirthdayIdleTheme
+
+        return BirthdayIdleTheme(canvas, panel)
+
+    selected = _selected_theme_names(cfg)
+    rotating = len(selected) > 1
+
+    if _birthday_scheduled(cfg) and "birthday" not in selected:
+        selected.append("birthday")
+
     themes = _load_themes()
-    theme_class = themes.get(cfg.idle_screen_theme, themes["classic"])
-    return theme_class(canvas, panel)
+    scenes = []
+    for name in selected:
+        theme_class = themes.get(name)
+        if theme_class is None:
+            continue
+        if name == "forecast" and rotating:
+            scenes.append(theme_class(canvas, panel, duration_override="3day"))
+        else:
+            scenes.append(theme_class(canvas, panel))
+
+    if not scenes:
+        scenes.append(themes["classic"](canvas, panel))
+
+    return CyclingIdleScene(*scenes) if len(scenes) > 1 else scenes[0]

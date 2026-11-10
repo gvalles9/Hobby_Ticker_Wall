@@ -496,6 +496,70 @@ class TestIdleScreenTheme:
         cfg.data_store = {"idle_screen_theme": "cycle"}
         assert cfg.idle_screen_theme == "cycle"
 
+    def test_default_selection_expands_legacy_cycle(self):
+        from setup.configuration import Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {}
+        assert cfg.idle_screen_themes == ["classic", "forecast"]
+
+    def test_explicit_selection_is_preserved_in_order(self):
+        from setup.configuration import Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {"idle_screen_themes": ["conditions", "classic", "forecast"]}
+        assert cfg.idle_screen_themes == ["conditions", "classic", "forecast"]
+
+    def test_selection_deduplicates_and_drops_unknown_themes(self):
+        from setup.configuration import Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {
+            "idle_screen_themes": [
+                "forecast",
+                "not-a-scene",
+                "forecast",
+                "classic",
+            ]
+        }
+        assert cfg.idle_screen_themes == ["forecast", "classic"]
+
+    def test_cycle_inside_a_stored_list_expands(self):
+        from setup.configuration import Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {"idle_screen_themes": ["cycle", "conditions"]}
+        assert cfg.idle_screen_themes == ["classic", "forecast", "conditions"]
+
+    def test_empty_selection_falls_back_to_legacy_cycle(self):
+        from setup.configuration import Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {"idle_screen_themes": [], "idle_screen_theme": "cycle"}
+        assert cfg.idle_screen_themes == ["classic", "forecast"]
+
+    def test_legacy_cycle_includes_indycar_when_opted_in(self):
+        from setup.configuration import Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {
+            "idle_screen_theme": "cycle",
+            "idle_cycle_include_indycar": True,
+        }
+        assert cfg.idle_screen_themes == ["classic", "forecast", "indycar_next"]
+
+    def test_legacy_single_theme_becomes_a_one_scene_list(self):
+        from setup.configuration import Config
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {"idle_screen_theme": "conditions"}
+        assert cfg.idle_screen_themes == ["conditions"]
+
+    def test_defaults_include_an_empty_theme_list(self):
+        from setup.configuration import DEFAULTS
+
+        assert DEFAULTS["idle_screen_themes"] == []
+
 
 class TestPrecipitationUnit:
     def test_inches_are_default(self):

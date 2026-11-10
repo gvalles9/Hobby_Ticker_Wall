@@ -5,7 +5,7 @@ upstream FlightTracker release history on which this fork is based.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.1.0] - 2026-11-09
 
 ### Added
 
@@ -16,6 +16,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added Wi-Fi recovery helpers to the first-boot installation path so the
   prebuilt OS image actually installs the setup hotspot, watchdog, and sudoers
   rules.
+- Added a first-setup wizard at `/first-setup`. It asks for the two things
+  every installation needs - the LED matrix bonnet type and a new web password -
+  followed by clearly labelled optional sections (location, units, brightness,
+  clock and date format, idle scenes, birthday date, and satellite tracking)
+  that keep their current or default values when untouched. The root page,
+  the post-login redirect, and the splash QR code all forward to the wizard
+  on first run, until a web password is set or the wizard is skipped.
+- Added **Admin → Recovery** actions for testing and handoff: **Reset Web
+  Password** restores the default password and re-opens the first-setup
+  wizard, **Forget Wi-Fi** deletes every saved Wi-Fi network and opens the
+  first-boot setup hotspot (exactly like a fresh install), and **Prepare for
+  Handoff** does both plus a settings reset in one click for gifting the
+  device.
+- Added automatic refresh of the root-owned helper copies (Wi-Fi setup, SSH
+  toggle, Wi-Fi watchdog) after updates, so helper changes reach
+  already-installed units without re-running the installer. Updates run the
+  new `/usr/local/sbin/flighttracker-sync-helpers` command, granted to the
+  application user via sudoers; it only rewrites files that actually changed.
+- Added multi-select idle scenes: tick any combination of Classic, Forecast,
+  Current Conditions, INDYCAR next event, and Happy Birthday, and the idle
+  screen rotates through every selected scene for 30 seconds each. Existing
+  single-theme and cycle settings migrate automatically, and the forecast
+  uses its three-day form whenever several scenes are selected.
+- Added a Happy Birthday idle scene. Entering a birthday date in settings (or
+  the first-setup wizard) automatically adds the celebration scene to the
+  rotation on that month and day each year; clearing the date removes it.
+- Added INDYCAR support (opt-in): a live timing feed and schedule client with
+  race/qualifying/practice detection, top-3 standings, tracked-driver and
+  champion scenes with team logos, a next-event countdown idle scene, a
+  champion-flash celebration when the season is decided, debug previews for
+  every scene, and a test mode for off-season development. Live INDYCAR
+  sessions preempt flight and satellite scenes.
 
 ### Changed
 

@@ -253,6 +253,102 @@ class TestParseSettingsFormProviders:
         cfg.idle_screen_theme = "cycle"
         assert parse_settings_form({}, cfg)["idle_screen_theme"] == "cycle"
 
+    def test_multi_select_idle_themes_are_saved_in_order(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form(
+            {
+                "idle_screen_themes_submitted": "1",
+                "idle_screen_themes": ["conditions", "classic"],
+            },
+            self._cfg(),
+        )
+
+        assert out["idle_screen_themes"] == ["conditions", "classic"]
+        assert out["idle_screen_theme"] == "conditions"
+        assert out["idle_cycle_include_indycar"] is False
+
+    def test_multi_select_dedupes_and_drops_unknown_scenes(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form(
+            {
+                "idle_screen_themes_submitted": "1",
+                "idle_screen_themes": [
+                    "forecast",
+                    "bogus",
+                    "forecast",
+                    "conditions",
+                ],
+            },
+            self._cfg(),
+        )
+
+        assert out["idle_screen_themes"] == ["forecast", "conditions"]
+
+    def test_classic_plus_forecast_writes_the_legacy_cycle_value(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form(
+            {
+                "idle_screen_themes_submitted": "1",
+                "idle_screen_themes": ["forecast", "classic"],
+            },
+            self._cfg(),
+        )
+
+        assert out["idle_screen_themes"] == ["forecast", "classic"]
+        assert out["idle_screen_theme"] == "forecast"
+
+        canonical = parse_settings_form(
+            {
+                "idle_screen_themes_submitted": "1",
+                "idle_screen_themes": ["classic", "forecast"],
+            },
+            self._cfg(),
+        )
+        assert canonical["idle_screen_theme"] == "cycle"
+
+    def test_empty_multi_select_falls_back_to_classic(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form({"idle_screen_themes_submitted": "1"}, self._cfg())
+
+        assert out["idle_screen_themes"] == ["classic"]
+        assert out["idle_screen_theme"] == "classic"
+
+    def test_indycar_selection_updates_the_legacy_opt_in(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form(
+            {
+                "idle_screen_themes_submitted": "1",
+                "idle_screen_themes": ["classic", "indycar_next"],
+            },
+            self._cfg(),
+        )
+
+        assert out["idle_screen_themes"] == ["classic", "indycar_next"]
+        assert out["idle_cycle_include_indycar"] is True
+
+    def test_legacy_cycle_form_honours_include_indycar(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form(
+            {
+                "idle_screen_theme": "cycle",
+                "idle_cycle_include_indycar": "on",
+            },
+            self._cfg(),
+        )
+
+        assert out["idle_screen_themes"] == [
+            "classic",
+            "forecast",
+            "indycar_next",
+        ]
+        assert out["idle_cycle_include_indycar"] is True
+
     def test_debug_scene_and_satellite_test_mode_are_saved(self):
         from web.app import parse_settings_form
 
@@ -264,6 +360,118 @@ class TestParseSettingsFormProviders:
         assert (
             parse_settings_form({"debug_scene": "invalid"}, self._cfg())["debug_scene"]
             == "auto"
+        )
+
+    def test_indycar_preview_debug_scenes_are_allowed(self):
+        from web.app import parse_settings_form
+
+        for name in ("indy_top3", "indy_driver", "indy_champion"):
+            assert (
+                parse_settings_form({"debug_scene": name}, self._cfg())["debug_scene"]
+                == name
+            )
+
+    def test_indycar_settings_are_parsed(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form(
+            {
+                "indycar_enabled": "on",
+                "indycar_tracked_driver": " 11 ",
+                "indycar_champion_enabled": "on",
+                "indycar_champion_override": "Palou",
+                "indycar_champion_flash_seconds": "45",
+                "indycar_test_mode": "on",
+                "indycar_test_qualifying": "on",
+                "idle_cycle_include_indycar": "on",
+            },
+            self._cfg(),
+        )
+
+        assert out["indycar_enabled"] is True
+        assert out["indycar_tracked_driver"] == "11"
+        assert out["indycar_champion_enabled"] is True
+        assert out["indycar_champion_override"] == "Palou"
+        assert out["indycar_champion_flash_seconds"] == 45
+        assert out["indycar_test_mode"] is True
+        assert out["indycar_test_qualifying"] is True
+        assert out["idle_cycle_include_indycar"] is True
+
+    def test_indycar_settings_default_and_clamp(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form({}, self._cfg())
+        assert out["indycar_enabled"] is False
+        assert out["indycar_tracked_driver"] == ""
+        assert out["indycar_champion_enabled"] is False
+        assert out["indycar_champion_flash_seconds"] == 60
+        assert out["idle_cycle_include_indycar"] is False
+
+        clamped = parse_settings_form(
+            {"indycar_champion_flash_seconds": "9999"}, self._cfg()
+        )
+        assert clamped["indycar_champion_flash_seconds"] == 600
+
+    def test_indycar_next_idle_theme_is_allowed(self):
+        from web.app import parse_settings_form
+
+        assert (
+            parse_settings_form({"idle_screen_theme": "indycar_next"}, self._cfg())[
+                "idle_screen_theme"
+            ]
+            == "indycar_next"
+        )
+
+    def test_entering_a_birthday_date_enables_the_scene(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form({"birthday_date": "2026-12-25"}, self._cfg())
+
+        assert out["birthday_enabled"] is True
+        assert out["birthday_date"] == "2026-12-25"
+
+    def test_clearing_the_birthday_date_disables_the_scene(self):
+        from web.app import parse_settings_form
+
+        cfg = self._cfg()
+        cfg.birthday_date = "2026-12-25"
+        out = parse_settings_form({"birthday_date": ""}, cfg)
+
+        assert out["birthday_enabled"] is False
+        assert out["birthday_date"] == ""
+
+    def test_birthday_date_accepts_month_day_and_rejects_invalid(self):
+        from web.app import parse_settings_form
+
+        assert (
+            parse_settings_form({"birthday_date": "12-25"}, self._cfg())[
+                "birthday_date"
+            ]
+            == "12-25"
+        )
+        assert (
+            parse_settings_form({"birthday_date": "not-a-date"}, self._cfg())[
+                "birthday_date"
+            ]
+            == ""
+        )
+
+    def test_birthday_theme_is_allowed(self):
+        from web.app import parse_settings_form
+
+        assert (
+            parse_settings_form({"idle_screen_theme": "birthday"}, self._cfg())[
+                "idle_screen_theme"
+            ]
+            == "birthday"
+        )
+
+    def test_birthday_debug_scene_is_allowed(self):
+        from web.app import parse_settings_form
+
+        assert (
+            parse_settings_form({"debug_scene": "birthday"}, self._cfg())["debug_scene"]
+            == "birthday"
         )
 
     def test_satellite_data_panel_fields_can_be_changed_and_are_validated(self):

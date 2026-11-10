@@ -2,12 +2,19 @@
 FlightTracker web configuration interface.
 
 Runs as a Flask daemon thread on port 8584.
-GET  /               -> redirect to /settings
+GET  /               -> redirect to /settings (or /first-setup on first run)
 GET  /login          -> login form
 POST /login          -> check password, set session
 GET  /logout         -> clear session, redirect to /login
 GET  /settings       -> settings form (requires login)
 POST /settings       -> save config.json, return restarting page, exec after 1 s
+GET  /first-setup    -> guided first-use wizard (requires login)
+POST /first-setup    -> save wizard answers + new web password, then restart
+POST /settings/reset -> restore application defaults (keeps Wi-Fi + password)
+POST /password/reset -> restore the default web password, reopen the wizard
+POST /wifi-setup/reset -> reopen the setup hotspot (keeps saved credentials)
+POST /wifi-setup/forget -> delete saved Wi-Fi networks and open the hotspot
+POST /handoff/reset  -> full handoff reset: defaults + password + Wi-Fi
 GET  /ping           -> health-check used by the restarting page
 GET  /update         -> update status page (requires login)
 POST /update/check   -> check for updates, return JSON (requires login)
@@ -498,17 +505,98 @@ def _merge_provider_settings(cfg, partial: dict) -> dict:
     return merged
 
 
-def parse_settings_form(form, cfg) -> dict:
-    """Coerce the submitted HTML form into a config dict, applying clamps."""
-    from scenes.flight.custom_details import AVAILABLE_FIELDS
-    from setup.configuration import (
-        DEFAULT_FLIGHT_DATA_POINTS,
-        DEFAULT_SATELLITE_DATA_POINTS,
-        SATELLITE_DATA_FIELDS,
-        unit_profile_values,
-    )
+# Human labels for the idle scenes, shared by the settings page and the
+# first-setup wizard (kept in the same order as IDLE_SCREEN_THEMES).
+IDLE_THEME_META = {
+    "classic": ("Classic", "clock, date and current weather"),
+    "forecast": ("Forecast", "upcoming weather icons"),
+    "conditions": ("Current Conditions", "weather at a glance"),
+    "indycar_next": ("INDYCAR next event", "next race countdown"),
+    "birthday": ("Happy Birthday", "celebration scene on that date"),
+}
 
-    default_idle_theme = getattr(cfg, "idle_screen_theme", "cycle")
+
+def _form_values(form, key: str) -> list[str]:
+    """Return every submitted value for *key* (``getlist``-aware)."""
+    values = form.getlist(key) if hasattr(form, "getlist") else form.get(key, [])
+    if isinstance(values, str):
+        return [values]
+    if values is None:
+        return []
+    return [str(value) for value in values]
+
+
+def _parse_selected_idle_themes(form, cfg, allowed) -> list[str]:
+    """Read the idle-scene checkboxes, falling back to the legacy field."""
+    submitted = _form_values(form, "idle_screen_themes")
+    list_submitted = bool(submitted) or bool(form.get("idle_screen_themes_submitted"))
+
+    if not list_submitted:
+        # Older browser pages (and API callers) only send the single-theme
+        # field.  Expand ``cycle`` exactly like Config.idle_screen_themes.
+        legacy = str_val(
+            form.get("idle_screen_theme"),
+            getattr(cfg, "idle_screen_theme", "cycle"),
+        ).lower()
+        if legacy == "cycle":
+            themes = ["classic", "forecast"]
+            if bool_val(form.get("idle_cycle_include_indycar")):
+                themes.append("indycar_next")
+            return themes
+        return [legacy] if legacy in allowed else ["classic"]
+
+    selected: list[str] = []
+    for value in submitted:
+        name = str(value).strip().lower()
+        if name == "cycle":
+            for expanded in ("classic", "forecast"):
+                if expanded not in selected:
+                    selected.append(expanded)
+        elif name in allowed and name not in selected:
+            selected.append(name)
+    # Never save an empty selection - the idle screen must always draw.
+    return selected or ["classic"]
+
+
+def _idle_theme_fields(idle_themes: list[str]) -> dict:
+    """Config keys derived from a validated idle-theme selection."""
+    return {
+        "idle_screen_themes": idle_themes,
+        "idle_screen_theme": (
+            "cycle" if idle_themes == ["classic", "forecast"] else idle_themes[0]
+        ),
+        "idle_cycle_include_indycar": "indycar_next" in idle_themes,
+    }
+
+
+def _parse_birthday_date_field(form, cfg) -> str:
+    """Normalise the birthday-date input.
+
+    An explicitly submitted field wins: a valid date is kept, anything
+    invalid clears the date (which disables the scene).  A missing key
+    (partial/API submissions) keeps the saved date.
+    """
+    from utilities.birthday import parse_birthday_date
+
+    current = str(getattr(cfg, "birthday_date", "") or "").strip()
+    submitted = form.get("birthday_date")
+    if submitted is None:
+        return current
+    # An explicitly empty field clears the date and disables the scene.
+    value = str(submitted).strip()[:10]
+    if value and parse_birthday_date(value) is None:
+        return ""
+    return value
+
+
+def _unit_profile_fields(form, cfg) -> dict:
+    """Parse the independent metric/standard unit profiles.
+
+    Blank or invalid submissions keep the current profile so partial
+    forms (and the first-setup wizard) never reset units silently.
+    """
+    from setup.configuration import unit_profile_values
+
     current_flight_units = getattr(cfg, "flight_units", "")
     if current_flight_units not in ("metric", "standard"):
         current_flight_units = (
@@ -528,14 +616,81 @@ def parse_settings_form(form, cfg) -> dict:
     idle_units = str_val(form.get("idle_units"), current_idle_units).lower()
     if idle_units not in ("metric", "standard"):
         idle_units = current_idle_units
-    unit_values = unit_profile_values(flight_units, idle_units)
+    return {
+        "flight_units": flight_units,
+        "idle_units": idle_units,
+        **unit_profile_values(flight_units, idle_units),
+    }
+
+
+def parse_first_setup_form(form, cfg) -> dict:
+    """Parse the first-setup wizard form.
+
+    A subset of the settings form: the bonnet type is required, and every
+    other value keeps its current (or default) state when the section is
+    left untouched.  The web password is validated and stored by the
+    route, not here.
+    """
+    from setup.configuration import IDLE_SCREEN_THEMES
+
+    idle_themes = _parse_selected_idle_themes(form, cfg, IDLE_SCREEN_THEMES)
+    birthday_date = _parse_birthday_date_field(form, cfg)
+    return {
+        # Required: LED matrix bonnet (invalid values fall back to default)
+        "bonnet_type": (lambda v: v if v in BONNET_TYPES else DEFAULT_BONNET_TYPE)(
+            str_val(form.get("bonnet_type"), DEFAULT_BONNET_TYPE).lower()
+        ),
+        # Optional: location - blank keeps the current (auto-detected) spot
+        "flight_lat": float_val(form.get("flight_lat"), cfg.flight_lat),
+        "flight_lng": wrap_lng(float_val(form.get("flight_lng"), cfg.flight_lng)),
+        "flight_radius": float_val(form.get("flight_radius"), cfg.flight_radius),
+        # Optional: units, brightness, clock and date
+        **_unit_profile_fields(form, cfg),
+        "screen_brightness": max(
+            1, min(5, int_val(form.get("screen_brightness"), cfg.screen_brightness))
+        ),
+        "clock_24hr": bool_val(form.get("clock_24hr")),
+        "date_format": int_val(form.get("date_format"), cfg.date_format),
+        # Optional: idle scenes and the birthday scene
+        **_idle_theme_fields(idle_themes),
+        "birthday_enabled": bool(birthday_date),
+        "birthday_date": birthday_date,
+        # Optional: satellite tracking
+        "satellite_tracking_enabled": bool_val(form.get("satellite_tracking_enabled")),
+        "satellite_norad_ids": [
+            int(n.strip())
+            for n in form.get("satellite_norad_ids", "").splitlines()
+            if n.strip().isdigit()
+        ],
+        # The wizard is complete once this form is saved
+        "first_setup_complete": True,
+    }
+
+
+def parse_settings_form(form, cfg) -> dict:
+    """Coerce the submitted HTML form into a config dict, applying clamps."""
+    from scenes.flight.custom_details import AVAILABLE_FIELDS
+    from setup.configuration import (
+        DEFAULT_FLIGHT_DATA_POINTS,
+        DEFAULT_SATELLITE_DATA_POINTS,
+        IDLE_SCREEN_THEMES,
+        SATELLITE_DATA_FIELDS,
+    )
+
+    idle_themes = _parse_selected_idle_themes(form, cfg, IDLE_SCREEN_THEMES)
+    birthday_date = _parse_birthday_date_field(form, cfg)
     current_flight_data_points = getattr(
         cfg, "flight_data_points", DEFAULT_FLIGHT_DATA_POINTS
     )
     current_satellite_data_points = getattr(
         cfg, "satellite_data_points", DEFAULT_SATELLITE_DATA_POINTS
     )
-    idle_theme = str_val(form.get("idle_screen_theme"), default_idle_theme).lower()
+    current_indycar_driver = str(
+        getattr(cfg, "indycar_tracked_driver", "") or ""
+    ).strip()
+    current_indycar_champion_override = str(
+        getattr(cfg, "indycar_champion_override", "") or ""
+    ).strip()
     stored_location_source = (
         cfg.get("location_source", "manual")
         if hasattr(cfg, "get")
@@ -628,13 +783,12 @@ def parse_settings_form(form, cfg) -> dict:
             for index in range(4)
         },
         "show_emergency_squawk": bool_val(form.get("show_emergency_squawk")),
-        "flight_units": flight_units,
-        "idle_units": idle_units,
+        # Units (independent screen profiles)
+        **_unit_profile_fields(form, cfg),
         # Weather
         "weatherapi_key": str_val(form.get("weatherapi_key"), cfg.weatherapi_key),
         "weather_mode": int_val(form.get("weather_mode"), 0),
         "rain_sensitivity": max(0, min(2, int_val(form.get("rain_sensitivity"), 1))),
-        **unit_values,
         "number_separator": (
             v
             if (v := str_val(form.get("number_separator"), "none").lower())
@@ -699,12 +853,30 @@ def parse_settings_form(form, cfg) -> dict:
         # Clock / date
         "clock_24hr": bool_val(form.get("clock_24hr")),
         "date_format": int_val(form.get("date_format"), 0),
-        # Idle screen theme
-        "idle_screen_theme": (
-            idle_theme
-            if idle_theme in ("classic", "conditions", "forecast", "cycle")
-            else "classic"
+        # Idle screen themes (ordered multi-select, plus the legacy field)
+        **_idle_theme_fields(idle_themes),
+        # Birthday scene (recurring yearly; only month/day are compared).
+        # Entering a valid date enables the scene automatically.
+        "birthday_enabled": bool(birthday_date),
+        "birthday_date": birthday_date,
+        # INDYCAR (opt-in)
+        "indycar_enabled": bool_val(form.get("indycar_enabled")),
+        "indycar_tracked_driver": str_val(
+            form.get("indycar_tracked_driver"), current_indycar_driver
+        ).strip()[:40],
+        "indycar_champion_enabled": bool_val(form.get("indycar_champion_enabled")),
+        "indycar_champion_override": str_val(
+            form.get("indycar_champion_override"), current_indycar_champion_override
+        ).strip()[:40],
+        "indycar_champion_flash_seconds": max(
+            10,
+            min(
+                600,
+                int_val(form.get("indycar_champion_flash_seconds"), 60),
+            ),
         ),
+        "indycar_test_mode": bool_val(form.get("indycar_test_mode")),
+        "indycar_test_qualifying": bool_val(form.get("indycar_test_qualifying")),
         # Web interface
         "web_interface_enabled": bool_val(form.get("web_interface_enabled")),
         "web_port": max(1024, min(65535, int_val(form.get("web_port"), cfg.web_port))),
@@ -796,7 +968,16 @@ def parse_settings_form(form, cfg) -> dict:
         "debug_scene": (
             value
             if (value := str_val(form.get("debug_scene"), "auto").lower())
-            in {"auto", "flight", "satellite", "idle"}
+            in {
+                "auto",
+                "flight",
+                "satellite",
+                "idle",
+                "indy_top3",
+                "indy_driver",
+                "indy_champion",
+                "birthday",
+            }
             else "auto"
         ),
         "_version": VERSION,
@@ -817,19 +998,170 @@ def handle_password_change(form, cfg) -> str:
 
 
 # ---------------------------------------------------------------------------
+# First-setup wizard
+# ---------------------------------------------------------------------------
+
+
+def _first_setup_pending(cfg) -> bool:
+    """True while the first-setup wizard should be offered.
+
+    The wizard is done once its flag is set, or as soon as any web password
+    exists (e.g. it was changed through the regular settings page).
+    """
+    return not (cfg.first_setup_complete or cfg.get("web_password_hash"))
+
+
+def _default_landing() -> str:
+    """Where to send a freshly authenticated user."""
+    if _first_setup_pending(Config.instance()):
+        return url_for("first_setup")
+    return url_for("settings")
+
+
+def _first_setup_page_data(cfg, form=None) -> dict:
+    """Template data for the wizard page.
+
+    When *form* is given (a rejected POST), the submitted values
+    re-populate the inputs so nothing typed is lost.
+    """
+    from setup.configuration import IDLE_SCREEN_THEMES
+
+    def val(key, current):
+        if form is not None and key in form:
+            return form.get(key)
+        return current
+
+    def flag(key, current: bool) -> bool:
+        # Checkboxes are absent when unchecked, so a submitted form is
+        # authoritative even for missing keys.
+        if form is not None:
+            return bool_val(form.get(key))
+        return current
+
+    selected = (
+        _form_values(form, "idle_screen_themes")
+        if form is not None
+        else list(cfg.idle_screen_themes)
+    )
+    return {
+        "csrf_token": csrf_token(),
+        "bonnet_type": val("bonnet_type", cfg.bonnet_type),
+        # Location (blank keeps the current, possibly auto-detected, spot)
+        "flight_lat": val("flight_lat", cfg.flight_lat),
+        "flight_lng": val("flight_lng", cfg.flight_lng),
+        "flight_radius": val("flight_radius", cfg.flight_radius),
+        # Units / brightness / clock
+        "flight_units": val("flight_units", cfg.flight_units),
+        "idle_units": val("idle_units", cfg.idle_units),
+        "screen_brightness": int_val(
+            val("screen_brightness", cfg.screen_brightness), cfg.screen_brightness
+        ),
+        "clock_24hr": flag("clock_24hr", cfg.clock_24hr),
+        "date_format": int_val(val("date_format", cfg.date_format), cfg.date_format),
+        # Idle scenes / birthday / satellites
+        "themes": [
+            {
+                "value": theme,
+                "label": IDLE_THEME_META[theme][0],
+                "description": IDLE_THEME_META[theme][1],
+                "checked": theme in selected,
+            }
+            for theme in IDLE_SCREEN_THEMES
+        ],
+        "birthday_date": val("birthday_date", cfg.birthday_date),
+        "satellite_tracking_enabled": flag(
+            "satellite_tracking_enabled", cfg.satellite_tracking_enabled
+        ),
+        "satellite_norad_ids_text": val(
+            "satellite_norad_ids",
+            "\n".join(str(n) for n in cfg.satellite_norad_ids),
+        ),
+    }
+
+
+@app.route("/first-setup", methods=["GET", "POST"])
+@login_required
+def first_setup():
+    """Guided first-use wizard.
+
+    Required: the LED matrix bonnet type and a new web-interface
+    password.  Everything else is clearly labelled optional and keeps its
+    current or default value when left untouched.
+    """
+    cfg = Config.instance()
+    if not _first_setup_pending(cfg):
+        return redirect(url_for("settings"))
+
+    if request.method == "POST":
+        form = request.form
+        logger.info("POST /first-setup received")
+
+        try:
+            if not validate_csrf(form):
+                raise ValueError("Invalid CSRF token.")
+
+            if form.get("action") == "skip":
+                # Skipping only records that the wizard was seen; no
+                # display-affecting value changes, so no restart.
+                cfg.set("first_setup_complete", True)
+                cfg.save()
+                logger.info("First-setup wizard skipped")
+                return redirect(url_for("settings"))
+
+            bonnet = str_val(form.get("bonnet_type"), "").lower()
+            if bonnet not in BONNET_TYPES:
+                raise ValueError("Choose which bonnet your display uses.")
+
+            new_password = form.get("new_password", "").strip()
+            confirm_password = form.get("confirm_password", "").strip()
+            if not new_password:
+                raise ValueError("Choose a new password for the web interface.")
+            if new_password != confirm_password:
+                raise ValueError("New passwords do not match.")
+
+            new_data = parse_first_setup_form(form, cfg)
+            new_data["web_password_hash"] = hash_password(new_password)
+
+            logger.debug("Parsed first-setup settings: %s", new_data)
+            cfg.update(new_data)
+            cfg.save()
+            logger.info("First setup saved to %s", CONFIG_PATH)
+        except Exception as exc:
+            logger.error("Error processing first-setup form: %s", exc)
+            import traceback
+
+            traceback.print_exc()
+            return (
+                render_template(
+                    "first_setup.html",
+                    error=str(exc),
+                    **_first_setup_page_data(cfg, form),
+                ),
+                400,
+            )
+
+        restart_after(delay=1.0)
+        return render_template("restarting.html")
+
+    return render_template("first_setup.html", **_first_setup_page_data(cfg))
+
+
+# ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
 
 @app.route("/")
 def index():
+    if _first_setup_pending(Config.instance()):
+        return redirect(url_for("first_setup"))
     return redirect(url_for("settings"))
 
 
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if session.get("authenticated"):
-        return redirect(url_for("settings"))
+        return redirect(_default_landing())
 
     error = None
     if request.method == "POST":
@@ -841,7 +1173,7 @@ def login():
             if check_password(password):
                 session["authenticated"] = True
                 logger.info("Login successful")
-                next_url = request.args.get("next") or url_for("settings")
+                next_url = request.args.get("next") or _default_landing()
                 return redirect(next_url)
             else:
                 logger.warning("Login failed - wrong password")
@@ -997,6 +1329,9 @@ def _provider_ui_data(cfg) -> dict:
         for key, value in cfg.as_dict().items()
         if key not in ("web_password_hash", "image_api_key")
     }
+    # The stored list may be empty on installs that still use the legacy
+    # single-theme setting; expose the effective selection to the UI.
+    cfg_masked["idle_screen_themes"] = cfg.idle_screen_themes
 
     providers_meta = []
     for pid, spec in PROVIDERS.items():
@@ -1289,6 +1624,30 @@ def reset_settings():
     return jsonify(message="FlightTracker settings were reset to defaults.")
 
 
+def _run_wifi_helper(payload: dict) -> bool:
+    """Run the privileged Wi-Fi helper with *payload* on stdin.
+
+    Returns True on success; failures are logged (the caller decides how
+    to report them).
+    """
+    try:
+        result = subprocess.run(
+            ["sudo", "-n", "/usr/local/sbin/flighttracker-configure-wifi"],
+            input=json.dumps(payload),
+            text=True,
+            capture_output=True,
+            timeout=45,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        logger.error("Wi-Fi helper failed: %s", exc)
+        return False
+    if result.returncode:
+        logger.error("Wi-Fi helper failed: %s", result.stderr.strip())
+        return False
+    return True
+
+
 @app.route("/wifi-setup/reset", methods=["POST"])
 @login_required
 def reset_wifi():
@@ -1296,29 +1655,105 @@ def reset_wifi():
     if not validate_csrf(request.form):
         abort(403, description="Invalid CSRF token.")
 
-    try:
-        result = subprocess.run(
-            ["sudo", "-n", "/usr/local/sbin/flighttracker-configure-wifi"],
-            input=json.dumps({"action": "start_setup"}),
-            text=True,
-            capture_output=True,
-            timeout=45,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        logger.error("Could not reopen the Wi-Fi setup hotspot: %s", exc)
-        return (
-            jsonify(error="Could not start Wi-Fi setup. Check the Pi installation."),
-            500,
-        )
-    if result.returncode:
-        logger.error("Wi-Fi setup hotspot failed: %s", result.stderr.strip())
+    if not _run_wifi_helper({"action": "start_setup"}):
         return jsonify(error="Could not start the Wi-Fi setup hotspot."), 500
 
     logger.info("Wi-Fi setup hotspot reopened from the settings page.")
     restart_after(delay=1.0)
     return jsonify(
         message="The setup hotspot is starting. Use the QR code on the display."
+    )
+
+
+@app.route("/wifi-setup/forget", methods=["POST"])
+@login_required
+def forget_wifi():
+    """Delete every saved Wi-Fi network and open the first-boot setup hotspot.
+
+    With no saved profile, the next boot starts the setup hotspot exactly
+    like a fresh install - used for testing the setup flow and for handing
+    the device to someone else.
+    """
+    if not validate_csrf(request.form):
+        abort(403, description="Invalid CSRF token.")
+
+    if not _run_wifi_helper({"action": "forget_wifi"}):
+        return jsonify(error="Could not delete the saved Wi-Fi networks."), 500
+
+    logger.info("Saved Wi-Fi networks deleted; setup hotspot opened.")
+    restart_after(delay=1.0)
+    return jsonify(
+        message=(
+            "Saved Wi-Fi networks deleted. Join the setup hotspot with the "
+            "QR code on the display to connect to a new network."
+        )
+    )
+
+
+@app.route("/password/reset", methods=["POST"])
+@login_required
+def reset_password():
+    """Restore the default web password and re-open the first-setup wizard.
+
+    The recipient (or a returning owner) signs in with the default
+    password and walks through the wizard again.
+    """
+    if not validate_csrf(request.form):
+        abort(403, description="Invalid CSRF token.")
+
+    cfg = Config.instance()
+    # Empty hash = default password; clearing the flag re-opens the wizard.
+    cfg.data_store["web_password_hash"] = ""
+    cfg.data_store["first_setup_complete"] = False
+    cfg.save()
+    logger.info("Web password reset to the default; first-setup wizard re-opened.")
+    restart_after(delay=1.0)
+    return jsonify(
+        message=(
+            "The web password is back to the default (flighttracker). "
+            "The first-setup wizard opens on the next sign-in."
+        )
+    )
+
+
+@app.route("/handoff/reset", methods=["POST"])
+@login_required
+def prepare_handoff():
+    """Reset everything personal before handing the device to someone else.
+
+    Restores application defaults - which clears the web password back to
+    the default and re-opens the first-setup wizard - then deletes every
+    saved Wi-Fi network and opens the first-boot setup hotspot.  Unlike
+    ``/settings/reset`` this does not keep the web password.
+    """
+    if not validate_csrf(request.form):
+        abort(403, description="Invalid CSRF token.")
+
+    cfg = Config.instance()
+    cfg.data_store = copy.deepcopy(DEFAULTS)
+    _migrate_provider_lists(cfg.data_store, {})
+    cfg.save()
+    logger.info("Settings restored to defaults for handoff.")
+
+    if not _run_wifi_helper({"action": "forget_wifi"}):
+        return (
+            jsonify(
+                error=(
+                    "Settings were reset, but the saved Wi-Fi networks could "
+                    "not be deleted. Try Forget Wi-Fi again."
+                )
+            ),
+            500,
+        )
+
+    logger.info("Handoff reset complete; setup hotspot opened.")
+    restart_after(delay=1.0)
+    return jsonify(
+        message=(
+            "Hobby Ticker is reset for handoff. Join the setup hotspot with "
+            "the QR code on the display; the next owner sets everything up "
+            "from there."
+        )
     )
 
 

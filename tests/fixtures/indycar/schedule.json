@@ -1,0 +1,124 @@
+{
+  "schedule": {
+    "race": [
+      {
+        "seriesid": "55",
+        "eventid": "5559",
+        "name": "Streets of St. Petersburg",
+        "link_url": "https://www.indycar.com/Schedule/2027/St-Petersburg",
+        "track_id": "713",
+        "city": "St. Petersburg",
+        "state": "Florida",
+        "country": "USA",
+        "laps": "TBD",
+        "track_length": "1.8",
+        "green_flag": "2027-03-07 05:00:00",
+        "green_flag_tbd_time": "1",
+        "is_complete": "0",
+        "racewinner": null,
+        "tv": {
+          "listing": {
+            "datetime": "2027-03-07 05:00:00",
+            "channel": "Fox",
+            "channel_logo_positive": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/FOX-Pos.png?dp=02-06-2025T06:08PM",
+            "channel_logo_negative": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/FOX-Neg.png?dp=02-06-2025T06:08PM",
+            "programname": "Race"
+          }
+        },
+        "trackname": "Streets of St. Petersburg",
+        "past_winners": {
+          "past_winner": [
+            {
+              "year": "2026",
+              "name": "Alex Palou"
+            },
+            {
+              "year": "2025",
+              "name": "Alex Palou"
+            },
+            {
+              "year": "2024",
+              "name": "Pato O'Ward"
+            }
+          ]
+        }
+      },
+      {
+        "seriesid": "55",
+        "eventid": "5560",
+        "name": "Phoenix Raceway",
+        "link_url": "https://www.indycar.com/Schedule/2027/Phoenix",
+        "track_id": "704",
+        "city": "Avondale",
+        "state": "Arizona",
+        "country": "USA",
+        "laps": "TBD",
+        "track_length": "1.00",
+        "green_flag": "2027-03-13 05:00:00",
+        "green_flag_tbd_time": "1",
+        "is_complete": "0",
+        "racewinner": null,
+        "tv": {
+          "listing": {
+            "datetime": "2027-03-13 05:00:00",
+            "channel": "Fox",
+            "channel_logo_positive": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/FOX-Pos.png?dp=02-06-2025T06:08PM",
+            "channel_logo_negative": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/FOX-Neg.png?dp=02-06-2025T06:08PM",
+            "programname": "Race"
+          }
+        },
+        "trackname": "Phoenix Raceway",
+        "past_winners": {
+          "past_winner": [
+            {
+              "year": "2026",
+              "name": "Josef Newgarden"
+            },
+            {
+              "year": "2018",
+              "name": "Josef Newgarden"
+            },
+            {
+              "year": "2017",
+              "name": "Simon Pagenaud"
+            }
+          ]
+        }
+      },
+      {
+        "seriesid": "55",
+        "eventid": "5565",
+        "name": "Streets of Arlington",
+        "link_url": "https://www.indycar.com/Schedule/2027/Arlington",
+        "track_id": "2195",
+        "city": "Arlington",
+        "state": "Texas",
+        "country": "USA",
+        "laps": "TBD",
+        "track_length": "2.73",
+        "green_flag": "2027-03-21 04:00:00",
+        "green_flag_tbd_time": "1",
+        "is_complete": "0",
+        "racewinner": null,
+        "tv": {
+          "listing": {
+            "datetime": "2027-03-21 04:00:00",
+            "channel": "Fox",
+            "channel_logo_positive": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/FOX-Pos.png?dp=02-06-2025T06:08PM",
+            "channel_logo_negative": "https://www.indycar.com/-/media/IndyCar/Logos/Networks/FOX-Neg.png?dp=02-06-2025T06:08PM",
+            "programname": "Race"
+          }
+        },
+        "trackname": "Streets of Arlington",
+        "past_winners": {
+          "past_winner": [
+            {
+              "year": "2026",
+              "name": "Kyle Kirkwood"
+            }
+          ]
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "no_track_activity": true,
+  "timed_race": false,
+  "rain_delay": false,
+  "show_quick_insights": true,
+  "alt_tire_color": "Red",
+  "show_static_track_map": true,
+  "track_map_url": "https://www.indycar.com/-/media/IndyCar/Schedules/TrackOutlines/Sectors/PHX-TurnsOnly.jpg",
+  "doubleheader_race": false,
+  "show_ad": false,
+  "mobile_ad_url": "https://digbza2f4g9qo.cloudfront.net/-/media/IndyCar/Ads/2024/HybridTracking-Ad-320x50.jpg",
+  "desktop_ad_url": "https://digbza2f4g9qo.cloudfront.net/-/media/IndyCar/Ads/2024/HybridTracking-Ad-300x250.jpg",
+  "track_map": {
+    "show": false,
+    "wss_uri": "",
+    "wss_key": "",
+    "map_svg_path_d": "",
+    "reverse_direction": false
+  },
+  "overrides": {
+    "leaderboardHeartbeat": {
+      "preamble": null,
+      "eventName": null,
+      "sessionName": null,
+      "trackName": null,
+      "trackType": null,
+      "series": null
+    },
+    "showColumns": [],
+    "hideColumns": []
+  },
+  "ways_to_watch": [
+    {
+      "show": true,
+      "url": "https://www.foxsports.com",
+      "image": {
+        "source": "https://www.indycar.com/-/media/IndyCar/Logos/RaceControl/FOX-Only-Lockup.png",
+        "width": 112,
+        "height": 32,
+        "alt": "FOX Sports"
+      },
+      "text": "Watch in the U.S."
+    },
+    {
+      "show": true,
+      "url": "https://www.foxsports.com/live/fs1",
+      "image": {
+        "source": "https://www.indycar.com/-/media/IndyCar/Logos/RaceControl/FOX-FS1-Lockup.png",
+        "width": 112,
+        "height": 32,
+        "alt": "FOX / Fox Sports 1"
+      },
+      "text": "Watch in the U.S."
+    },
+    {
+      "show": false,
+      "url": "https://www.foxsports.com/live/fs2",
+      "image": {
+        "source": "https://www.indycar.com/-/media/IndyCar/Logos/RaceControl/FOX-FS2-Lockup.png",
+        "width": 112,
+        "height": 32,
+        "alt": "FOX / Fox Sports 2"
+      },
+      "text": "Watch in the U.S."
+    },
+    {
+      "show": true,
+      "url": "https://www.indycarlive.com/",
+      "image": {
+        "source": "https://www.indycar.com/-/media/IndyCar/Logos/RaceControl/indycar-live-logo.png",
+        "width": 100,
+        "height": 32,
+        "alt": "INDYCAR LIVE"
+      },
+      "text": "Watch Internationally"
+    },
+    {
+      "show": true,
+      "url": "https://www.indycar.com/mobile-app",
+      "image": {
+        "source": "https://www.indycar.com/-/media/IndyCar/Logos/RaceControl/indycar-logo.png",
+        "width": 39,
+        "height": 32,
+        "alt": "INDYCAR App"
+      },
+      "text": "Download the App"
+    }
+  ]
+}

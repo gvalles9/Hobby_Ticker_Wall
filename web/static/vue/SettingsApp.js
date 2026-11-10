@@ -13,18 +13,20 @@ import DataSourcePage from "./DataSourcePage.js";
 import DefaultScreenPage from "./DefaultScreenPage.js";
 import HardwarePage from "./HardwarePage.js";
 import AdminPage from "./AdminPage.js";
+import IndyCarPage from "./IndyCarPage.js";
 
 const PAGES = [
   { name: "sky-monitoring", component: SkyMonitoringPage },
   { name: "data-source", component: DataSourcePage },
   { name: "default-screen", component: DefaultScreenPage },
+  { name: "indycar", component: IndyCarPage },
   { name: "hardware", component: HardwarePage },
   { name: "admin", component: AdminPage },
 ];
 
 export default defineComponent({
   name: "SettingsApp",
-  components: { SettingsSidebar, SkyMonitoringPage, DataSourcePage, DefaultScreenPage, HardwarePage, AdminPage },
+  components: { SettingsSidebar, SkyMonitoringPage, DataSourcePage, DefaultScreenPage, IndyCarPage, HardwarePage, AdminPage },
   setup() {
     const config = window.FT_CONFIG || {};
     const pageData = window.FT_PAGE_DATA || {};

@@ -23,7 +23,7 @@ def test_update_info_checks_the_hobby_ticker_main_branch(monkeypatch):
     info = updater.get_update_info()
 
     assert info == {
-        "current_version": "v1.1.0",
+        "current_version": updater.version_string(updater.APP_VERSION),
         "latest_version": "abcdef123456",
         "update_available": True,
         "upstream_ref": "hobby-ticker/main",

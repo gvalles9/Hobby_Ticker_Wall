@@ -4,6 +4,8 @@ import types
 from pathlib import Path
 
 from setup import screen
+from utilities.updater import version_string
+from version import APP_VERSION
 
 MODULE_PATH = Path(__file__).resolve().parents[1] / "flight-tracker.py"
 SPEC = importlib.util.spec_from_file_location("flight_tracker_module", MODULE_PATH)
@@ -92,7 +94,7 @@ def test_splash_loading_text_uses_middle_panel(monkeypatch):
 
     assert (8, 12, "HOBBY TICKER") in panel.text
     assert (screen.PANEL_WIDTH + 1, 20, "Loading") in panel.text
-    assert (screen.PANEL_WIDTH + 1, 28, "v1.1.0") in panel.text
+    assert (screen.PANEL_WIDTH + 1, 28, version_string(APP_VERSION)) in panel.text
 
 
 def test_splash_wifi_setup_qr_contains_wifi_credentials_and_portal_hint():

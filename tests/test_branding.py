@@ -1,5 +1,10 @@
 import re
 
+from utilities.updater import version_string
+from version import APP_VERSION
+
+PRODUCT_VERSION = version_string(APP_VERSION)
+
 
 def test_login_page_uses_hobby_ticker_brand_and_product_version():
     from web.app import app
@@ -9,7 +14,7 @@ def test_login_page_uses_hobby_ticker_brand_and_product_version():
     assert response.status_code == 200
     html = response.data.decode()
     assert "<title>Hobby Ticker - Login</title>" in html
-    assert "Hobby Ticker v1.1.0" in html
+    assert f"Hobby Ticker {PRODUCT_VERSION}" in html
 
 
 def test_footer_attributes_flighttracker_upstream():
@@ -23,7 +28,7 @@ def test_footer_attributes_flighttracker_upstream():
 
     assert response.status_code == 200
     html = response.data.decode()
-    assert "Hobby Ticker v1.1.0" in html
+    assert f"Hobby Ticker {PRODUCT_VERSION}" in html
     assert "Based on" in html
     assert "Colin Waddell" in html
 
@@ -60,7 +65,7 @@ def test_settings_version_tab_uses_hobby_ticker_product_version(monkeypatch):
     with web_app.app.test_request_context():
         page_data = web_app._settings_page_data(ConfigStub())
 
-    assert page_data["current_version"] == "v1.1.0"
+    assert page_data["current_version"] == PRODUCT_VERSION
     assert page_data["current_version"] == web_app.version_string(web_app.APP_VERSION)
     assert page_data["current_version"] != web_app.version_string(web_app.VERSION)
 
@@ -75,7 +80,7 @@ def test_update_page_tracks_fork_branch_and_displays_product_version(monkeypatch
         web_app,
         "get_update_info",
         lambda: {
-            "current_version": "v1.1.0",
+            "current_version": PRODUCT_VERSION,
             "latest_version": "abcdef1",
             "update_available": False,
             "upstream_ref": "hobby-ticker/main",
@@ -90,7 +95,9 @@ def test_update_page_tracks_fork_branch_and_displays_product_version(monkeypatch
     html = response.data.decode()
     assert "Hobby Ticker version" in html
     assert "Latest upstream commit" in html
-    assert re.search(r'id="current-version">\s*v1\.1\.0\s*</div>', html)
+    assert re.search(
+        rf'id="current-version">\s*{re.escape(PRODUCT_VERSION)}\s*</div>', html
+    )
     assert re.search(r'id="latest-version">\s*abcdef1\s*</div>', html)
     assert "Tracking <code>hobby-ticker/main</code>" in html
     assert (

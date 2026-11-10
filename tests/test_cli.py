@@ -6,6 +6,8 @@ from unittest.mock import patch
 import pytest
 
 from utilities.cli import dispatch_cli_command
+from utilities.updater import version_string
+from version import APP_VERSION
 
 
 @pytest.fixture
@@ -47,7 +49,7 @@ class TestVersion:
         result = dispatch_cli_command(["flight-tracker.py", "--version"])
         assert result == 0
         captured = capsys.readouterr()
-        assert captured.out.strip() == "Hobby Ticker v1.1.0"
+        assert captured.out.strip() == f"Hobby Ticker {version_string(APP_VERSION)}"
 
 
 class TestHelp:

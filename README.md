@@ -18,6 +18,9 @@ are set in `setup/screen.py`.
 - **Idle weather and forecasts:** a classic screen and a three-day forecast can
   cycle automatically. NOAA/NWS is used for U.S. locations when no optional
   WeatherAPI key is configured.
+- **Date-triggered custom messages:** up to three personalised greetings (an
+  anniversary, a pet's birthday, and so on) appear automatically on their
+  recurring month and day, in a colour you choose.
 - **Separate unit profiles:** flight and satellite scenes default to metric;
   idle weather defaults to standard units. Both profiles are configurable.
 - **First-boot Wi-Fi setup and recovery** for supported Pi installations.
@@ -148,8 +151,8 @@ things every install needs:
 Everything else is optional and clearly labelled as such: location (an
 approximate one is already detected from your network), flight and weather
 units, screen brightness, clock and date format, which idle scenes rotate on
-the display, a birthday date for the celebration scene, and satellite
-tracking. Untouched sections keep their defaults. Skip the wizard with
+the display, a birthday date for the celebration scene, up to three
+date-triggered custom messages, and satellite tracking. Untouched sections keep their defaults. Skip the wizard with
 **Skip for now** - it stays available at `http://<pi-hostname>.local:8584/first-setup`
 until a web password is set - and change anything later on the Settings page.
 

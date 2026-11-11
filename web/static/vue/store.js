@@ -109,6 +109,7 @@ export const SIDEBAR_GROUPS = [
     items: [
       { section: "group-theme", icon: "bi-palette", label: "Idle Scenes" },
       { section: "group-birthday", icon: "bi-balloon", label: "Birthday Scene" },
+      { section: "group-custom-messages", icon: "bi-chat-square-text", label: "Custom Messages" },
     ],
   },
   {

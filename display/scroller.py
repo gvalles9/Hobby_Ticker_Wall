@@ -158,9 +158,12 @@ class Scroller:
         *,
         bounce: bool = False,
         reverse: bool = False,
+        slide: bool = False,
     ) -> None:
         if width <= 0:
             raise ValueError("Scroller width must be greater than zero")
+        if slide and (bounce or reverse):
+            raise ValueError("slide cannot be combined with bounce or reverse")
 
         self.panel = panel
         self.canvas = canvas
@@ -169,13 +172,16 @@ class Scroller:
         self.width = width
         self.bounce = bounce
         self.reverse = reverse and not bounce
+        self.slide = slide
 
         self._spans = spans
         self._rendered = _render_spans(spans)
         self._displayed: list[PixelColumn] = [{} for _ in range(width)]
 
         self.position = (
-            0 if bounce else (-len(self._rendered) if self.reverse else width)
+            0
+            if (bounce or slide)
+            else (-len(self._rendered) if self.reverse else width)
         )
         self.state = BounceState.INITIAL
         self.timer = 0
@@ -202,7 +208,11 @@ class Scroller:
 
     def draw(self) -> None:
         """Advance one animation frame and apply only changed pixels."""
-        if self.bounce:
+        if self.slide:
+            # Slide-right: hold the full message, then move it right.
+            self._advance_slide()
+            self._draw_viewport()
+        elif self.bounce:
             # Matches the old LineScroller: tick first, then draw.
             self._advance_bounce()
             self._draw_viewport()
@@ -231,7 +241,9 @@ class Scroller:
         """Blank the viewport and restart this scroller from its initial state."""
         self._blank_displayed()
         self.position = (
-            0 if self.bounce else (-self.content_width if self.reverse else self.width)
+            0
+            if (self.bounce or self.slide)
+            else (-self.content_width if self.reverse else self.width)
         )
         self.state = BounceState.INITIAL
         self.timer = 0
@@ -291,7 +303,38 @@ class Scroller:
 
         self.timer += 1
 
+    def _advance_slide(self) -> None:
+        """Hold, then move the message right until it leaves the viewport."""
+        if self.state == BounceState.INITIAL:
+            if self.timer >= INITIAL_TICKS:
+                self.state = BounceState.REVEAL
+                self.timer = 0
+
+        elif self.state == BounceState.REVEAL:
+            self.position += 1
+            if self.position >= self.width:
+                self.position = self.width
+                self.state = BounceState.PAUSE
+                self.timer = 0
+                self._looped = True
+
+        elif self.state == BounceState.PAUSE and self.timer >= PAUSE_TICKS:
+            self.position = 0
+            self.state = BounceState.INITIAL
+            self.timer = 0
+            self.loop_count += 1
+
+        self.timer += 1
+
     def _clamp_after_update(self) -> None:
+        if self.slide:
+            # New content restarts the slide from its initial hold.
+            self.position = 0
+            self.state = BounceState.INITIAL
+            self.timer = 0
+            self._looped = False
+            return
+
         if self.bounce:
             if self.scroll_max <= MIN_PIXELS_FOR_SCROLL:
                 self.position = 0

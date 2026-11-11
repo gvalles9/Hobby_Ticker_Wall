@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from scenes.idle.themes.theme_utilities import WeatherService
 from setup import frames
-from setup.configuration import IDLE_SCREEN_THEMES, Config
+from setup.configuration import ALL_IDLE_THEMES, CUSTOM_IDLE_THEMES, Config
 
 PRIORITY = 0
 IDLE_THEME_CYCLE_SECONDS = 30
@@ -154,6 +154,7 @@ def _load_themes() -> dict:
     from scenes.idle.themes.birthday_idle_theme import BirthdayIdleTheme
     from scenes.idle.themes.classic_idle_theme import ClassicIdleTheme
     from scenes.idle.themes.conditions_idle_theme import ConditionsIdleTheme
+    from scenes.idle.themes.custom_text_idle_theme import CustomTextIdleTheme
     from scenes.idle.themes.forecast_idle_theme import ForecastIdleTheme
     from scenes.idle.themes.indycar_next_theme import IndyCarNextTheme
 
@@ -163,6 +164,9 @@ def _load_themes() -> dict:
         "conditions": ConditionsIdleTheme,
         "indycar_next": IndyCarNextTheme,
         "birthday": BirthdayIdleTheme,
+        "custom_1": lambda canvas, panel: CustomTextIdleTheme(canvas, panel, slot=1),
+        "custom_2": lambda canvas, panel: CustomTextIdleTheme(canvas, panel, slot=2),
+        "custom_3": lambda canvas, panel: CustomTextIdleTheme(canvas, panel, slot=3),
     }
 
 
@@ -175,6 +179,22 @@ def _birthday_scheduled(cfg) -> bool:
     return is_birthday(getattr(cfg, "birthday_date", ""))
 
 
+def _custom_slot_has_text(cfg, name: str) -> bool:
+    """True for non-custom themes, or a custom slot with a saved message."""
+    if name not in CUSTOM_IDLE_THEMES:
+        return True
+    from utilities.custom_scene import cfg_text, slot_from_name
+
+    return bool(cfg_text(cfg, slot_from_name(name)))
+
+
+def _scheduled_custom_scenes(cfg) -> list[str]:
+    """Custom scene names whose recurring date matches today."""
+    from utilities.custom_scene import scheduled_scene_names
+
+    return scheduled_scene_names(cfg)
+
+
 def _selected_theme_names(cfg) -> list[str]:
     """Return the validated, de-duplicated idle theme selection."""
     names = getattr(cfg, "idle_screen_themes", None)
@@ -182,7 +202,7 @@ def _selected_theme_names(cfg) -> list[str]:
         selected: list[str] = []
         for item in names:
             name = str(item).strip().lower()
-            if name in IDLE_SCREEN_THEMES and name not in selected:
+            if name in ALL_IDLE_THEMES and name not in selected:
                 selected.append(name)
         if selected:
             return selected
@@ -195,7 +215,7 @@ def _selected_theme_names(cfg) -> list[str]:
         if getattr(cfg, "idle_cycle_include_indycar", False) is True:
             selected.append("indycar_next")
         return selected
-    return [legacy if legacy in IDLE_SCREEN_THEMES else "classic"]
+    return [legacy if legacy in ALL_IDLE_THEMES else "classic"]
 
 
 def IdleScene(canvas, panel):
@@ -223,11 +243,29 @@ def IdleScene(canvas, panel):
 
         return BirthdayIdleTheme(canvas, panel)
 
-    selected = _selected_theme_names(cfg)
+    # The Debug selector also previews any custom message slot, even when
+    # it has no saved text (a placeholder makes the layout visible).
+    if debug_scene in CUSTOM_IDLE_THEMES:
+        from scenes.idle.themes.custom_text_idle_theme import CustomTextIdleTheme
+        from utilities.custom_scene import cfg_text, slot_from_name
+
+        slot = slot_from_name(debug_scene)
+        preview_text = None if cfg_text(cfg, slot) else f"Custom message {slot}"
+        return CustomTextIdleTheme(canvas, panel, slot=slot, preview_text=preview_text)
+
+    selected = [
+        name for name in _selected_theme_names(cfg) if _custom_slot_has_text(cfg, name)
+    ]
+    if not selected:
+        selected = ["classic"]
     rotating = len(selected) > 1
 
     if _birthday_scheduled(cfg) and "birthday" not in selected:
         selected.append("birthday")
+
+    for name in _scheduled_custom_scenes(cfg):
+        if name not in selected:
+            selected.append(name)
 
     themes = _load_themes()
     scenes = []

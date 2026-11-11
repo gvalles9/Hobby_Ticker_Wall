@@ -589,6 +589,55 @@ def _parse_birthday_date_field(form, cfg) -> str:
     return value
 
 
+def _parse_custom_scene_fields(form, cfg) -> dict:
+    """Normalise the three date-triggered custom message slots.
+
+    Missing keys keep the saved value so partial/API submissions never wipe
+    a slot.  An explicitly submitted text is sanitised (Latin-1 only, capped
+    at 40 characters), a valid recurring date is kept while anything invalid
+    clears it, and an unknown colour falls back to white.
+    """
+    from utilities.custom_scene import (
+        CUSTOM_SCENE_COLOURS,
+        DEFAULT_CUSTOM_SCENE_COLOUR,
+        cfg_colour,
+        cfg_date,
+        cfg_text,
+        sanitise_text,
+        scene_keys,
+    )
+    from utilities.recurring_date import parse_recurring_date
+
+    fields: dict = {}
+    for slot in (1, 2, 3):
+        text_key, date_key, colour_key = scene_keys(slot)
+
+        if text_key in form:
+            fields[text_key] = sanitise_text(form.get(text_key))
+        else:
+            fields[text_key] = cfg_text(cfg, slot)
+
+        if date_key in form:
+            value = str(form.get(date_key) or "").strip()[:10]
+            fields[date_key] = (
+                value if value and parse_recurring_date(value) is not None else ""
+            )
+        else:
+            fields[date_key] = cfg_date(cfg, slot)
+
+        if colour_key in form:
+            colour = str(form.get(colour_key) or "").strip().lower()
+            fields[colour_key] = (
+                colour
+                if colour in CUSTOM_SCENE_COLOURS
+                else DEFAULT_CUSTOM_SCENE_COLOUR
+            )
+        else:
+            fields[colour_key] = cfg_colour(cfg, slot)
+
+    return fields
+
+
 def _unit_profile_fields(form, cfg) -> dict:
     """Parse the independent metric/standard unit profiles.
 
@@ -671,14 +720,15 @@ def parse_settings_form(form, cfg) -> dict:
     """Coerce the submitted HTML form into a config dict, applying clamps."""
     from scenes.flight.custom_details import AVAILABLE_FIELDS
     from setup.configuration import (
+        ALL_IDLE_THEMES,
         DEFAULT_FLIGHT_DATA_POINTS,
         DEFAULT_SATELLITE_DATA_POINTS,
-        IDLE_SCREEN_THEMES,
         SATELLITE_DATA_FIELDS,
     )
 
-    idle_themes = _parse_selected_idle_themes(form, cfg, IDLE_SCREEN_THEMES)
+    idle_themes = _parse_selected_idle_themes(form, cfg, ALL_IDLE_THEMES)
     birthday_date = _parse_birthday_date_field(form, cfg)
+    custom_scene_fields = _parse_custom_scene_fields(form, cfg)
     current_flight_data_points = getattr(
         cfg, "flight_data_points", DEFAULT_FLIGHT_DATA_POINTS
     )
@@ -859,6 +909,8 @@ def parse_settings_form(form, cfg) -> dict:
         # Entering a valid date enables the scene automatically.
         "birthday_enabled": bool(birthday_date),
         "birthday_date": birthday_date,
+        # Date-triggered custom text scenes (three slots)
+        **custom_scene_fields,
         # INDYCAR (opt-in)
         "indycar_enabled": bool_val(form.get("indycar_enabled")),
         "indycar_tracked_driver": str_val(
@@ -977,6 +1029,9 @@ def parse_settings_form(form, cfg) -> dict:
                 "indy_driver",
                 "indy_champion",
                 "birthday",
+                "custom_1",
+                "custom_2",
+                "custom_3",
             }
             else "auto"
         ),

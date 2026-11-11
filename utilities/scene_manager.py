@@ -39,6 +39,31 @@ class SceneManager:
         self.scenes.append(scene)
         self.scenes.sort(key=lambda s: s.priority)
 
+    def replace_fallback(self, scene) -> None:
+        """Swap the lowest-priority fallback scene for *scene*.
+
+        Used when the idle rotation is rebuilt (for example at midnight, so
+        date-triggered scenes appear without a restart).  The list stays
+        sorted, and if the old fallback was on screen the replacement takes
+        over immediately.
+        """
+        if not self.scenes:
+            self.register(scene)
+            return
+
+        old_fallback = self.scenes[0]
+        if old_fallback is scene:
+            return
+
+        was_current = self.current_scene is old_fallback
+        self.scenes[0] = scene
+        self.scenes.sort(key=lambda s: s.priority)
+
+        if was_current:
+            fallback = self.scenes[0]
+            self.current_scene = fallback
+            fallback.on_enter()
+
     def kick(self, debug_scene: str = "auto") -> None:
         if not self.scenes:
             return

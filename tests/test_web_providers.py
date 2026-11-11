@@ -988,3 +988,136 @@ class TestStatusApi:
         client = _authenticated_client()
         resp = client.post("/api/clear", data={"csrf_token": "wrong"})
         assert resp.status_code == 403
+
+
+# ---------------------------------------------------------------------------
+# Date-triggered custom text scenes
+# ---------------------------------------------------------------------------
+
+
+class TestParseCustomSceneFields:
+    def _cfg(self):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(
+            flight_lat=55.9,
+            flight_lng=-4.3,
+            flight_radius=25.0,
+            flight_min_altitude=100.0,
+            flight_max_altitude=10000.0,
+            flight_zone_tl_y=56.0,
+            flight_zone_tl_x=-5.0,
+            flight_zone_br_y=55.0,
+            flight_zone_br_x=-3.0,
+            flight_observer_lat=55.5,
+            flight_observer_lng=-4.0,
+            details_custom_template="",
+            display_speed="default",
+            log_level="INFO",
+            weather_refresh_minutes=15,
+            weatherapi_key="",
+            web_port=8000,
+            providers_subtree={},
+            provider_settings=lambda pid: {},
+            flight_providers=[{"provider": "fr24", "enabled": True}],
+            route_providers=[{"provider": "hexdb", "enabled": True}],
+            custom_scene_1_text="Saved one",
+            custom_scene_1_date="12-25",
+            custom_scene_1_colour="cyan",
+        )
+
+    def test_valid_slot_is_sanitised_and_saved(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form(
+            {
+                "custom_scene_1_text": "  Happy   Anniversary  ",
+                "custom_scene_1_date": "2026-11-11",
+                "custom_scene_1_colour": "Gold",
+            },
+            self._cfg(),
+        )
+
+        assert out["custom_scene_1_text"] == "Happy Anniversary"
+        assert out["custom_scene_1_date"] == "2026-11-11"
+        assert out["custom_scene_1_colour"] == "gold"
+
+    def test_missing_keys_keep_the_saved_values(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form({}, self._cfg())
+
+        assert out["custom_scene_1_text"] == "Saved one"
+        assert out["custom_scene_1_date"] == "12-25"
+        assert out["custom_scene_1_colour"] == "cyan"
+
+    def test_missing_keys_read_a_real_config_data_store(self):
+        from setup.configuration import Config
+        from web.app import _parse_custom_scene_fields
+
+        cfg = Config.__new__(Config)
+        cfg.data_store = {
+            "custom_scene_1_text": "Saved one",
+            "custom_scene_1_date": "12-25",
+            "custom_scene_1_colour": "cyan",
+        }
+
+        out = _parse_custom_scene_fields({}, cfg)
+
+        assert out["custom_scene_1_text"] == "Saved one"
+        assert out["custom_scene_1_date"] == "12-25"
+        assert out["custom_scene_1_colour"] == "cyan"
+
+    def test_invalid_date_clears_the_trigger(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form(
+            {
+                "custom_scene_2_text": "Birthday",
+                "custom_scene_2_date": "2026-02-30",
+            },
+            self._cfg(),
+        )
+
+        assert out["custom_scene_2_text"] == "Birthday"
+        assert out["custom_scene_2_date"] == ""
+
+    def test_text_is_capped_and_control_characters_are_dropped(self):
+        from utilities.custom_scene import CUSTOM_SCENE_TEXT_MAX
+        from web.app import parse_settings_form
+
+        out = parse_settings_form(
+            {"custom_scene_3_text": "A" * 60 + "\x00"},
+            self._cfg(),
+        )
+
+        assert out["custom_scene_3_text"] == "A" * CUSTOM_SCENE_TEXT_MAX
+
+    def test_unknown_colour_falls_back_to_white(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form({"custom_scene_2_colour": "chartreuse"}, self._cfg())
+
+        assert out["custom_scene_2_colour"] == "white"
+
+    def test_custom_theme_is_accepted_in_the_idle_selection(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form(
+            {
+                "idle_screen_themes_submitted": "1",
+                "idle_screen_themes": ["custom_1"],
+                "custom_scene_1_text": "Hello",
+            },
+            self._cfg(),
+        )
+
+        assert out["idle_screen_themes"] == ["custom_1"]
+        assert out["idle_screen_theme"] == "custom_1"
+
+    def test_custom_scene_is_accepted_as_a_debug_target(self):
+        from web.app import parse_settings_form
+
+        out = parse_settings_form({"debug_scene": "custom_2"}, self._cfg())
+
+        assert out["debug_scene"] == "custom_2"

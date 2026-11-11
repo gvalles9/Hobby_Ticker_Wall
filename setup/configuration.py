@@ -162,9 +162,20 @@ IDLE_SCREEN_THEMES = (
 )
 DEFAULT_IDLE_SCREEN_THEMES: tuple[str, ...] = ()
 
+# Date-triggered custom text scenes.  Kept out of IDLE_SCREEN_THEMES so the
+# first-setup wizard's theme list stays unchanged; ALL_IDLE_THEMES is used
+# wherever a saved selection is validated.
+CUSTOM_IDLE_THEMES = ("custom_1", "custom_2", "custom_3")
+ALL_IDLE_THEMES = (*IDLE_SCREEN_THEMES, *CUSTOM_IDLE_THEMES)
+
 # Birthday scene (recurring yearly; only the month and day are compared)
 DEFAULT_BIRTHDAY_ENABLED = False
 DEFAULT_BIRTHDAY_DATE = ""  # YYYY-MM-DD or MM-DD
+
+# Custom text scenes (recurring yearly; only the month and day are compared)
+DEFAULT_CUSTOM_SCENE_TEXT = ""
+DEFAULT_CUSTOM_SCENE_DATE = ""  # YYYY-MM-DD or MM-DD
+DEFAULT_CUSTOM_SCENE_COLOUR = "white"
 
 # Web interface
 DEFAULT_WEB_INTERFACE_ENABLED = True
@@ -346,6 +357,16 @@ DEFAULTS: dict[str, Any] = {
     # Birthday scene (recurring yearly)
     "birthday_enabled": DEFAULT_BIRTHDAY_ENABLED,
     "birthday_date": DEFAULT_BIRTHDAY_DATE,
+    # Date-triggered custom text scenes (three slots)
+    "custom_scene_1_text": DEFAULT_CUSTOM_SCENE_TEXT,
+    "custom_scene_1_date": DEFAULT_CUSTOM_SCENE_DATE,
+    "custom_scene_1_colour": DEFAULT_CUSTOM_SCENE_COLOUR,
+    "custom_scene_2_text": DEFAULT_CUSTOM_SCENE_TEXT,
+    "custom_scene_2_date": DEFAULT_CUSTOM_SCENE_DATE,
+    "custom_scene_2_colour": DEFAULT_CUSTOM_SCENE_COLOUR,
+    "custom_scene_3_text": DEFAULT_CUSTOM_SCENE_TEXT,
+    "custom_scene_3_date": DEFAULT_CUSTOM_SCENE_DATE,
+    "custom_scene_3_colour": DEFAULT_CUSTOM_SCENE_COLOUR,
     # Web interface
     "web_interface_enabled": DEFAULT_WEB_INTERFACE_ENABLED,
     "web_port": DEFAULT_WEB_PORT,
@@ -1581,7 +1602,7 @@ class Config:
         """Idle screen theme name.
 
         One of ``classic``, ``forecast``, ``conditions``, ``indycar_next``,
-        ``birthday``, or ``cycle``.
+        ``birthday``, a ``custom_1``..``custom_3`` message slot, or ``cycle``.
         """
         val = str(
             self.data_store.get("idle_screen_theme", DEFAULT_IDLE_SCREEN_THEME)
@@ -1590,11 +1611,7 @@ class Config:
             val
             if val
             in (
-                "classic",
-                "forecast",
-                "conditions",
-                "indycar_next",
-                "birthday",
+                *ALL_IDLE_THEMES,
                 "cycle",
             )
             else DEFAULT_IDLE_SCREEN_THEME
@@ -1634,7 +1651,7 @@ class Config:
                 for expanded in ("classic", "forecast"):
                     if expanded not in themes:
                         themes.append(expanded)
-            elif name in IDLE_SCREEN_THEMES and name not in themes:
+            elif name in ALL_IDLE_THEMES and name not in themes:
                 themes.append(name)
 
         return themes or self._legacy_idle_screen_themes()
@@ -1976,6 +1993,7 @@ class Config:
                 "indy_driver",
                 "indy_champion",
                 "birthday",
+                *CUSTOM_IDLE_THEMES,
             )
             else "auto"
         )

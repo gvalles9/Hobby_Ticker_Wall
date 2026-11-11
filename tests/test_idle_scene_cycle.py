@@ -1,3 +1,4 @@
+import datetime
 from unittest.mock import MagicMock
 
 from scenes.idle import idle_scene
@@ -355,3 +356,142 @@ def test_idle_theme_cycle_switches_every_configured_interval(monkeypatch):
     scene.draw()
     assert scene.current_scene is classic
     assert classic.on_enter.call_count == 2
+
+
+def _mmdd(day: datetime.date) -> str:
+    return f"{day.month:02d}-{day.day:02d}"
+
+
+def test_idle_scene_factory_appends_a_custom_scene_when_scheduled(monkeypatch):
+    from scenes.idle.themes import classic_idle_theme, custom_text_idle_theme
+
+    classic = MagicMock()
+    custom = MagicMock()
+    today = datetime.date.today()
+    monkeypatch.setattr(
+        Config,
+        "instance",
+        lambda: MagicMock(
+            idle_screen_themes=["classic"],
+            birthday_enabled=False,
+            custom_scene_1_text="Happy Anniversary",
+            custom_scene_1_date=_mmdd(today),
+        ),
+    )
+    monkeypatch.setattr(
+        classic_idle_theme, "ClassicIdleTheme", lambda canvas, panel: classic
+    )
+    monkeypatch.setattr(
+        custom_text_idle_theme,
+        "CustomTextIdleTheme",
+        lambda canvas, panel, slot=1: custom,
+    )
+
+    scene = idle_scene.IdleScene(object(), object())
+
+    assert isinstance(scene, idle_scene.CyclingIdleScene)
+    assert scene.scenes == (classic, custom)
+
+
+def test_idle_scene_factory_drops_an_empty_custom_slot(monkeypatch):
+    from scenes.idle.themes import classic_idle_theme
+
+    classic = MagicMock()
+    monkeypatch.setattr(
+        Config,
+        "instance",
+        lambda: MagicMock(
+            idle_screen_themes=["classic", "custom_1"],
+            birthday_enabled=False,
+            custom_scene_1_text="",
+        ),
+    )
+    monkeypatch.setattr(
+        classic_idle_theme, "ClassicIdleTheme", lambda canvas, panel: classic
+    )
+
+    scene = idle_scene.IdleScene(object(), object())
+
+    assert scene is classic
+
+
+def test_idle_scene_factory_previews_a_selected_custom_scene_off_date(monkeypatch):
+    from scenes.idle.themes import classic_idle_theme, custom_text_idle_theme
+
+    classic = MagicMock()
+    custom = MagicMock()
+    tomorrow = datetime.date.today() + datetime.timedelta(days=1)
+    monkeypatch.setattr(
+        Config,
+        "instance",
+        lambda: MagicMock(
+            idle_screen_themes=["classic", "custom_1"],
+            birthday_enabled=False,
+            custom_scene_1_text="Preview only",
+            custom_scene_1_date=_mmdd(tomorrow),
+        ),
+    )
+    monkeypatch.setattr(
+        classic_idle_theme, "ClassicIdleTheme", lambda canvas, panel: classic
+    )
+    monkeypatch.setattr(
+        custom_text_idle_theme,
+        "CustomTextIdleTheme",
+        lambda canvas, panel, slot=1: custom,
+    )
+
+    scene = idle_scene.IdleScene(object(), object())
+
+    assert scene.scenes == (classic, custom)
+
+
+def test_idle_scene_factory_debug_previews_an_empty_custom_slot(monkeypatch):
+    from scenes.idle.themes import custom_text_idle_theme
+
+    sentinel = MagicMock()
+    captured = {}
+
+    def make_custom(canvas, panel, slot=1, preview_text=None):
+        captured["slot"] = slot
+        captured["preview_text"] = preview_text
+        return sentinel
+
+    monkeypatch.setattr(
+        Config,
+        "instance",
+        lambda: MagicMock(debug_scene="custom_2", idle_screen_theme="classic"),
+    )
+    monkeypatch.setattr(custom_text_idle_theme, "CustomTextIdleTheme", make_custom)
+
+    scene = idle_scene.IdleScene(object(), object())
+
+    assert scene is sentinel
+    assert captured == {"slot": 2, "preview_text": "Custom message 2"}
+
+
+def test_idle_scene_factory_debug_previews_saved_custom_text(monkeypatch):
+    from scenes.idle.themes import custom_text_idle_theme
+
+    sentinel = MagicMock()
+    captured = {}
+
+    def make_custom(canvas, panel, slot=1, preview_text=None):
+        captured["slot"] = slot
+        captured["preview_text"] = preview_text
+        return sentinel
+
+    monkeypatch.setattr(
+        Config,
+        "instance",
+        lambda: MagicMock(
+            debug_scene="custom_3",
+            idle_screen_theme="classic",
+            custom_scene_3_text="Happy Birthday",
+        ),
+    )
+    monkeypatch.setattr(custom_text_idle_theme, "CustomTextIdleTheme", make_custom)
+
+    scene = idle_scene.IdleScene(object(), object())
+
+    assert scene is sentinel
+    assert captured == {"slot": 3, "preview_text": None}

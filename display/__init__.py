@@ -33,6 +33,7 @@ def get_overhead_last_updated():
 
 def build_display_class():
     import logging
+    from datetime import date
 
     from display.panel_factory import get_panel
     from scenes.flight.flight_scene import FlightScene
@@ -74,6 +75,10 @@ def build_display_class():
 
             overhead = get_overhead_instance()
             self._init_scenes(overhead, cfg)
+            # Date-triggered scenes (birthday and custom messages) are built
+            # from today's date.  Remember it so a unit left on across
+            # midnight can rebuild the rotation without a restart.
+            self._idle_date = date.today()
 
             self.loading = IndicatorClass(self.canvas, self.panel, overhead)
             self._init_timing(cfg)
@@ -223,6 +228,11 @@ def build_display_class():
             else:
                 brightness_schedule_simple()
 
+        def _refresh_idle_rotation(self):
+            """Rebuild the fallback idle scene after the date changes."""
+            logger.info("Date changed - rebuilding the idle rotation")
+            self.scene_manager.replace_fallback(IdleScene(self.canvas, self.panel))
+
         def run(self):
             print("Press CTRL-C to stop")
 
@@ -237,6 +247,11 @@ def build_display_class():
             try:
                 while True:
                     start = perf_counter()
+
+                    today = date.today()
+                    if today != self._idle_date:
+                        self._idle_date = today
+                        self._refresh_idle_rotation()
 
                     if not (frame % self.brightness_update_interval):
                         self.update_brightness()

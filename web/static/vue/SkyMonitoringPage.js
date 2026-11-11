@@ -455,6 +455,9 @@ export default defineComponent({
           <option value="satellite">Satellite</option>
           <option value="idle">Idle</option>
           <option value="birthday">Happy Birthday</option>
+          <option value="custom_1">Custom message 1</option>
+          <option value="custom_2">Custom message 2</option>
+          <option value="custom_3">Custom message 3</option>
           <option value="indy_top3">INDYCAR Top 3</option>
           <option value="indy_driver">INDYCAR tracked driver</option>
           <option value="indy_champion">INDYCAR champion</option>
@@ -462,8 +465,8 @@ export default defineComponent({
         <div class="form-text text-muted small">
           The selected scene is displayed when it has data. Flight testing requires a live aircraft;
           enable satellite test mode below to simulate a pass. INDYCAR scenes preview with the
-          bundled demo snapshots, and Happy Birthday previews regardless of the saved date, so no
-          live data is needed.
+          bundled demo snapshots, and Happy Birthday and Custom Messages preview regardless of the
+          saved date, so no live data is needed.
         </div>
       </div>
       <div class="form-check">

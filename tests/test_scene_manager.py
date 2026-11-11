@@ -136,3 +136,69 @@ class TestSceneManagerDispatch:
 
         idle.draw.assert_called_once()
         flight.draw.assert_not_called()
+
+
+class TestReplaceFallback:
+    def test_replacement_stays_at_index_zero(self):
+        sm = SceneManager()
+        old = _make_scene(0)
+        high = _make_scene(5)
+        new = _make_scene(0)
+        sm.register(old)
+        sm.register(high)
+
+        sm.replace_fallback(new)
+
+        assert sm.scenes[0] is new
+        assert sm.scenes[1] is high
+
+    def test_current_fallback_is_replaced_and_entered(self):
+        sm = SceneManager()
+        old = _make_scene(0)
+        sm.register(old)
+        sm.kick()
+        assert sm.current_scene is old
+        old.on_enter.reset_mock()
+
+        new = _make_scene(0)
+        sm.replace_fallback(new)
+
+        assert sm.current_scene is new
+        new.on_enter.assert_called_once()
+        old.on_enter.assert_not_called()
+
+    def test_current_high_priority_scene_is_untouched(self):
+        sm = SceneManager()
+        old = _make_scene(0)
+        high = _make_scene(5, has_data=True)
+        sm.register(old)
+        sm.register(high)
+        sm.kick()
+        assert sm.current_scene is high
+
+        new = _make_scene(0)
+        sm.replace_fallback(new)
+
+        assert sm.current_scene is high
+        assert sm.scenes[0] is new
+        new.on_enter.assert_not_called()
+
+    def test_empty_manager_registers_the_scene(self):
+        sm = SceneManager()
+        new = _make_scene(0)
+
+        sm.replace_fallback(new)
+
+        assert sm.scenes == [new]
+
+    def test_replacing_with_the_same_scene_is_a_no_op(self):
+        sm = SceneManager()
+        old = _make_scene(0)
+        sm.register(old)
+        sm.kick()
+        old.on_enter.reset_mock()
+
+        sm.replace_fallback(old)
+
+        assert sm.scenes == [old]
+        old.on_enter.assert_not_called()

@@ -116,6 +116,143 @@ export default defineComponent({
       </div>
     </div>
 
+    <!-- ====== Custom messages ====== -->
+    <div id="group-custom-messages" class="card mb-3 p-3">
+      <p class="section-heading"><i class="bi bi-chat-square-text me-2"></i>Custom Messages</p>
+      <p class="text-muted small">
+        Up to three messages that appear automatically on a recurring month and day each
+        year - an anniversary, a pet's birthday, or any other date worth celebrating. The
+        year in the picker is ignored. Tick a message to preview it at any time; a message
+        with no date is preview-only. ASCII/Latin-1 text only - emoji will not render on
+        the matrix. Messages up to 40 characters.
+      </p>
+
+      <div class="row g-3">
+        <div class="col-12 col-lg-4">
+          <div class="border rounded p-3 h-100">
+            <h5 class="mb-2">Message 1</h5>
+            <div class="mb-2">
+              <label class="form-label small" for="custom_scene_1_text">Text</label>
+              <input type="text" class="form-control form-control-sm" id="custom_scene_1_text"
+                     name="custom_scene_1_text" maxlength="40" placeholder="Happy Anniversary"
+                     v-model="store.config.custom_scene_1_text" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label small" for="custom_scene_1_date">Date</label>
+              <input type="date" class="form-control form-control-sm" id="custom_scene_1_date"
+                     name="custom_scene_1_date" v-model="store.config.custom_scene_1_date" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label small" for="custom_scene_1_colour">Colour</label>
+              <select class="form-select form-select-sm" id="custom_scene_1_colour"
+                      name="custom_scene_1_colour" v-model="store.config.custom_scene_1_colour">
+                <option value="white">White</option>
+                <option value="yellow">Yellow</option>
+                <option value="gold">Gold</option>
+                <option value="orange">Orange</option>
+                <option value="red">Red</option>
+                <option value="hot_pink">Hot pink</option>
+                <option value="violet">Violet</option>
+                <option value="cyan">Cyan</option>
+                <option value="lime_green">Lime green</option>
+                <option value="blue_light">Light blue</option>
+              </select>
+            </div>
+            <div class="form-check" v-show="store.config.custom_scene_1_text">
+              <input type="checkbox" class="form-check-input" id="idle_theme_custom_1"
+                     name="idle_screen_themes" value="custom_1"
+                     v-model="store.config.idle_screen_themes" />
+              <label class="form-check-label small" for="idle_theme_custom_1">
+                Preview this message in the rotation
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-lg-4">
+          <div class="border rounded p-3 h-100">
+            <h5 class="mb-2">Message 2</h5>
+            <div class="mb-2">
+              <label class="form-label small" for="custom_scene_2_text">Text</label>
+              <input type="text" class="form-control form-control-sm" id="custom_scene_2_text"
+                     name="custom_scene_2_text" maxlength="40" placeholder="Happy Birthday Daisy"
+                     v-model="store.config.custom_scene_2_text" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label small" for="custom_scene_2_date">Date</label>
+              <input type="date" class="form-control form-control-sm" id="custom_scene_2_date"
+                     name="custom_scene_2_date" v-model="store.config.custom_scene_2_date" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label small" for="custom_scene_2_colour">Colour</label>
+              <select class="form-select form-select-sm" id="custom_scene_2_colour"
+                      name="custom_scene_2_colour" v-model="store.config.custom_scene_2_colour">
+                <option value="white">White</option>
+                <option value="yellow">Yellow</option>
+                <option value="gold">Gold</option>
+                <option value="orange">Orange</option>
+                <option value="red">Red</option>
+                <option value="hot_pink">Hot pink</option>
+                <option value="violet">Violet</option>
+                <option value="cyan">Cyan</option>
+                <option value="lime_green">Lime green</option>
+                <option value="blue_light">Light blue</option>
+              </select>
+            </div>
+            <div class="form-check" v-show="store.config.custom_scene_2_text">
+              <input type="checkbox" class="form-check-input" id="idle_theme_custom_2"
+                     name="idle_screen_themes" value="custom_2"
+                     v-model="store.config.idle_screen_themes" />
+              <label class="form-check-label small" for="idle_theme_custom_2">
+                Preview this message in the rotation
+              </label>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-12 col-lg-4">
+          <div class="border rounded p-3 h-100">
+            <h5 class="mb-2">Message 3</h5>
+            <div class="mb-2">
+              <label class="form-label small" for="custom_scene_3_text">Text</label>
+              <input type="text" class="form-control form-control-sm" id="custom_scene_3_text"
+                     name="custom_scene_3_text" maxlength="40" placeholder="Happy Birthday"
+                     v-model="store.config.custom_scene_3_text" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label small" for="custom_scene_3_date">Date</label>
+              <input type="date" class="form-control form-control-sm" id="custom_scene_3_date"
+                     name="custom_scene_3_date" v-model="store.config.custom_scene_3_date" />
+            </div>
+            <div class="mb-2">
+              <label class="form-label small" for="custom_scene_3_colour">Colour</label>
+              <select class="form-select form-select-sm" id="custom_scene_3_colour"
+                      name="custom_scene_3_colour" v-model="store.config.custom_scene_3_colour">
+                <option value="white">White</option>
+                <option value="yellow">Yellow</option>
+                <option value="gold">Gold</option>
+                <option value="orange">Orange</option>
+                <option value="red">Red</option>
+                <option value="hot_pink">Hot pink</option>
+                <option value="violet">Violet</option>
+                <option value="cyan">Cyan</option>
+                <option value="lime_green">Lime green</option>
+                <option value="blue_light">Light blue</option>
+              </select>
+            </div>
+            <div class="form-check" v-show="store.config.custom_scene_3_text">
+              <input type="checkbox" class="form-check-input" id="idle_theme_custom_3"
+                     name="idle_screen_themes" value="custom_3"
+                     v-model="store.config.idle_screen_themes" />
+              <label class="form-check-label small" for="idle_theme_custom_3">
+                Preview this message in the rotation
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- ====== INDYCAR next event ====== -->
     <div v-show="hasTheme('indycar_next')">
       <div class="card mb-3 p-3">

@@ -7,17 +7,22 @@ the threshold as already legible: the scroller stays at rest and reports
 
 from unittest.mock import MagicMock
 
+import pytest
+
 import display.scroller as scroller_module
 from display.scroller import (
     INITIAL_TICKS,
     MIN_PIXELS_FOR_SCROLL,
+    PAUSE_TICKS,
     BounceState,
     Scroller,
     spans_width,
 )
 
 
-def _make_scroller(monkeypatch, *, content_width, width, bounce, reverse=False):
+def _make_scroller(
+    monkeypatch, *, content_width, width, bounce, reverse=False, slide=False
+):
     """Build a Scroller whose rendered content is exactly ``content_width``."""
     monkeypatch.setattr(
         scroller_module,
@@ -25,7 +30,15 @@ def _make_scroller(monkeypatch, *, content_width, width, bounce, reverse=False):
         lambda spans: [{} for _ in range(content_width)],
     )
     return Scroller(
-        MagicMock(), MagicMock(), 0, 0, width, [], bounce=bounce, reverse=reverse
+        MagicMock(),
+        MagicMock(),
+        0,
+        0,
+        width,
+        [],
+        bounce=bounce,
+        reverse=reverse,
+        slide=slide,
     )
 
 
@@ -162,3 +175,97 @@ def test_static_scroller_clear_blanks_exactly_drawn_pixels(monkeypatch):
         assert call.args[3:] == (0, 0, 0)  # blanked, not overwritten
     blanked_x = {call.args[1] for call in panel.set_pixel.call_args_list}
     assert blanked_x == {10, 12}
+
+
+# ---------------------------------------------------------------------------
+# Slide-right mode (short greeting text stays in reading order)
+# ---------------------------------------------------------------------------
+
+
+def test_slide_cannot_be_combined_with_bounce_or_reverse(monkeypatch):
+    with pytest.raises(ValueError):
+        _make_scroller(monkeypatch, content_width=10, width=30, bounce=True, slide=True)
+    with pytest.raises(ValueError):
+        _make_scroller(
+            monkeypatch,
+            content_width=10,
+            width=30,
+            bounce=False,
+            reverse=True,
+            slide=True,
+        )
+
+
+def test_slide_holds_then_moves_right(monkeypatch):
+    scroller = _make_scroller(
+        monkeypatch, content_width=10, width=30, bounce=False, slide=True
+    )
+    assert scroller.position == 0
+    assert scroller.state == BounceState.INITIAL
+
+    for _ in range(INITIAL_TICKS):
+        scroller.draw()
+
+    assert scroller.position == 0
+    assert scroller.state == BounceState.INITIAL
+
+    for _ in range(2):
+        scroller.draw()
+
+    assert scroller.state == BounceState.REVEAL
+    assert scroller.position == 1
+
+
+def test_slide_completes_a_full_loop(monkeypatch):
+    scroller = _make_scroller(
+        monkeypatch, content_width=10, width=30, bounce=False, slide=True
+    )
+    for _ in range(INITIAL_TICKS + 2):
+        scroller.draw()
+    assert scroller.position == 1
+
+    # Move the remaining distance to the right edge.
+    for _ in range(29):
+        scroller.draw()
+
+    assert scroller.position == 30
+    assert scroller.state == BounceState.PAUSE
+    assert scroller.all_looped()
+
+    for _ in range(PAUSE_TICKS + 1):
+        scroller.draw()
+
+    assert scroller.position == 0
+    assert scroller.state == BounceState.INITIAL
+    assert scroller.loop_count == 1
+
+
+def test_slide_update_restarts_from_the_initial_hold(monkeypatch):
+    scroller = _make_scroller(
+        monkeypatch, content_width=10, width=30, bounce=False, slide=True
+    )
+    for _ in range(INITIAL_TICKS + 5):
+        scroller.draw()
+    assert scroller.position > 0
+
+    scroller.update([MagicMock()])
+
+    assert scroller.position == 0
+    assert scroller.state == BounceState.INITIAL
+    assert scroller.loop_count == 0
+    assert not scroller.all_looped()
+
+
+def test_slide_reset_returns_to_the_initial_hold(monkeypatch):
+    scroller = _make_scroller(
+        monkeypatch, content_width=10, width=30, bounce=False, slide=True
+    )
+    for _ in range(INITIAL_TICKS + 5):
+        scroller.draw()
+
+    scroller.reset()
+
+    assert scroller.position == 0
+    assert scroller.state == BounceState.INITIAL
+    assert scroller.timer == 0
+    assert scroller.loop_count == 0

@@ -37,20 +37,80 @@ and driver background: [build guide](https://flight-tracker.dev/build/) ·
 
 ### Option 1: Prebuilt OS Image (Recommended)
 
-For the easiest installation, use the prebuilt Hobby Ticker OS image. This includes everything pre-installed - no command line required.
+For the easiest installation, use the prebuilt Hobby Ticker OS image. It includes
+Raspberry Pi OS, the RGB matrix drivers, and a first-boot installer, so no
+command line is required.
 
-1. Download and install [Raspberry Pi Imager](https://www.raspberrypi.com/software/)
-2. Open Imager and go to **App Options → Content Repository → Custom URL**
-3. Enter: `https://raw.githubusercontent.com/gvalles9/Hobby_Ticker_OS/main/os_list.json`
-4. Select "Hobby Ticker OS" from the OS list
-5. Choose the version for your Pi:
-   - **32-bit** for Raspberry Pi 3
-   - **64-bit** for Raspberry Pi 4/5
-6. Set your Wi-Fi details and hostname (e.g., `hobbyticker`)
-7. Flash to SD card
-8. Boot your Pi and configure at `http://hobbyticker.local:8584`
+The image does **not** contain a pinned copy of the application. On first boot
+it clones the latest `main` branch of
+[`gvalles9/Hobby_Ticker_Wall`](https://github.com/gvalles9/Hobby_Ticker_Wall)
+and installs it. This means application-only changes do not require a new OS
+image build - but **commit and push your changes to `main` before flashing** if
+you want them on the unit.
 
-See the [Hobby Ticker OS repository](https://github.com/gvalles9/Hobby_Ticker_OS) for more details.
+#### What you need
+
+- A Raspberry Pi 3, 4, or 5 with an Adafruit RGB Matrix Bonnet/HAT and the
+  panel chain connected.
+- A microSD card (8 GB minimum, Class 10 recommended) and a card reader.
+- [Raspberry Pi Imager](https://www.raspberrypi.com/software/).
+- A 2.4 GHz Wi-Fi network (or Ethernet) and internet access during first boot.
+
+#### Flash the card
+
+1. Install and open Raspberry Pi Imager.
+2. Open **App Options** (the gear icon) → **Content Repository** →
+   **Custom URL**.
+3. Enter:
+   `https://raw.githubusercontent.com/gvalles9/Hobby_Ticker_OS/main/os_list.json`
+4. Select **Hobby Ticker OS** from the OS list.
+5. Choose the image for your Pi:
+   - **32-bit** for Raspberry Pi 3 (and Pi 4 / Zero 2 W in 32-bit mode)
+   - **64-bit** for Raspberry Pi 4 or 5
+6. Choose your microSD card.
+7. Open **Edit Settings** (or the gear icon) and set:
+   - **Hostname:** `hobbyticker` (or another name; the examples below assume
+     this one).
+   - **Username:** keep `pi`. The image, the first-boot installer, and the
+     systemd service all expect `/home/pi/FlightTracker` and the `pi` user.
+   - **Wi-Fi:** your SSID, password, and country.
+   - **Locale and timezone:** your local values.
+8. Click **Write**, confirm, and wait for Imager to finish verifying the card.
+
+#### First boot
+
+1. Put the card in the Pi, connect the matrix and power, and boot it.
+2. The first-boot installer runs automatically. It clones the application,
+   creates the Python virtual environment, builds the RGB matrix bindings, and
+   installs the services. This takes roughly 5-15 minutes depending on the Pi
+   and network. The matrix may stay blank during this time.
+3. The Pi reboots automatically when installation finishes. Do not remove power
+   while the installer is running.
+4. Open `http://hobbyticker.local:8584` (or `http://<pi-ip>:8584`) and complete
+   the first-time setup wizard.
+
+#### Reflashing an existing unit
+
+Reflashing erases the card, including saved Wi-Fi and settings. To keep the
+current configuration, copy it off the Pi before reflashing. Enable SSH first
+from **Admin → Remote Access**, then run this from another computer:
+
+```bash
+scp pi@hobbyticker.local:/home/pi/.local/share/FlightTracker/config.json .
+```
+
+After the reflash and first boot, copy the file back to the same path and
+reboot. For a gift unit, skip the restore and use
+**Admin → Recovery → Prepare for Handoff** after setup so the next owner gets
+the setup hotspot and a clean configuration.
+
+You can reuse an existing Hobby Ticker OS image (including an older Actions
+run) after pushing application changes. Only rebuild the OS image when the
+[Hobby Ticker OS repository](https://github.com/gvalles9/Hobby_Ticker_OS)
+itself changes, such as the first-boot installer or OS packages. You can also
+download the latest `.img.xz` from the
+[Hobby Ticker OS releases](https://github.com/gvalles9/Hobby_Ticker_OS/releases)
+and flash it with Imager or balenaEtcher.
 
 ### Option 2: Manual Install
 

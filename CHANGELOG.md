@@ -18,6 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   idle rotation is now also rebuilt at midnight, so date-triggered scenes
   (including the birthday scene) appear without a restart.
 
+### Fixed
+
+- Fixed the Admin recovery actions (Reset Wi-Fi, Forget Wi-Fi, Prepare for
+  Handoff) and the Remote Access SSH toggle on installed units. The systemd
+  unit restricted the capability bounding set to `CAP_SYS_NICE`, which left
+  `sudo` unable to switch to root, so every privileged helper failed with
+  "unable to change to root gid: Operation not permitted". The unit now keeps
+  only the ambient capability it needs for realtime scheduling.
+
 ## [1.1.0] - 2026-11-09
 
 ### Added

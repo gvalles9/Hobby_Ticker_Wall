@@ -389,6 +389,23 @@ sudo systemctl restart FlightTracker.service
 
 ## Troubleshooting
 
+- **Admin recovery buttons do nothing, and the log says `sudo: unable to change to root gid: Operation not permitted`:**
+  The installed systemd unit is restricting the capability bounding set, which
+  breaks `sudo` for the Wi-Fi, handoff, and SSH helpers. Update the unit from
+  the checkout and restart:
+
+```bash
+cd ~/FlightTracker
+git pull --ff-only
+sudo install -m 0644 assets/FlightTracker.service /etc/systemd/system/FlightTracker.service
+sudo systemctl daemon-reload
+sudo systemctl restart FlightTracker.service
+```
+
+  On an install whose user is not `pi`, run
+  `sudo systemctl edit --full FlightTracker.service` and delete the
+  `CapabilityBoundingSet=` line instead.
+
 - **The installation went well, you selected Convenience Mode (no soldering) and can't see anything:**
    Head into the settings interface and go into the `Hardware` section and select Convenience Mode
    for a second time, then hit save.

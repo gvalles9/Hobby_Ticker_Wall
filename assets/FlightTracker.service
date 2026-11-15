@@ -20,8 +20,11 @@ Nice=-10
 IOSchedulingClass=realtime
 IOSchedulingPriority=0
 
+# CAP_SYS_NICE lets the app use Nice=-10 and realtime scheduling as User=pi.
+# Do not add CapabilityBoundingSet=CAP_SYS_NICE: the bounding set is inherited
+# by setuid-root binaries, so it strips CAP_SETUID/CAP_SETGID from sudo and
+# every "sudo -n" helper fails with "unable to change to root gid".
 AmbientCapabilities=CAP_SYS_NICE
-CapabilityBoundingSet=CAP_SYS_NICE
 
 StandardOutput=append:/home/pi/plane.log
 StandardError=append:/home/pi/plane.log

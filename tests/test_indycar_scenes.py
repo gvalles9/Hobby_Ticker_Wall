@@ -255,10 +255,21 @@ class TestChampionScene:
 
     def test_stops_after_the_flash_window(self, monkeypatch):
         scene, _panel = _scene(ChampionScene, monkeypatch, demo_champion_snapshot())
+        # Drive the scene's clock directly.  Using a literal like 0.0 assumed
+        # time.monotonic() is large, which is false on a freshly booted CI
+        # runner where monotonic() is only seconds since boot.
+        clock = [1000.0]
+        monkeypatch.setattr(
+            "scenes.indycar.champion_scene.time.monotonic", lambda: clock[0]
+        )
 
         assert scene.has_data() is True
-        scene.started_at = 0.0  # far in the past
+        scene.scene_enter()
 
+        clock[0] += scene._duration() - 1
+        assert scene.has_data() is True
+
+        clock[0] += 2
         assert scene.has_data() is False
 
 

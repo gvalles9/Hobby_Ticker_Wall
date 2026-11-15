@@ -13,7 +13,6 @@ import display.scroller as scroller_module
 from display.scroller import (
     INITIAL_TICKS,
     MIN_PIXELS_FOR_SCROLL,
-    PAUSE_TICKS,
     BounceState,
     Scroller,
     spans_width,
@@ -216,7 +215,7 @@ def test_slide_holds_then_moves_right(monkeypatch):
     assert scroller.position == 1
 
 
-def test_slide_completes_a_full_loop(monkeypatch):
+def test_slide_loops_continuously_at_the_right_edge(monkeypatch):
     scroller = _make_scroller(
         monkeypatch, content_width=10, width=30, bounce=False, slide=True
     )
@@ -224,20 +223,47 @@ def test_slide_completes_a_full_loop(monkeypatch):
         scroller.draw()
     assert scroller.position == 1
 
-    # Move the remaining distance to the right edge.
+    # Move the remaining distance to the right edge. The position wraps
+    # back to zero instead of pausing at the edge.
     for _ in range(29):
         scroller.draw()
 
-    assert scroller.position == 30
-    assert scroller.state == BounceState.PAUSE
-    assert scroller.all_looped()
-
-    for _ in range(PAUSE_TICKS + 1):
-        scroller.draw()
-
     assert scroller.position == 0
-    assert scroller.state == BounceState.INITIAL
+    assert scroller.state == BounceState.REVEAL
+    assert scroller.all_looped()
     assert scroller.loop_count == 1
+
+    # It keeps moving immediately - no pause or initial hold.
+    scroller.draw()
+    assert scroller.position == 1
+    assert scroller.state == BounceState.REVEAL
+
+
+def test_slide_wraps_pixels_around_the_right_edge(monkeypatch):
+    from setup import colours
+
+    panel, canvas = MagicMock(), MagicMock()
+    monkeypatch.setattr(
+        scroller_module,
+        "_render_spans",
+        lambda spans: [{0: colours.RED}, {0: colours.GREEN}, {0: colours.BLUE}],
+    )
+    scroller = Scroller(panel, canvas, 0, 0, 5, [MagicMock()], slide=True)
+    scroller.position = 4  # last column before the wrap
+    scroller._displayed = [{} for _ in range(5)]
+
+    scroller._draw_viewport()
+
+    drawn = {
+        call.args[1]: call.args[3:]
+        for call in panel.set_pixel.call_args_list
+        if call.args[3:] != (0, 0, 0)
+    }
+    assert drawn == {
+        4: (colours.RED.red, colours.RED.green, colours.RED.blue),
+        0: (colours.GREEN.red, colours.GREEN.green, colours.GREEN.blue),
+        1: (colours.BLUE.red, colours.BLUE.green, colours.BLUE.blue),
+    }
 
 
 def test_slide_update_restarts_from_the_initial_hold(monkeypatch):

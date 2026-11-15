@@ -5,9 +5,9 @@ settings page.  Each slot has a message and a recurring month/day; on the
 matching day the scene joins the idle rotation automatically (exactly like
 the birthday scene), and ticking the slot previews it at any time.
 
-Short messages slide left-to-right so they stay in reading order.  Messages
-wider than the display use the bounce scroller, which reveals the whole
-string and then retracts it.
+Short messages slide left-to-right and wrap around the display edges, so the
+loop never pauses or blanks.  Messages wider than the display use the bounce
+scroller, which reveals the whole string and then retracts it.
 """
 
 from __future__ import annotations

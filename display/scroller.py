@@ -145,6 +145,10 @@ class Scroller:
 
     ``x`` is the viewport's left edge. ``y`` is the text baseline.
     ``width`` is the number of physical display columns owned by the viewport.
+
+    ``slide=True`` moves content right and wraps it around the viewport
+    edges, so the message loops continuously instead of pausing or
+    blanking at the right edge.
     """
 
     def __init__(
@@ -304,26 +308,21 @@ class Scroller:
         self.timer += 1
 
     def _advance_slide(self) -> None:
-        """Hold, then move the message right until it leaves the viewport."""
+        """Hold, then move the message right forever, wrapping at the edges."""
         if self.state == BounceState.INITIAL:
             if self.timer >= INITIAL_TICKS:
                 self.state = BounceState.REVEAL
                 self.timer = 0
+            self.timer += 1
+            return
 
-        elif self.state == BounceState.REVEAL:
-            self.position += 1
-            if self.position >= self.width:
-                self.position = self.width
-                self.state = BounceState.PAUSE
-                self.timer = 0
-                self._looped = True
-
-        elif self.state == BounceState.PAUSE and self.timer >= PAUSE_TICKS:
-            self.position = 0
-            self.state = BounceState.INITIAL
-            self.timer = 0
+        self.position += 1
+        if self.position >= self.width:
+            # The viewport is a torus: content leaving the right edge
+            # re-enters from the left, so the loop never pauses or blanks.
+            self.position -= self.width
             self.loop_count += 1
-
+            self._looped = True
         self.timer += 1
 
     def _clamp_after_update(self) -> None:
@@ -357,10 +356,14 @@ class Scroller:
     def _draw_viewport(self) -> None:
         desired: list[PixelColumn] = [{} for _ in range(self.width)]
 
-        # Work is bounded by viewport width. The rest of the rendered text is
-        # never inspected until it reaches the viewport.
+        # Work is bounded by viewport width.
         for viewport_x in range(self.width):
-            source_x = viewport_x - self.position
+            if self.slide:
+                # Wrap content around the viewport edges so the message
+                # loops continuously instead of disappearing at the right.
+                source_x = (viewport_x - self.position) % self.width
+            else:
+                source_x = viewport_x - self.position
             if not 0 <= source_x < self.content_width:
                 continue
 

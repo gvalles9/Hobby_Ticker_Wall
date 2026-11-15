@@ -12,11 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added three date-triggered **Custom Messages** scenes on the Default Screen
   settings page. Each slot has a message, a recurring month and day (the year
   is ignored), and a colour. Matching slots join the idle rotation
-  automatically, even when they are not ticked; short messages scroll
-  left-to-right and longer messages use the bounce scroller. Empty slots stay
-  off, so existing units are unchanged. The idle rotation is now also rebuilt
-  at midnight, so date-triggered scenes (including the birthday scene) appear
-  without a restart.
+  automatically, even when they are not ticked; short messages loop
+  continuously left-to-right around the display and longer messages use the
+  bounce scroller. Empty slots stay off, so existing units are unchanged. The
+  idle rotation is now also rebuilt at midnight, so date-triggered scenes
+  (including the birthday scene) appear without a restart.
 
 ## [1.1.0] - 2026-11-09
 

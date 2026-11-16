@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-11-15
+
 ### Changed
 
 - The first-setup wizard is now mandatory until a web password other than the

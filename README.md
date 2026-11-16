@@ -150,16 +150,20 @@ The installers enable mDNS hostname discovery; the Pi and your phone/computer mu
 on the same local network.
 
 The Admin page includes separate recovery buttons to reset Hobby Ticker settings
-(while keeping the web password and Wi-Fi credentials) or reopen the Wi-Fi setup
-hotspot to change networks. Two more support testing and handoffs: **Reset Web
-Password** restores the default password (`flighttracker`) and re-opens the
-first-setup wizard, and **Forget Wi-Fi** deletes every saved Wi-Fi network and
-opens the first-boot setup hotspot, exactly like a fresh install. **Prepare for
-Handoff** combines all of it - settings to defaults, default password, forgotten
-Wi-Fi, setup hotspot - in one click for gifting the device; the next owner scans
-the QR code on the display, joins the hotspot, and is taken straight to the
-first-setup wizard, which cannot be skipped until they choose their own web
-password. If no saved Wi-Fi network is reachable for 10 minutes,
+(while keeping the web password, Wi-Fi credentials and display hardware settings)
+or reopen the Wi-Fi setup hotspot to change networks. Two more support testing and
+handoffs: **Reset Web Password** restores the default password (`flighttracker`)
+and re-opens the first-setup wizard, and **Forget Wi-Fi** deletes every saved
+Wi-Fi network and opens the first-boot setup hotspot, exactly like a fresh
+install. **Prepare for Handoff** combines all of it - settings to defaults,
+default password, forgotten Wi-Fi, setup hotspot - in one click for gifting the
+device; the next owner scans the QR code on the display, joins the hotspot, and
+is taken straight to the first-setup wizard, which cannot be skipped until they
+choose their own web password. Both reset buttons keep the display hardware
+settings - bonnet type, panel colour order, scan rate, GPIO slowdown, PWM mode
+and loading indicator - because they describe the panels attached to the unit
+rather than the person using it; the wizard simply pre-selects the saved bonnet
+type. If no saved Wi-Fi network is reachable for 10 minutes,
 the Pi automatically opens the protected setup hotspot and displays its QR. The
 watchdog checks every saved Wi-Fi profile, including one created by Raspberry Pi
 Imager, and leaves the hotspot closed while Ethernet provides a default route.

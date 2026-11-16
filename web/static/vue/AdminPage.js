@@ -227,14 +227,14 @@ export default defineComponent({
         <div>
           <div class="fw-semibold">Reset FlightTracker settings</div>
           <div class="text-muted small">
-            Restore application settings to defaults. Your Wi-Fi details and web password are kept.
-            FlightTracker will restart.
+            Restore application settings to defaults. Your Wi-Fi details, web password and
+            display hardware settings are kept. FlightTracker will restart.
           </div>
         </div>
         <button type="button" class="btn btn-outline-danger btn-sm"
                 :disabled="maintenanceBusy"
                 @click="runMaintenanceAction('/settings/reset',
-                  'Reset all FlightTracker settings to defaults? Your saved Wi-Fi and web password will be kept.')">
+                  'Reset all FlightTracker settings to defaults? Your saved Wi-Fi, web password and display hardware settings will be kept.')">
           Reset Settings
         </button>
       </div>
@@ -290,14 +290,14 @@ export default defineComponent({
           <div class="fw-semibold">Prepare for handoff</div>
           <div class="text-muted small">
             One click for gifting: settings to defaults, web password back to the default, all
-            Wi-Fi networks forgotten, and the setup hotspot open. The next owner starts from the
-            QR code on the display.
+            Wi-Fi networks forgotten, and the setup hotspot open. Display hardware settings are
+            kept. The next owner starts from the QR code on the display.
           </div>
         </div>
         <button type="button" class="btn btn-danger btn-sm"
                 :disabled="maintenanceBusy"
                 @click="runMaintenanceAction('/handoff/reset',
-                  'Reset everything for handoff? Settings return to defaults, the web password returns to the default (flighttracker), all saved Wi-Fi networks are deleted, and the setup hotspot opens. The next owner completes setup from the QR code.',
+                  'Reset everything for handoff? Settings return to defaults (display hardware settings are kept), the web password returns to the default (flighttracker), all saved Wi-Fi networks are deleted, and the setup hotspot opens. The next owner completes setup from the QR code.',
                   true)">
           <i class="bi bi-gift me-1"></i>Prepare for Handoff
         </button>

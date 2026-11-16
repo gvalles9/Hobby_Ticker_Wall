@@ -1692,20 +1692,49 @@ def wifi_setup():
     )
 
 
+# Settings that describe the panels and wiring rather than the owner.  A
+# reset - or a handoff - keeps these so the display keeps working with the
+# hardware that is physically attached.  The setup wizard only asks for the
+# bonnet type, so the rest would otherwise be lost for good.
+HARDWARE_SETTING_KEYS = (
+    "bonnet_type",
+    "panel_colour_order",
+    "gpio_slowdown",
+    "display_scan_rate",
+    "hat_pwm_enabled",
+    "loading_indicator",
+    "loading_led_gpio_pin",
+)
+
+
+def _defaults_keeping_hardware(cfg) -> dict:
+    """Deep-copy the defaults, carrying the panel wiring over from *cfg*."""
+    data = copy.deepcopy(DEFAULTS)
+    for key in HARDWARE_SETTING_KEYS:
+        if key in cfg.data_store:
+            data[key] = copy.deepcopy(cfg.data_store[key])
+    return data
+
+
 @app.route("/settings/reset", methods=["POST"])
 @login_required
 def reset_settings():
-    """Restore application defaults without changing Wi-Fi or web access."""
+    """Restore application defaults without changing Wi-Fi or web access.
+
+    Display hardware settings (bonnet type, colour order, scan rate,
+    slowdown and the loading indicator) are kept: they describe the panels
+    bolted to the unit, not the person using it.
+    """
     if not validate_csrf(request.form):
         abort(403, description="Invalid CSRF token.")
 
     cfg = Config.instance()
     password_hash = cfg.get("web_password_hash", "")
-    cfg.data_store = copy.deepcopy(DEFAULTS)
+    cfg.data_store = _defaults_keeping_hardware(cfg)
     cfg.data_store["web_password_hash"] = password_hash
     _migrate_provider_lists(cfg.data_store, {})
     cfg.save()
-    logger.info("Application settings reset to defaults.")
+    logger.info("Application settings reset to defaults; hardware settings kept.")
     restart_after(delay=1.0)
     return jsonify(message="FlightTracker settings were reset to defaults.")
 
@@ -1810,16 +1839,18 @@ def prepare_handoff():
     Restores application defaults - which clears the web password back to
     the default and re-opens the first-setup wizard - then deletes every
     saved Wi-Fi network and opens the first-boot setup hotspot.  Unlike
-    ``/settings/reset`` this does not keep the web password.
+    ``/settings/reset`` this does not keep the web password.  Display
+    hardware settings are kept so the next owner inherits a working panel
+    setup instead of having to rediscover it.
     """
     if not validate_csrf(request.form):
         abort(403, description="Invalid CSRF token.")
 
     cfg = Config.instance()
-    cfg.data_store = copy.deepcopy(DEFAULTS)
+    cfg.data_store = _defaults_keeping_hardware(cfg)
     _migrate_provider_lists(cfg.data_store, {})
     cfg.save()
-    logger.info("Settings restored to defaults for handoff.")
+    logger.info("Settings restored to defaults for handoff; hardware settings kept.")
 
     if not _run_wifi_helper({"action": "forget_wifi"}):
         return (

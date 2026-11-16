@@ -562,3 +562,65 @@ def test_reset_settings_route_restores_defaults_and_keeps_web_password(monkeypat
     assert cfg.data_store == {"flight_radius": 20, "web_password_hash": "existing-hash"}
     cfg.save.assert_called_once_with()
     assert restarts == [1.0]
+
+
+HARDWARE = {
+    "bonnet_type": "single",
+    "panel_colour_order": "BGR",
+    "gpio_slowdown": 3,
+    "display_scan_rate": 32,
+    "hat_pwm_enabled": False,
+    "loading_indicator": "off",
+    "loading_led_gpio_pin": "18",
+}
+
+
+@pytest.mark.parametrize("route", ["/settings/reset", "/handoff/reset"])
+def test_resets_keep_display_hardware_settings(monkeypatch, route):
+    """Both reset buttons keep the panel wiring; only personal data goes."""
+    import web.app as web_app
+
+    cfg = MagicMock()
+    cfg.data_store = {
+        "web_password_hash": "existing-hash",
+        "flight_radius": 80,
+        **HARDWARE,
+    }
+    cfg.get.side_effect = lambda key, default=None: cfg.data_store.get(key, default)
+    monkeypatch.setattr(web_app.Config, "instance", lambda: cfg)
+    monkeypatch.setattr(
+        web_app,
+        "DEFAULTS",
+        {
+            "flight_radius": 20,
+            "web_password_hash": "",
+            "first_setup_complete": False,
+            "bonnet_type": "triple",
+            "panel_colour_order": "RGB",
+            "gpio_slowdown": 1,
+            "display_scan_rate": 16,
+            "hat_pwm_enabled": True,
+            "loading_indicator": "pixel",
+            "loading_led_gpio_pin": "",
+        },
+    )
+    monkeypatch.setattr(web_app, "_migrate_provider_lists", lambda data, loaded: None)
+    monkeypatch.setattr(
+        web_app.subprocess,
+        "run",
+        MagicMock(return_value=subprocess.CompletedProcess([], 0, stderr="")),
+    )
+    monkeypatch.setattr(web_app, "restart_after", lambda delay=1.0: None)
+
+    client = web_app.app.test_client()
+    with client.session_transaction() as session:
+        session["authenticated"] = True
+        session["csrf_token"] = "reset-csrf"
+    response = client.post(route, data={"csrf_token": "reset-csrf"})
+
+    assert response.status_code == 200
+    # Personal settings still go back to their defaults.
+    assert cfg.data_store["flight_radius"] == 20
+    # The panels bolted to the unit keep their configuration.
+    for key, value in HARDWARE.items():
+        assert cfg.data_store[key] == value

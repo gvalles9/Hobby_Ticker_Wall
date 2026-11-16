@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Resetting settings - or preparing the unit for handoff - no longer wipes the
+  display hardware settings: bonnet type, panel colour order, scan rate, GPIO
+  slowdown, PWM mode and the loading indicator. They describe the panels
+  attached to the unit rather than the person using it, so both reset buttons
+  keep them and the setup wizard pre-selects the saved bonnet type. Everything
+  personal (location, birthday, INDYCAR, API keys, custom scenes, providers,
+  password, Wi-Fi) still returns to defaults.
+
 ## [1.1.3] - 2026-11-15
 
 ### Fixed

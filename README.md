@@ -193,7 +193,7 @@ The Pygame simulator uses the same local config mechanism, but closing its windo
 resets that simulator installation's settings to defaults. This behavior applies
 only to the simulator, not to Raspberry Pi installations.
 
-Hobby Ticker's product version (`1.1.2`) is separate from the retained upstream
+Hobby Ticker's product version (`1.1.3`) is separate from the retained upstream
 compatibility version used for backup metadata.
 
 ## First-time setup

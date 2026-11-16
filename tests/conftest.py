@@ -17,6 +17,24 @@ os.environ.setdefault(
 )
 
 
+@pytest.fixture(autouse=True)
+def _configured_web_password():
+    """Treat the device as already set up for tests using the real config.
+
+    The web app keeps an authenticated browser inside the first-setup
+    wizard until a web password exists, so every page would redirect.  Seed
+    the shared singleton with a password in memory (never saved).  Tests
+    that need the pending state use the ``fresh_config`` fixture, which
+    replaces the singleton entirely.
+    """
+    from setup.configuration import Config
+
+    cfg = Config.instance()
+    if not cfg.data_store.get("web_password_hash"):
+        cfg.data_store["web_password_hash"] = "test-password-hash"
+    yield
+
+
 @pytest.fixture
 def fresh_config(monkeypatch):
     """An isolated in-memory Config for tests that touch settings.

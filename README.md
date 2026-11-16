@@ -157,8 +157,9 @@ first-setup wizard, and **Forget Wi-Fi** deletes every saved Wi-Fi network and
 opens the first-boot setup hotspot, exactly like a fresh install. **Prepare for
 Handoff** combines all of it - settings to defaults, default password, forgotten
 Wi-Fi, setup hotspot - in one click for gifting the device; the next owner scans
-the QR code on the display and completes setup from there. If no saved Wi-Fi
-network is reachable for 10 minutes,
+the QR code on the display, joins the hotspot, and is taken straight to the
+first-setup wizard, which cannot be skipped until they choose their own web
+password. If no saved Wi-Fi network is reachable for 10 minutes,
 the Pi automatically opens the protected setup hotspot and displays its QR. The
 watchdog checks every saved Wi-Fi profile, including one created by Raspberry Pi
 Imager, and leaves the hotspot closed while Ethernet provides a default route.
@@ -212,9 +213,15 @@ Everything else is optional and clearly labelled as such: location (an
 approximate one is already detected from your network), flight and weather
 units, screen brightness, clock and date format, which idle scenes rotate on
 the display, a birthday date for the celebration scene, up to three
-date-triggered custom messages, and satellite tracking. Untouched sections keep their defaults. Skip the wizard with
-**Skip for now** - it stays available at `http://<pi-hostname>.local:8584/first-setup`
-until a web password is set - and change anything later on the Settings page.
+date-triggered custom messages, and satellite tracking. Untouched sections keep
+their defaults, and anything can be changed later on the Settings page.
+
+The wizard cannot be skipped. Until a web password other than the shared
+default is saved, every page redirects back to
+`http://<pi-hostname>.local:8584/first-setup` - including bookmarked URLs and
+direct links to the settings page - and form submissions are rejected. This
+also applies after **Prepare for Handoff**, so the next owner always sets their
+own password before using the tracker.
 
 ## Platform guides
 

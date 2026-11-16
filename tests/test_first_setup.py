@@ -195,13 +195,13 @@ class TestFirstSetupRoute:
         assert 'name="bonnet_type"' in text
         assert 'name="idle_screen_themes"' in text
 
-    def test_redirects_to_settings_once_complete(self, fresh_config):
+    def test_legacy_flag_alone_does_not_satisfy_the_wizard(self, fresh_config):
         fresh_config.set("first_setup_complete", True)
 
         resp = _authenticated_client().get("/first-setup")
 
-        assert resp.status_code == 302
-        assert resp.headers["Location"].endswith("/settings")
+        assert resp.status_code == 200
+        assert 'name="new_password"' in resp.get_data(as_text=True)
 
     def test_redirects_to_settings_when_password_already_set(self, fresh_config):
         fresh_config.set("web_password_hash", "deadbeef")
@@ -299,9 +299,7 @@ class TestFirstSetupRoute:
         assert fresh_config.get("birthday_date") == "2026-03-14"
         assert fresh_config.get("satellite_norad_ids") == [25544]
 
-    def test_skip_marks_complete_without_password_or_restart(
-        self, fresh_config, monkeypatch
-    ):
+    def test_skip_action_cannot_bypass_setup(self, fresh_config, monkeypatch):
         import web.app as web_app
 
         restart = MagicMock()
@@ -309,14 +307,14 @@ class TestFirstSetupRoute:
 
         resp = _authenticated_client().post(
             "/first-setup",
-            data=_wizard_form(action="skip"),
+            data={"csrf_token": "tok", "action": "skip"},
         )
 
-        assert resp.status_code == 302
-        assert resp.headers["Location"].endswith("/settings")
+        assert resp.status_code == 400
+        assert "bonnet" in resp.get_data(as_text=True).lower()
         restart.assert_not_called()
-        assert fresh_config.get("first_setup_complete") is True
         assert fresh_config.get("web_password_hash") is None
+        assert fresh_config.get("first_setup_complete") is not True
 
     def test_index_redirects_to_wizard_while_pending(self, fresh_config):
         import web.app as web_app
@@ -329,12 +327,57 @@ class TestFirstSetupRoute:
     def test_index_redirects_to_settings_once_complete(self, fresh_config):
         import web.app as web_app
 
-        fresh_config.set("first_setup_complete", True)
+        fresh_config.set("web_password_hash", "deadbeef")
 
         resp = web_app.app.test_client().get("/")
 
         assert resp.status_code == 302
         assert resp.headers["Location"].endswith("/settings")
+
+    def test_authenticated_settings_redirect_to_wizard_while_pending(
+        self, fresh_config
+    ):
+        resp = _authenticated_client().get("/settings")
+
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/first-setup")
+
+    def test_authenticated_posts_are_blocked_while_pending(self, fresh_config):
+        resp = _authenticated_client().post(
+            "/settings/reset", data={"csrf_token": "tok"}
+        )
+
+        assert resp.status_code == 403
+
+    def test_unauthenticated_requests_still_reach_the_login_page(self, fresh_config):
+        import web.app as web_app
+
+        resp = web_app.app.test_client().get("/settings")
+
+        assert resp.status_code == 302
+        assert "/login" in resp.headers["Location"]
+
+    def test_configured_unit_reaches_other_pages(self, fresh_config):
+        fresh_config.set("web_password_hash", "deadbeef")
+
+        resp = _authenticated_client().get("/logs")
+
+        assert resp.status_code == 200
+
+    def test_login_with_default_password_ignores_next(self, fresh_config):
+        import web.app as web_app
+
+        client = web_app.app.test_client()
+        with client.session_transaction() as sess:
+            sess["csrf_token"] = "tok"
+
+        resp = client.post(
+            "/login?next=/settings",
+            data={"csrf_token": "tok", "password": "flighttracker"},
+        )
+
+        assert resp.status_code == 302
+        assert resp.headers["Location"].endswith("/first-setup")
 
     def test_rejected_post_keeps_submitted_values(self, fresh_config):
         resp = _authenticated_client().post(

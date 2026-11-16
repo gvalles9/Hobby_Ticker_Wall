@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- The first-setup wizard is now mandatory until a web password other than the
+  shared default is saved. Every authenticated page request redirects back to
+  the wizard - including bookmarked URLs and `/login?next=...` targets - and
+  settings form submissions are rejected until setup is done. **Prepare for
+  Handoff** therefore always ends with the next owner choosing their own
+  password before they can use the tracker.
+
+### Removed
+
+- The wizard's **Skip for now** button. The legacy `first_setup_complete` flag
+  is still written for older config files but no longer satisfies the setup
+  gate; only a real password does.
+
+### Fixed
+
+- A bookmarked page or a direct link to `/settings` could bypass initial setup
+  and leave the unit running on the default web password.
+
 ## [1.1.1] - 2026-11-15
 
 ### Added

@@ -1058,12 +1058,45 @@ def handle_password_change(form, cfg) -> str:
 
 
 def _first_setup_pending(cfg) -> bool:
-    """True while the first-setup wizard should be offered.
+    """True until the web interface has a password other than the default.
 
-    The wizard is done once its flag is set, or as soon as any web password
-    exists (e.g. it was changed through the regular settings page).
+    The default password ("flighttracker") is represented by an empty
+    ``web_password_hash``, so the wizard stays pending until the owner
+    chooses a real password.  The legacy ``first_setup_complete`` flag is
+    kept for older config files but no longer satisfies this check: a
+    skipped wizard used to leave the unit on the shared default password.
     """
-    return not (cfg.first_setup_complete or cfg.get("web_password_hash"))
+    return not cfg.get("web_password_hash")
+
+
+# Endpoints that must stay reachable while the wizard is pending.  The
+# wizard itself and the login pages are obvious; the Wi-Fi setup page has
+# to work before anyone can log in, and /ping backs the restart screen.
+FIRST_SETUP_EXEMPT_ENDPOINTS = frozenset(
+    {"first_setup", "login", "logout", "static", "wifi_setup", "ping"}
+)
+
+
+@app.before_request
+def _force_first_setup():
+    """Keep an authenticated browser inside the wizard until setup is done.
+
+    Without this, only ``/`` and a login without a ``next`` argument sent
+    people to the wizard; any bookmarked URL (or ``/login?next=/settings``)
+    walked straight past it with the default password still in place.
+    Unauthenticated requests are left alone so the login flow and the
+    API-key endpoints keep working; every page that renders data is behind
+    ``login_required`` anyway.
+    """
+    if request.endpoint is None or request.endpoint in FIRST_SETUP_EXEMPT_ENDPOINTS:
+        return None
+    if not session.get("authenticated"):
+        return None
+    if not _first_setup_pending(Config.instance()):
+        return None
+    if request.method in ("GET", "HEAD"):
+        return redirect(url_for("first_setup"))
+    abort(403, description="Finish initial setup before changing settings.")
 
 
 def _default_landing() -> str:
@@ -1155,14 +1188,6 @@ def first_setup():
             if not validate_csrf(form):
                 raise ValueError("Invalid CSRF token.")
 
-            if form.get("action") == "skip":
-                # Skipping only records that the wizard was seen; no
-                # display-affecting value changes, so no restart.
-                cfg.set("first_setup_complete", True)
-                cfg.save()
-                logger.info("First-setup wizard skipped")
-                return redirect(url_for("settings"))
-
             bonnet = str_val(form.get("bonnet_type"), "").lower()
             if bonnet not in BONNET_TYPES:
                 raise ValueError("Choose which bonnet your display uses.")
@@ -1228,7 +1253,13 @@ def login():
             if check_password(password):
                 session["authenticated"] = True
                 logger.info("Login successful")
-                next_url = request.args.get("next") or _default_landing()
+                # The wizard takes priority over any ?next= target, so a
+                # bookmarked page cannot skip initial setup.
+                next_url = (
+                    url_for("first_setup")
+                    if _first_setup_pending(Config.instance())
+                    else request.args.get("next") or _default_landing()
+                )
                 return redirect(next_url)
             else:
                 logger.warning("Login failed - wrong password")

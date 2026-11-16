@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.4] - 2026-11-15
+
 ### Changed
 
 - Resetting settings - or preparing the unit for handoff - no longer wipes the

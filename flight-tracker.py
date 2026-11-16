@@ -197,7 +197,7 @@ def render_splash(
             i = (y * splash.width + x) * 3
             panel.set_pixel(canvas, px, y, pixels[i], pixels[i + 1], pixels[i + 2])
 
-    from setup.colours import WHITE
+    from setup.colours import BLACK, WHITE
 
     for y in range(15):
         for x in range(splash.width):
@@ -232,13 +232,26 @@ def render_splash(
                     v = 0 if cell else 255
                     panel.set_pixel(canvas, px, py, v, v, v)
         if wifi_setup:
+            # Keep the text clear of the splash artwork (left panel) and of
+            # the QR itself.  The QR carries the Wi-Fi credentials, so the
+            # middle panel says what to do and the white strip under the QR
+            # carries the address to open afterwards.
+            if screen.WIDTH > screen.PANEL_WIDTH:
+                panel.draw_text(
+                    canvas,
+                    loading_font,
+                    screen.PANEL_WIDTH + 8,
+                    18,
+                    WHITE,
+                    "SCAN TO JOIN",
+                )
             panel.draw_text(
                 canvas,
                 loading_font,
-                1,
-                26,
-                WHITE,
-                "JOIN, OPEN 192.168.4.1:8584",
+                qr_panel_x,
+                31,
+                BLACK,
+                "192.168.4.1:8584",
             )
     else:
         # Show loading status and the product version on the middle panel.

@@ -134,6 +134,53 @@ def test_splash_wifi_setup_qr_contains_wifi_credentials_and_portal_hint():
     assert any("192.168.4.1:8584" in text for _, _, text in panel.text)
 
 
+def test_splash_wifi_caption_keeps_clear_of_the_artwork():
+    """The hotspot hint must not run through the splash artwork.
+
+    The old caption started at x=1, baseline 26, and ran 108 px to the
+    right - straight through the arrow and colour bars in the bottom-left
+    corner, which made both illegible.
+    """
+    panel = _SplashPanel()
+
+    class FakeImageModule:
+        @staticmethod
+        def open(path):
+            return _SplashImage()
+
+    flight_tracker_module.render_splash(
+        panel,
+        "canvas",
+        FakeImageModule,
+        "font",
+        url="http://192.168.4.1:8584/wifi-setup",
+        qrcode=_fake_qrcode([[True, False], [False, True]]),
+        ERROR_CORRECT_L=1,
+        wifi_setup={"ssid": "F1234", "password": "Ab12Cd34X"},
+    )
+
+    assert (screen.PANEL_WIDTH + 8, 18, "SCAN TO JOIN") in panel.text
+    assert (
+        screen.WIDTH - screen.PANEL_WIDTH,
+        31,
+        "192.168.4.1:8584",
+    ) in panel.text
+
+    # Only the branding is drawn over the splash artwork's panel.
+    artwork_panel = [text for x, _, text in panel.text if x < screen.PANEL_WIDTH]
+    assert artwork_panel == ["HOBBY TICKER"]
+
+
+def test_splash_wifi_caption_fits_inside_the_qr_panel():
+    from display.bdf_font import BDFFont
+
+    font_path = Path(__file__).resolve().parents[1] / "fonts" / "4x6.bdf"
+    font = BDFFont(str(font_path))
+    advance = sum(font.get_glyph(ord(ch)).dwidth for ch in "192.168.4.1:8584")
+
+    assert advance <= screen.PANEL_WIDTH
+
+
 def test_pygame_close_resets_simulator_config(monkeypatch):
     saved = []
     cfg = types.SimpleNamespace(

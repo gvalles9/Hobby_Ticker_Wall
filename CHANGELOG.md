@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The setup-hotspot splash printed "JOIN, OPEN 192.168.4.1:8584" from the left
+  edge, straight through the arrow and colour bars in the splash artwork, so
+  both were hard to read. The instruction now sits on the middle panel
+  ("SCAN TO JOIN") and the address is printed in black on the white strip
+  below the QR code, clear of the artwork and of the code itself.
+
 ## [1.1.2] - 2026-11-15
 
 ### Changed

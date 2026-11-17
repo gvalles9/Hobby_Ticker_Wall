@@ -14,7 +14,7 @@ def test_update_info_checks_the_hobby_ticker_main_branch(monkeypatch):
         ]
     )
 
-    def run_git(args, timeout=60):
+    def run_git(args, timeout=60, **kwargs):
         calls.append(args)
         return next(responses)
 
@@ -81,7 +81,7 @@ def test_perform_update_fast_forwards_upstream_and_installs_dependencies(
     )
     git_calls = []
 
-    def run_git(args, timeout=60):
+    def run_git(args, timeout=60, **kwargs):
         git_calls.append(args)
         return next(responses)
 
@@ -123,7 +123,9 @@ def test_perform_update_refreshes_privileged_helpers(monkeypatch, tmp_path):
             (True, "abcdef1"),
         ]
     )
-    monkeypatch.setattr(updater, "_run_git", lambda args, timeout=60: next(responses))
+    monkeypatch.setattr(
+        updater, "_run_git", lambda args, timeout=60, **kwargs: next(responses)
+    )
     monkeypatch.setattr(
         updater.subprocess,
         "run",
@@ -154,7 +156,7 @@ def test_update_info_repoints_an_existing_upstream_remote_to_the_fork(monkeypatc
         ]
     )
 
-    def run_git(args, timeout=60):
+    def run_git(args, timeout=60, **kwargs):
         calls.append(args)
         return next(responses)
 
@@ -170,3 +172,36 @@ def test_update_info_repoints_an_existing_upstream_remote_to_the_fork(monkeypatc
         "hobby-ticker",
         updater.GITHUB_REPOSITORY_URL,
     ] in calls
+
+
+def test_missing_update_remote_is_added_without_logging_an_error(monkeypatch, caplog):
+    """A fresh checkout has no hobby-ticker remote yet - that is not an error."""
+    import logging
+
+    from utilities import updater
+
+    calls = []
+
+    def fake_run(cmd, **kwargs):
+        calls.append(cmd)
+        if cmd[-2:] == ["get-url", "hobby-ticker"]:
+            return subprocess.CompletedProcess(
+                cmd, 2, "", "error: No such remote 'hobby-ticker'"
+            )
+        return subprocess.CompletedProcess(cmd, 0, "", "")
+
+    monkeypatch.setattr(updater.subprocess, "run", fake_run)
+
+    with caplog.at_level(logging.DEBUG, logger="updater"):
+        ok, message = updater._ensure_update_remote()
+
+    assert ok is True
+    assert message == ""
+    assert calls == [
+        ["git", "remote", "get-url", "hobby-ticker"],
+        ["git", "remote", "add", "hobby-ticker", updater.GITHUB_REPOSITORY_URL],
+    ]
+    assert not [r for r in caplog.records if r.levelno >= logging.ERROR]
+    assert any(
+        "returned rc=2" in r.getMessage() for r in caplog.records
+    ), "the probe should still leave a debug trace"

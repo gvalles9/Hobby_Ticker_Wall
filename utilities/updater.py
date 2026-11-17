@@ -91,7 +91,10 @@ def version_string(version: list[int]) -> str:
 
 def _ensure_update_remote() -> tuple[bool, str]:
     """Make the updater's remote point at this fork, not an upstream project."""
-    ok, remote_url = _run_git(["remote", "get-url", UPDATE_REMOTE])
+    # A missing remote is the normal state of a fresh checkout, so probe
+    # quietly - the old error line looked like a failure even though the
+    # updater immediately added the remote and carried on.
+    ok, remote_url = _run_git(["remote", "get-url", UPDATE_REMOTE], log_failure=False)
     if not ok:
         return _run_git(["remote", "add", UPDATE_REMOTE, GITHUB_REPOSITORY_URL])
     if remote_url.rstrip("/").removesuffix(".git") != GITHUB_REPOSITORY_URL:
@@ -176,8 +179,15 @@ def detect_platform() -> str:
 # ---------------------------------------------------------------------------
 
 
-def _run_git(args: list[str], timeout: int = 60) -> tuple[bool, str]:
-    """Run a git command in the project root. Returns (success, output)."""
+def _run_git(
+    args: list[str], timeout: int = 60, *, log_failure: bool = True
+) -> tuple[bool, str]:
+    """Run a git command in the project root. Returns (success, output).
+
+    Set *log_failure* to False for probes where a non-zero exit is an
+    expected answer rather than an error (for example asking whether an
+    optional remote exists yet).
+    """
     cmd = ["git"] + args
     try:
         result = subprocess.run(
@@ -189,9 +199,20 @@ def _run_git(args: list[str], timeout: int = 60) -> tuple[bool, str]:
         )
         output = (result.stdout + result.stderr).strip()
         if result.returncode != 0:
-            logger.error(
-                "git %s failed (rc=%d): %s", " ".join(args), result.returncode, output
-            )
+            if log_failure:
+                logger.error(
+                    "git %s failed (rc=%d): %s",
+                    " ".join(args),
+                    result.returncode,
+                    output,
+                )
+            else:
+                logger.debug(
+                    "git %s returned rc=%d: %s",
+                    " ".join(args),
+                    result.returncode,
+                    output,
+                )
             return False, output
         logger.info("git %s succeeded: %s", " ".join(args), output)
         return True, output

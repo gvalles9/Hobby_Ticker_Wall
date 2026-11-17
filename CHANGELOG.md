@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The update check no longer logs a red "No such remote 'hobby-ticker'" error
+  on a freshly cloned unit. A missing update remote is normal before the first
+  check, so it is now probed quietly and then created exactly as before; the
+  update itself was never affected.
+
 ## [1.1.8] - 2026-11-17
 
 ### Fixed

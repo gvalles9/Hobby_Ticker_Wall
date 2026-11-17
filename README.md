@@ -47,7 +47,7 @@ dimensions in `setup/screen.py` to match the panels you use.
 | [Aclorol 5 V 20 A (100 W) switching power supply](https://www.amazon.com/dp/B07KC55TJF) | 110/220 V AC in, 5 V DC out. Set the output to 5.0 V before connecting anything. |
 | [Vockjour 16/3 pigtail power cord](https://www.amazon.com/dp/B0FKT6242L) | 6 ft, 16 AWG, three-prong, open end. Wires mains into the power supply. |
 | [Teansic micro USB male to 2-pin screw-terminal adapters](https://www.amazon.com/dp/B0H3KY72XV) | 10-pack. Feeds 5 V from the supply into the Pi's micro USB power socket without soldering. |
-| [HONENCN 18 AWG 2-conductor wire](https://www.amazon.com/dp/B0DS13R93H) | 30 ft, 18/2 flexible PVC, copper-clad aluminium. Runs 5 V from the supply to the micro USB adapter. |
+| [HONENCN 18 AWG 2-conductor wire](https://www.amazon.com/dp/B0DS13R93H) | 30 ft, 18/2 flexible PVC, copper-clad aluminium, red and black conductors. Runs 5 V from the supply to the micro USB adapter. |
 | microSD card | 16 GB or larger, with Raspberry Pi OS. |
 | HUB75 ribbon cables | Normally supplied with the bonnet and panels. |
 
@@ -71,10 +71,11 @@ panels. The 5 V supply feeds the three panels and the Pi.
    to the black or `-` conductor. A distribution block or bus bar makes the
    three panel feeds easier if the terminals are crowded.
 4. **Pi feed.** Run the 18 AWG wire from `+V`/`-V` to the Teansic
-   screw-terminal adapter, then plug it into the Pi's micro USB socket. Before
-   the first connection, check the adapter with a multimeter: the terminal
-   that reaches micro USB pin 1 is +5 V and the other is ground. Reversed
-   polarity can destroy the Pi.
+   screw-terminal adapter: the **red conductor goes to `+`** (micro USB pin 1,
+   VBUS) and the **black conductor goes to `-`** (micro USB pin 5, GND). The
+   adapter's screws may not be marked, so confirm with a multimeter before
+   plugging it into the Pi: the terminal that reaches micro USB pin 1 must be
+   the one you wired red. Reversed polarity can destroy the Pi.
 5. **Set the output.** With the Pi and panels still disconnected, plug the
    supply in and turn the small trim screw until the output measures 5.0 V.
    Unplug it, connect everything, then check again at the Pi end under load;

@@ -42,13 +42,14 @@ dimensions in `setup/screen.py` to match the panels you use.
 | Part | Notes |
 |------|-------|
 | Raspberry Pi 3 B+ | Runs the tracker and drives the panels. Pi 4 and Zero 2 W use the same install; Pi 5 has its own guide. |
-| 3 × P5 64×32 HUB75 RGB LED matrix panels | 320×160 mm each, chained horizontally for a 192×32 display. [AliExpress listing used for this build](https://www.aliexpress.us/item/2251832449878455.html). |
-| [Adafruit Triple LED Matrix Bonnet](https://www.adafruit.com/product/6358) | Three HUB75 outputs ("active3" pinout), one per panel. |
+| [2×20 socket riser header](https://www.adafruit.com/product/4079) | Lifts the Triple Bonnet clear of the Pi 3 B+'s taller components. |
+| 3 × [P5 Indoor 3-in-1 RGB SMD modules](https://www.aliexpress.us/item/2251832449878455.html) | P5-320X160-16S: 64×32 pixels, 320×160 mm each, 1/16 scan, HUB75, about 500 cd/m². Chained horizontally for a 192×32 display. |
+| [Adafruit Triple LED Matrix Bonnet](https://www.adafruit.com/product/6358) | Three HUB75 outputs ("active3" pinout), one per panel. See the [Adafruit wiring guide](https://learn.adafruit.com/adafruit-triple-led-matrix-bonnet-for-raspberry-pi-with-hub75/wiring) for the ribbon cables. |
 | [Aclorol 5 V 20 A (100 W) switching power supply](https://www.amazon.com/dp/B07KC55TJF) | 110/220 V AC in, 5 V DC out. Set the output to 5.0 V before connecting anything. |
 | [Vockjour 16/3 pigtail power cord](https://www.amazon.com/dp/B0FKT6242L) | 6 ft, 16 AWG, three-prong, open end. Wires mains into the power supply. |
 | [Teansic micro USB male to 2-pin screw-terminal adapters](https://www.amazon.com/dp/B0H3KY72XV) | 10-pack. Feeds 5 V from the supply into the Pi's micro USB power socket without soldering. |
 | [HONENCN 18 AWG 2-conductor wire](https://www.amazon.com/dp/B0DS13R93H) | 30 ft, 18/2 flexible PVC, copper-clad aluminium, red and black conductors. Runs 5 V from the supply to the micro USB adapter. |
-| microSD card | 16 GB or larger, with Raspberry Pi OS. |
+| microSD card | 16 GB minimum (Class 10 recommended), with Raspberry Pi OS. |
 | HUB75 ribbon cables | Normally supplied with the bonnet and panels. |
 
 The 5 V supply feeds the panels and the Pi. Check the polarity of the pigtail
@@ -59,6 +60,11 @@ side of the supply enclosed and strain-relieved.
 
 The bonnet carries only the panel data and logic; it does not power the
 panels. The 5 V supply feeds the three panels and the Pi.
+
+> **Warning:** this build connects to mains voltage. If you are not
+> comfortable working with mains wiring, have the supply wired by a qualified
+> person. Use an earthed, enclosed supply, keep the mains terminals covered,
+> and leave ventilation around the supply.
 
 1. **Match the mains voltage.** Set the selector on the supply to `110V` for
    North America (or `220V` where that is the mains voltage) before anything
@@ -83,7 +89,17 @@ panels. The 5 V supply feeds the three panels and the Pi.
 
 The panel power connectors are keyed, so keep the same conductor on `+V` for
 every panel. The HUB75 ribbon cables carry data only; connect each bonnet
-output to a panel input, with port 2 going to the centre panel.
+output to a panel input, with port 2 going to the centre panel. The
+[Adafruit wiring guide](https://learn.adafruit.com/adafruit-triple-led-matrix-bonnet-for-raspberry-pi-with-hub75/wiring)
+has photos of the cable orientation.
+
+### Enclosure
+
+The reference unit uses a custom wooden box rather than the original
+project's 3D-printed case. A photo of the finished enclosure will be added
+later, along with STL files for the custom 3D-printed mounting brackets if
+they are published. Leave ventilation around the power supply and keep the
+mains terminals covered inside the box.
 
 ## Installation
 
@@ -104,7 +120,7 @@ you want them on the unit.
 
 - A Raspberry Pi 3, 4, or 5 with an Adafruit RGB Matrix Bonnet/HAT and the
   panel chain connected.
-- A microSD card (8 GB minimum, Class 10 recommended) and a card reader.
+- A microSD card (16 GB minimum, Class 10 recommended) and a card reader.
 - [Raspberry Pi Imager](https://www.raspberrypi.com/software/).
 - A 2.4 GHz Wi-Fi network (or Ethernet) and internet access during first boot.
 

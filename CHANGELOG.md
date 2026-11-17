@@ -17,11 +17,13 @@ adopted.)
 ### Added
 
 - A **Materials used** table in the README lists the hardware the reference
-  build uses: the Raspberry Pi, three P5 64×32 HUB75 panels, the Adafruit
-  Triple LED Matrix Bonnet, the 5 V power supply and its mains cord, the
-  18 AWG wire and micro USB screw-terminal adapter that feed the Pi, and the
-  microSD card. A short **Power wiring** walkthrough covers the mains input,
-  the panel feeds and the Pi feed.
+  build uses: the Raspberry Pi, a 2×20 riser header, three P5-320X160-16S
+  64×32 HUB75 panels, the Adafruit Triple LED Matrix Bonnet, the 5 V power
+  supply and its mains cord, the 18 AWG wire and micro USB screw-terminal
+  adapter that feed the Pi, and a 16 GB microSD card. A short **Power
+  wiring** walkthrough covers the mains input, the panel feeds and the Pi
+  feed, with a mains safety warning, and an **Enclosure** note records the
+  custom wooden box.
 
 ## [1.3.1] - 2026-11-17
 

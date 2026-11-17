@@ -229,7 +229,9 @@ WEATHERAPI_URL = (
     "?key={key}&q={lat},{lng}&days=3&aqi=no&alerts=no"
 )
 NOAA_POINTS_URL = "https://api.weather.gov/points/{lat},{lng}"
-NOAA_USER_AGENT = "FlightTracker/1.0 (https://github.com/ColinWaddell/FlightTracker)"
+# NWS asks for a User-Agent that identifies the app and a way to reach its
+# maintainer.  Point it at this fork, not the upstream project it is based on.
+NOAA_USER_AGENT = "HobbyTicker/1.0 (+https://github.com/gvalles9/Hobby_Ticker_Wall)"
 _logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -462,6 +464,25 @@ def _noaa_json(url: str) -> dict:
         return json.loads(response.read().decode())
 
 
+def _optional_noaa_json(url: str | None, label: str) -> dict:
+    """Fetch an optional NWS document, returning ``{}`` if unavailable.
+
+    NWS serves the gridpoint documents independently, and one can return
+    503 while the others are healthy - the hourly forecast is the usual
+    culprit.  Weather should degrade to whatever is available instead of
+    disappearing for the whole refresh interval.
+    """
+    if not url:
+        return {}
+    try:
+        return _noaa_json(url)
+    except Exception:
+        _logger.warning(
+            "NOAA %s unavailable; continuing without it", label, exc_info=True
+        )
+        return {}
+
+
 def _noaa_observation_value(observation: dict, key: str) -> float | None:
     value = observation.get(key, {}).get("value")
     return _coerce(value, float, None)
@@ -561,12 +582,20 @@ def _parse_noaa_weather(
         )
     if observation is None and hourly_periods:
         period = hourly_periods[0]
+    elif observation is None and daily_periods:
+        # The hourly endpoint is the one NWS most often fails; the first
+        # daily period still gives a usable current temperature/condition.
+        period = daily_periods[0]
+    else:
+        period = None
+
+    if observation is None and period is not None:
         temp_c = _noaa_temp_c(period.get("temperature"), period.get("temperatureUnit"))
         current_description = period.get("shortForecast", "")
         current = {
             "temp_c": _coerce(temp_c, float, None),
             "humidity": _coerce(
-                period.get("relativeHumidity", {}).get("value"), float, None
+                (period.get("relativeHumidity") or {}).get("value"), float, None
             ),
             "wind_kph": _noaa_wind_kph(period.get("windSpeed")),
             "wind_degree": None,
@@ -780,8 +809,14 @@ class WeatherService(threading.Thread):
                         )
                     )
                     point_properties = point["properties"]
-                    hourly_forecast = _noaa_json(point_properties["forecastHourly"])
-                    daily_forecast = _noaa_json(point_properties["forecast"])
+                    # Each gridpoint document is optional: NWS can serve
+                    # one and fail another (hourly 503 while daily is fine).
+                    hourly_forecast = _optional_noaa_json(
+                        point_properties.get("forecastHourly"), "hourly forecast"
+                    )
+                    daily_forecast = _optional_noaa_json(
+                        point_properties.get("forecast"), "daily forecast"
+                    )
                     observations = None
                     try:
                         stations = _noaa_json(point_properties["observationStations"])
@@ -793,19 +828,14 @@ class WeatherService(threading.Thread):
                             )
                     except Exception:
                         _logger.warning(
-                            "NOAA observation fetch failed; using hourly forecast "
+                            "NOAA observation fetch failed; using the forecast "
                             "for current conditions",
                             exc_info=True,
                         )
-                    grid_data = None
-                    try:
-                        grid_data = _noaa_json(point_properties["forecastGridData"])
-                    except Exception:
-                        _logger.warning(
-                            "NOAA precipitation forecast fetch failed; rainfall "
-                            "amounts will be unavailable",
-                            exc_info=True,
-                        )
+                    grid_data = _optional_noaa_json(
+                        point_properties.get("forecastGridData"),
+                        "precipitation forecast",
+                    )
                     parsed = _parse_noaa_weather(
                         hourly_forecast,
                         daily_forecast,

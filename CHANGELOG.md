@@ -14,6 +14,23 @@ adopted.)
 
 ## [Unreleased]
 
+### Fixed
+
+- Weather no longer disappears when the National Weather Service is serving only
+  part of a forecast. NWS publishes the hourly, daily and precipitation
+  documents separately and can return 503 for one while the others are healthy;
+  the hourly forecast is the usual casualty. Each document is now optional, and
+  when the hourly forecast is unavailable the current temperature, wind and
+  condition come from the first daily period instead of the whole weather row
+  going blank.
+
+### Changed
+
+- User-Agent strings and support links now point at this fork instead of the
+  upstream FlightTracker repository, so NWS and CelesTrak traffic and bug
+  reports reach the project that actually runs the code. Attribution to Colin
+  Waddell is unchanged.
+
 ## [1.2.1] - 2026-11-17
 
 ### Fixed

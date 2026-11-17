@@ -151,6 +151,70 @@ def test_weather_service_uses_noaa_without_weatherapi_key(monkeypatch):
     assert service.get()["temp_c"] == 20
 
 
+def test_weather_service_degrades_when_hourly_forecast_is_unavailable(monkeypatch):
+    """A 503 from the hourly endpoint must not blank the whole weather row.
+
+    NWS serves the gridpoint documents independently and regularly fails the
+    hourly forecast while the daily forecast is healthy.  The classic idle
+    screen only needs the current conditions, which the daily period supplies.
+    """
+    import urllib.error
+
+    now = datetime.datetime.now(datetime.timezone.utc).replace(
+        minute=0, second=0, microsecond=0
+    )
+    point_url = theme_utilities.NOAA_POINTS_URL.format(lat=39.7, lng=-97.1)
+    responses = {
+        point_url: {
+            "properties": {
+                "forecastHourly": "hourly",
+                "forecast": "daily",
+                "forecastGridData": "grid",
+                "observationStations": "stations",
+            }
+        },
+        "daily": {
+            "properties": {
+                "periods": [
+                    {
+                        "startTime": now.isoformat(),
+                        "temperature": 68,
+                        "temperatureUnit": "F",
+                        "isDaytime": True,
+                        "shortForecast": "Sunny",
+                    }
+                ]
+            }
+        },
+        "stations": {"features": []},
+        "grid": {"properties": {"quantitativePrecipitation": {"values": []}}},
+    }
+
+    def fake_noaa(url):
+        if url == "hourly":
+            raise urllib.error.HTTPError(url, 503, "Service Unavailable", {}, None)
+        return responses[url]
+
+    monkeypatch.setattr(theme_utilities, "_noaa_json", fake_noaa)
+    monkeypatch.setattr(
+        "setup.configuration.Config.instance",
+        lambda: SimpleNamespace(
+            weatherapi_key="",
+            observer_lat=39.7,
+            observer_lng=-97.1,
+        ),
+    )
+
+    service = theme_utilities.WeatherService()
+    service.do_fetch()
+
+    parsed = service.get()
+    assert parsed is not None
+    assert parsed["temp_c"] == 20
+    assert parsed["description"] == "Sunny"
+    assert parsed["hourly"] == []
+
+
 def test_weather_service_uses_weatherapi_when_key_is_configured(monkeypatch):
     requested = []
 

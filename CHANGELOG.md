@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.10] - 2026-11-17
+
 ### Fixed
 
 - The settings menu on the left of the browser UI now scrolls on its own when

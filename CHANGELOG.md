@@ -24,6 +24,23 @@ adopted.)
   wiring** walkthrough covers the mains input, the panel feeds and the Pi
   feed, with a mains safety warning, and an **Enclosure** note records the
   custom wooden box.
+- The README's settings reference now documents `display_scan_rate` and
+  `panel_colour_order`.
+
+### Changed
+
+- The README moved the flight-display description out of the tar1090 section
+  into its own **Flight display** section, standardised arrow characters, and
+  clarified the mains-cord colours, the scan-rate default and the reset
+  instructions. The prebuilt-image note now says the image installs `main`
+  without maintainer instructions in the install steps, and the riser header is
+  listed in the install requirements.
+
+### Removed
+
+- The README no longer carries the unverified "everything looks red" power
+  troubleshooting tip, and the unused `assets/flight-tracker-case.jpg` was
+  deleted.
 
 ## [1.3.1] - 2026-11-17
 

@@ -36,8 +36,9 @@ and driver background: [build guide](https://flight-tracker.dev/build/) ·
 ## Materials used
 
 This is the hardware the reference Hobby Ticker build was put together with.
-Equivalent parts work too; the only thing the software needs is for the chain
-dimensions in `setup/screen.py` to match the panels you use.
+Equivalent parts work too. Whatever you use, the chain dimensions in
+`setup/screen.py`, the bonnet type, scan rate, panel colour order and GPIO
+slowdown have to match your hardware.
 
 | Part | Notes |
 |------|-------|
@@ -47,7 +48,7 @@ dimensions in `setup/screen.py` to match the panels you use.
 | [Adafruit Triple LED Matrix Bonnet](https://www.adafruit.com/product/6358) | Three HUB75 outputs ("active3" pinout), one per panel. See the [Adafruit wiring guide](https://learn.adafruit.com/adafruit-triple-led-matrix-bonnet-for-raspberry-pi-with-hub75/wiring) for the ribbon cables. |
 | [Aclorol 5 V 20 A (100 W) switching power supply](https://www.amazon.com/dp/B07KC55TJF) | 110/220 V AC in, 5 V DC out. Set the output to 5.0 V before connecting anything. |
 | [Vockjour 16/3 pigtail power cord](https://www.amazon.com/dp/B0FKT6242L) | 6 ft, 16 AWG, three-prong, open end. Wires mains into the power supply. |
-| [Teansic micro USB male to 2-pin screw-terminal adapters](https://www.amazon.com/dp/B0H3KY72XV) | 10-pack. Feeds 5 V from the supply into the Pi's micro USB power socket without soldering. |
+| [Teansic micro USB male to 2-pin screw-terminal adapters](https://www.amazon.com/dp/B0H3KY72XV) | 10-pack; one is enough. Feeds 5 V from the supply into the Pi's micro USB power socket without soldering. |
 | [HONENCN 18 AWG 2-conductor wire](https://www.amazon.com/dp/B0DS13R93H) | 30 ft, 18/2 flexible PVC, copper-clad aluminium, red and black conductors. Runs 5 V from the supply to the micro USB adapter. |
 | microSD card | 16 GB minimum (Class 10 recommended), with Raspberry Pi OS. |
 | HUB75 ribbon cables | Normally supplied with the bonnet and panels. |
@@ -69,9 +70,11 @@ panels. The 5 V supply feeds the three panels and the Pi.
 1. **Match the mains voltage.** Set the selector on the supply to `110V` for
    North America (or `220V` where that is the mains voltage) before anything
    is connected. Keep the supply unplugged from the wall while wiring.
-2. **Mains in.** Connect the Vockjour cord to the input terminals: black to
-   `L`, white to `N`, green to the earth terminal (`⏚`). Fit a strain relief
-   and keep this side enclosed.
+2. **Mains in.** Connect the cord to the input terminals, following the
+   markings on the supply. On a US-style three-prong cord that is black to
+   `L`, white to `N`, and green to the earth terminal (`⏚`); cords in other
+   regions use different colours, so trust the terminal markings over the
+   colours. Fit a strain relief and keep this side enclosed.
 3. **5 V out.** Connect the three panel power leads and the Pi feed to the
    output: `+V` to the red or `+` conductor, `-V` (sometimes labelled `COM`)
    to the black or `-` conductor. A distribution block or bus bar makes the
@@ -112,14 +115,15 @@ command line is required.
 The image does **not** contain a pinned copy of the application. On first boot
 it clones the latest `main` branch of
 [`gvalles9/Hobby_Ticker_Wall`](https://github.com/gvalles9/Hobby_Ticker_Wall)
-and installs it. This means application-only changes do not require a new OS
-image build - but **commit and push your changes to `main` before flashing** if
-you want them on the unit.
+and installs it, so application-only changes do not require a new OS image
+build.
 
 #### What you need
 
 - A Raspberry Pi 3, 4, or 5 with an Adafruit RGB Matrix Bonnet/HAT and the
   panel chain connected.
+- On a Pi 3 B+, a [2×20 riser header](https://www.adafruit.com/product/4079) to
+  lift the bonnet clear of the board.
 - A microSD card (16 GB minimum, Class 10 recommended) and a card reader.
 - [Raspberry Pi Imager](https://www.raspberrypi.com/software/).
 - A 2.4 GHz Wi-Fi network (or Ethernet) and internet access during first boot.
@@ -293,7 +297,7 @@ rotate on the display, a birthday date for the celebration scene, up to three
 date-triggered custom messages, and satellite tracking. Untouched sections keep
 their defaults, and anything can be changed later on the Settings page.
 
-The **Time zone** picker (Settings -> System -> Defaults -> Clock and Date) accepts any
+The **Time zone** picker (Settings → System → Defaults → Clock and Date) accepts any
 IANA name such as `America/New_York` or `America/Chicago`. Leaving it blank
 follows the Pi's system time zone. **Use network location** next to the field
 asks the same IP lookup the tracker already uses for the flight location and
@@ -331,6 +335,18 @@ references; for an automated install, use the Hobby Ticker commands above.
 
 ## Optional features
 
+### Flight display
+
+The flight display's upper-right panel shows four configurable flight data
+fields (default: heading, vertical speed, altitude, and ground speed); choose
+the fields under **Sky Monitoring → Plane Info Row → Flight Data Panel**.
+Choose separate Metric/Standard measurement profiles for flight scenes and idle
+screens under **Hardware → Defaults → Screen Units**. The bottom pixel row shows
+approximate route progress, estimated from the aircraft's direct distance from
+the origin relative to the origin-to-destination distance. The bar is hidden
+when the aircraft position or airport coordinates are unavailable; it does not
+represent the exact route flown.
+
 ### Loading LED
 
 An LED wired to a GPIO pin can blink while flight data is loading. Enable it in the web UI under Hardware settings, and set the GPIO pin number to match your wiring.
@@ -345,8 +361,6 @@ The default idle screen alternates between the Classic display and a 3-day forec
 ### Using a local ADS-B receiver (tar1090)
 
 By default the tracker pulls flight data from FlightRadar24. If you run your own ADS-B receiver with [tar1090](https://github.com/wiedehopf/tar1090) or a compatible [PiAware](https://www.flightaware.com/adsb/piaware/) / [dump1090-fa](https://github.com/flightaware/dump1090) setup, you can use that as your primary data source instead - no FlightRadar24 account or API access required.
-
-The flight display's upper-right panel shows four configurable flight data fields (default: heading, vertical speed, altitude, and ground speed); choose fields under **Sky Monitoring → Plane Info Row → Flight Data Panel**. Choose separate Metric/Standard measurement profiles for flight scenes and idle screens under **Hardware → Defaults → Screen Units**. The bottom pixel row shows approximate route progress, estimated from the aircraft's direct distance from the origin relative to the origin-to-destination distance. The bar is hidden when the aircraft position or airport coordinates are unavailable; it does not represent the exact route flown.
 
 #### What you need
 
@@ -385,7 +399,7 @@ Once you have the URL, open the web UI and go to **Providers** → **Provider Se
 #### What you need
 
 - A free account at [opensky-network.org](https://opensky-network.org)
-- An API client created under Account -> API Clients (gives you a Client ID and Client Secret)
+- An API client created under Account → API Clients (gives you a Client ID and Client Secret)
 
 #### Enabling OpenSky Network
 
@@ -502,21 +516,15 @@ sudo systemctl restart FlightTracker.service
 - **The display is scrambled or shows the wrong panels:**
   Check **Settings → Hardware → LED Matrix Bonnet**. Choose **Single Bonnet** for the standard Adafruit RGB Matrix Bonnet/HAT, or **Triple Bonnet** for the Adafruit Triple LED Matrix Bonnet with all three panels daisy-chained from port 1.
 
-- **Everything looks red**:
-  Your power supply isn't supplying enough power to the screen.
-
-- **I changed a setting now the device won't start:**
-  Reset your settings by deleting your config and rebooting
+- **I changed a setting and now the device won't start:**
+  Reset the saved settings and reboot. This deletes `config.json`, so the setup
+  wizard runs again on the next boot:
 
 ```bash
-# Before v2.3.0
-rm ~/.local/share/FlightTracker/config.json
-sudo reboot
-
-# After v2.3.0
 cd ~/FlightTracker
 source env/bin/activate
 python flight-tracker.py reset settings
+sudo reboot
 ```
 
 - **The panel says `<SCENE> FAILED` and `SEE LOG VIEWER`:**
@@ -528,7 +536,7 @@ python flight-tracker.py reset settings
   same scene keeps failing after an update, report the message and the log
   entry.
 
-- **Everything is broken and it wont boot:**
+- **Everything is broken and it won't boot:**
   If you are using the upstream FlightTracker release, [report the issue there](https://github.com/ColinWaddell/FlightTracker/issues/new?template=bug_report.yml). For Hobby Ticker-specific changes, report it in your fork. The most useful diagnostic output comes from running the program manually:
 
 ```bash
@@ -550,9 +558,7 @@ python flight-tracker.py config
 sudo systemctl start FlightTracker.service
 ```
 
-
 ---
-
 
 ## Settings reference
 
@@ -598,6 +604,8 @@ This table is for reference if you've disabled the web interface (`web_interface
 | `web_port` | TCP port for the Flask config server (1024-65535) | `8584` |
 | `web_password_hash` | SHA-256 hash for the web UI password | `""` |
 | `gpio_slowdown` | `1`-`4`; increase if the display flickers | `1` |
+| `display_scan_rate` | Panel multiplexing: `16` (1/16, what the P5-320X160-16S uses) or `32` (1/32, often marked `32S`) | `16` |
+| `panel_colour_order` | Panel LED wiring order, a permutation of `RGB`; change it if red and blue are swapped | `"RGB"` |
 | `hat_pwm_enabled` | Enable PWM via Pi audio hardware (requires a solder bridge) | `true` |
 | `bonnet_type` | LED matrix bonnet family: `"single"` for the standard Adafruit RGB Matrix Bonnet/HAT, or `"triple"` for the Adafruit Triple LED Matrix Bonnet (panels daisy-chained from port 1) | `"triple"` |
 | `loading_indicator` | Loading indicator mode: `"none"`, `"pixel"` (on-screen blink), or `"gpio"` (external LED) | `"pixel"` |
@@ -621,6 +629,9 @@ This table is for reference if you've disabled the web interface (`web_interface
 ## Contributing
 
 If you'd like to contribute to Hobby Ticker, please use the issue and pull-request tools for your fork.
+
+The prebuilt OS image installs the latest `main` branch on first boot, so a
+change has to be merged to `main` before flashing a unit that should include it.
 
 ---
 

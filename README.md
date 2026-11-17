@@ -47,6 +47,7 @@ dimensions in `setup/screen.py` to match the panels you use.
 | [Aclorol 5 V 20 A (100 W) switching power supply](https://www.amazon.com/dp/B07KC55TJF) | 110/220 V AC in, 5 V DC out. Set the output to 5.0 V before connecting anything. |
 | [Vockjour 16/3 pigtail power cord](https://www.amazon.com/dp/B0FKT6242L) | 6 ft, 16 AWG, three-prong, open end. Wires mains into the power supply. |
 | [Teansic micro USB male to 2-pin screw-terminal adapters](https://www.amazon.com/dp/B0H3KY72XV) | 10-pack. Feeds 5 V from the supply into the Pi's micro USB power socket without soldering. |
+| [HONENCN 18 AWG 2-conductor wire](https://www.amazon.com/dp/B0DS13R93H) | 30 ft, 18/2 flexible PVC, copper-clad aluminium. Runs 5 V from the supply to the micro USB adapter. |
 | microSD card | 16 GB or larger, with Raspberry Pi OS. |
 | HUB75 ribbon cables | Normally supplied with the bonnet and panels. |
 

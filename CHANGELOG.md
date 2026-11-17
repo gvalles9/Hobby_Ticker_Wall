@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.9] - 2026-11-17
+
 ### Fixed
 
 - The update check no longer logs a red "No such remote 'hobby-ticker'" error

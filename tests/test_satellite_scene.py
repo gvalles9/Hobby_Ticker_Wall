@@ -172,10 +172,15 @@ def test_test_mode_change_recomputes_without_waiting_for_poll_timeout(monkeypatc
     monkeypatch.setattr(satellite_scene, "Config", TestConfig)
     scene, manager = _scene(tles=None)
     scene.pass_windows = [satellite_scene.passes_mod.fake_pass_window()]
-    scene.windows_computed_at = satellite_scene.datetime.datetime.utcnow().timestamp()
+    scene.windows_computed_at = satellite_scene.datetime.datetime.now(
+        satellite_scene.datetime.timezone.utc
+    ).timestamp()
     scene.last_test_mode = False
     scene.next_recompute_at = (
-        satellite_scene.datetime.datetime.utcnow().timestamp() + 60
+        satellite_scene.datetime.datetime.now(
+            satellite_scene.datetime.timezone.utc
+        ).timestamp()
+        + 60
     )
     computed = []
     monkeypatch.setattr(
@@ -203,7 +208,9 @@ def test_satellite_name_is_shifted_left_to_keep_closing_parenthesis_visible(
 
     scene, _manager = _scene()
     scene.panel = Panel()
-    scene.last_cycle_second = satellite_scene.datetime.datetime.utcnow().timestamp()
+    scene.last_cycle_second = satellite_scene.datetime.datetime.now(
+        satellite_scene.datetime.timezone.utc
+    ).timestamp()
     monkeypatch.setattr(
         satellite_scene, "fonts", types.SimpleNamespace(extrasmall=object())
     )
@@ -245,7 +252,9 @@ def test_satellite_data_defaults_are_drawn_on_both_sides_of_globe(monkeypatch):
 
     scene, _manager = _scene()
     scene.panel = Panel()
-    scene.last_cycle_second = satellite_scene.datetime.datetime.utcnow().timestamp()
+    scene.last_cycle_second = satellite_scene.datetime.datetime.now(
+        satellite_scene.datetime.timezone.utc
+    ).timestamp()
     monkeypatch.setattr(satellite_scene, "Config", _StubConfig)
     monkeypatch.setattr(
         satellite_scene, "fonts", types.SimpleNamespace(extrasmall=object())

@@ -182,6 +182,8 @@ export function createStore(initialConfig, pageData) {
     urls: pageData.urls || {},
     providersMeta: pageData.providersMeta || [],
     maskToken: pageData.maskToken || "**********",
+    timezoneOptions: pageData.timezoneOptions || [],
+    systemTimezone: pageData.systemTimezone || "",
   });
 
   // Provider priority lists - reactive copies of the configured order.

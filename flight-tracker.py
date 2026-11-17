@@ -24,6 +24,7 @@ from setup.configuration import (
 )
 from setup.logging import setup_logging
 from utilities.cli import dispatch_cli_command
+from utilities.timezones import apply_zone
 from version import APP_VERSION
 
 panel = get_panel()
@@ -591,12 +592,17 @@ def run_flight_tracker(disable_tests: bool = False):
     # Apply any staged config import before anything else initialises.
     apply_pending_config_update()
 
+    cfg = Config.instance()
+    # Follow the owner's time zone for the clock, date, sunrise/sunset and
+    # screen schedule.  This changes the app's view of local time, not the
+    # OS clock, so it needs no root access.
+    apply_zone(cfg.timezone)
+
     setup_logging()
     logger = logging.getLogger("startup")
 
     _warn_if_root()
 
-    cfg = Config.instance()
     logger.info(
         "Hobby Ticker v%s starting (log level: %s)",
         ".".join(map(str, APP_VERSION)),

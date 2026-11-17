@@ -103,7 +103,7 @@ class SatelliteScene:
     def poll(self) -> None:
         """Refresh pass windows when stale; no-op otherwise."""
         cfg = Config.instance()
-        now_ts = datetime.datetime.utcnow().timestamp()
+        now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
 
         self.prune_expired_passes()
 
@@ -190,7 +190,7 @@ class SatelliteScene:
     # ------------------------------------------------------------------
 
     def recompute_passes(self, cfg) -> None:
-        now_ts = datetime.datetime.utcnow().timestamp()
+        now_ts = datetime.datetime.now(datetime.timezone.utc).timestamp()
         # Every path leaves a short cooldown so a failing or empty
         # computation does not re-run on every poll tick (pass geometry
         # barely moves in a minute; recomputing SGP4 per frame was the
@@ -223,7 +223,9 @@ class SatelliteScene:
                 cfg.satellite_max_count,
                 test_mode=test_mode,
             )
-            self.windows_computed_at = datetime.datetime.utcnow().timestamp()
+            self.windows_computed_at = datetime.datetime.now(
+                datetime.timezone.utc
+            ).timestamp()
             # Force redraw of ring + trajectories on next draw()
             self.ring_drawn = False
             self.last_positions = {}
@@ -333,7 +335,7 @@ class SatelliteScene:
         Uses a stash-and-erase strategy: old text is redrawn in black
         before new text is drawn on top, so only changed pixels are touched.
         """
-        now_s = datetime.datetime.utcnow().timestamp()
+        now_s = datetime.datetime.now(datetime.timezone.utc).timestamp()
 
         # Advance the cycle counter once per CYCLE_INTERVAL_S
         if now_s - self.last_cycle_second >= CYCLE_INTERVAL_S:

@@ -572,12 +572,13 @@ HARDWARE = {
     "hat_pwm_enabled": False,
     "loading_indicator": "off",
     "loading_led_gpio_pin": "18",
+    "timezone": "America/New_York",
 }
 
 
 @pytest.mark.parametrize("route", ["/settings/reset", "/handoff/reset"])
 def test_resets_keep_display_hardware_settings(monkeypatch, route):
-    """Both reset buttons keep the panel wiring; only personal data goes."""
+    """Both reset buttons keep the panel wiring and zone; personal data goes."""
     import web.app as web_app
 
     cfg = MagicMock()
@@ -602,6 +603,7 @@ def test_resets_keep_display_hardware_settings(monkeypatch, route):
             "hat_pwm_enabled": True,
             "loading_indicator": "pixel",
             "loading_led_gpio_pin": "",
+            "timezone": "",
         },
     )
     monkeypatch.setattr(web_app, "_migrate_provider_lists", lambda data, loaded: None)
@@ -621,6 +623,6 @@ def test_resets_keep_display_hardware_settings(monkeypatch, route):
     assert response.status_code == 200
     # Personal settings still go back to their defaults.
     assert cfg.data_store["flight_radius"] == 20
-    # The panels bolted to the unit keep their configuration.
+    # The panels bolted to the unit - and its time zone - keep their settings.
     for key, value in HARDWARE.items():
         assert cfg.data_store[key] == value

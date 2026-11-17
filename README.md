@@ -74,7 +74,9 @@ you want them on the unit.
    - **Username:** keep `pi`. The image, the first-boot installer, and the
      systemd service all expect `/home/pi/FlightTracker` and the `pi` user.
    - **Wi-Fi:** your SSID, password, and country.
-   - **Locale and timezone:** your local values.
+   - **Locale and timezone:** your local values. You can also change the time
+     zone later on the Settings page, so a card flashed without this section
+     still shows local time once you pick your zone.
 8. Click **Write**, confirm, and wait for Imager to finish verifying the card.
 
 #### First boot
@@ -150,8 +152,8 @@ The installers enable mDNS hostname discovery; the Pi and your phone/computer mu
 on the same local network.
 
 The Admin page includes separate recovery buttons to reset Hobby Ticker settings
-(while keeping the web password, Wi-Fi credentials and display hardware settings)
-or reopen the Wi-Fi setup hotspot to change networks. Two more support testing and
+(while keeping the web password, Wi-Fi credentials, display hardware settings and
+time zone) or reopen the Wi-Fi setup hotspot to change networks. Two more support testing and
 handoffs: **Reset Web Password** restores the default password (`flighttracker`)
 and re-opens the first-setup wizard, and **Forget Wi-Fi** deletes every saved
 Wi-Fi network and opens the first-boot setup hotspot, exactly like a fresh
@@ -161,9 +163,10 @@ device; the next owner scans the QR code on the display, joins the hotspot, and
 is taken straight to the first-setup wizard, which cannot be skipped until they
 choose their own web password. Both reset buttons keep the display hardware
 settings - bonnet type, panel colour order, scan rate, GPIO slowdown, PWM mode
-and loading indicator - because they describe the panels attached to the unit
-rather than the person using it; the wizard simply pre-selects the saved bonnet
-type. If no saved Wi-Fi network is reachable for 10 minutes,
+and loading indicator - and the time zone, because they describe the unit and
+its environment rather than the person using it; the wizard simply pre-selects
+the saved bonnet type and keeps the saved zone (the next owner can change it in
+the wizard or later on the Settings page). If no saved Wi-Fi network is reachable for 10 minutes,
 the Pi automatically opens the protected setup hotspot and displays its QR. The
 watchdog checks every saved Wi-Fi profile, including one created by Raspberry Pi
 Imager, and leaves the hotspot closed while Ethernet provides a default route.
@@ -215,10 +218,18 @@ things every install needs:
 
 Everything else is optional and clearly labelled as such: location (an
 approximate one is already detected from your network), flight and weather
-units, screen brightness, clock and date format, which idle scenes rotate on
-the display, a birthday date for the celebration scene, up to three
+units, screen brightness, clock and date format, time zone, which idle scenes
+rotate on the display, a birthday date for the celebration scene, up to three
 date-triggered custom messages, and satellite tracking. Untouched sections keep
 their defaults, and anything can be changed later on the Settings page.
+
+The **Time zone** picker (Settings -> System -> Defaults -> Clock and Date) accepts any
+IANA name such as `America/New_York` or `America/Chicago`. Leaving it blank
+follows the Pi's system time zone. Changing it updates the clock, date,
+sunrise/sunset and the screen schedule immediately, with no reflash and no root
+access; it does not change the OS time zone used by SSH and other services. If
+the picker is blank and the display shows UTC, set the OS zone once with
+`sudo timedatectl set-timezone America/New_York`.
 
 The wizard cannot be skipped. Until a web password other than the shared
 default is saved, every page redirects back to
@@ -508,6 +519,7 @@ This table is for reference if you've disabled the web interface (`web_interface
 | `screen_schedule_advanced` | Advanced schedule: JSON list of `{"time": "HH:MM", "brightness": 0-5}` pairs, sorted by time; each entry holds until the next, the last holds overnight | `[]` |
 | `clock_24hr` | `true` for 24-hour clock | `true` |
 | `date_format` | `0` = YYYY-MM-DD, `1` = DD-MM-YYYY, `2` = MM-DD-YYYY | `0` |
+| `timezone` | IANA time zone for the display, e.g. `"America/New_York"`; `""` follows the OS time zone | `""` |
 | `web_interface_enabled` | Enable the config UI and QR code on boot | `true` |
 | `web_port` | TCP port for the Flask config server (1024-65535) | `8584` |
 | `web_password_hash` | SHA-256 hash for the web UI password | `""` |

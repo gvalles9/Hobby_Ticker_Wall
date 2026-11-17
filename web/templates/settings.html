@@ -45,6 +45,8 @@
     flightProvidersOrder: {{ flight_providers_order | tojson }},
     routeProvidersOrder: {{ route_providers_order | tojson }},
     maskToken: {{ mask_token | tojson }},
+    timezoneOptions: {{ timezone_options | tojson }},
+    systemTimezone: {{ system_timezone | tojson }},
     staticUrls: {
       weatherExplained: "{{ url_for('static', filename='images/weather_explained.png') }}",
       scaleExplained: "{{ url_for('static', filename='images/scale_explained.png') }}",

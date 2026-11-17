@@ -144,6 +144,8 @@ BRIGHTNESS_LEVEL_PERCENT = {0: 0, 1: 20, 2: 40, 3: 60, 4: 80, 5: 100}
 # Clock / date
 DEFAULT_CLOCK_24HR = True
 DEFAULT_DATE_FORMAT = 0  # 0 = Month Dth YYYY, 1 = DD-MM-YYYY, 2 = MM-DD-YYYY
+# IANA zone the display renders in.  Empty follows the OS (/etc/localtime).
+DEFAULT_TIMEZONE = ""
 
 # Number formatting
 DEFAULT_NUMBER_SEPARATOR = "none"  # 'none', 'comma', 'period'
@@ -349,6 +351,7 @@ DEFAULTS: dict[str, Any] = {
     # Clock / date
     "clock_24hr": DEFAULT_CLOCK_24HR,
     "date_format": DEFAULT_DATE_FORMAT,
+    "timezone": DEFAULT_TIMEZONE,
     # Number formatting
     "number_separator": DEFAULT_NUMBER_SEPARATOR,
     # Idle screen themes
@@ -1588,6 +1591,14 @@ class Config:
     @property
     def date_format(self) -> int:
         return int(self.data_store.get("date_format", DEFAULT_DATE_FORMAT))
+
+    @property
+    def timezone(self) -> str:
+        """IANA zone for the display; empty follows the OS time zone."""
+        from utilities.timezones import is_valid_zone
+
+        value = str(self.data_store.get("timezone", DEFAULT_TIMEZONE)).strip()
+        return value if is_valid_zone(value) else DEFAULT_TIMEZONE
 
     @property
     def number_separator(self) -> str:

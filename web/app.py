@@ -67,6 +67,7 @@ from utilities import ssh_access
 from utilities.flight import Flight
 from utilities.lookups import cache as routes_cache
 from utilities.lookups import usage as usage_tally
+from utilities.timezones import available_zones, system_zone
 from utilities.tle_manager import TLE_CACHE_PATH, TLE_CACHE_TTL
 from utilities.updater import (
     GITHUB_REPOSITORY_URL,
@@ -589,6 +590,29 @@ def _parse_birthday_date_field(form, cfg) -> str:
     return value
 
 
+def _parse_timezone_field(form, cfg) -> str:
+    """Validate the optional time-zone picker.
+
+    A blank value means "follow the Pi's system time zone".  A missing key
+    keeps the saved zone so partial submissions never reset it.
+    """
+    from utilities.timezones import is_valid_zone
+
+    submitted = form.get("timezone")
+    if submitted is None:
+        return str(getattr(cfg, "timezone", "") or "")
+
+    value = str(submitted).strip()
+    if not value:
+        return ""
+    if not is_valid_zone(value):
+        raise ValueError(
+            f"Unknown time zone '{value}'. Choose a name such as "
+            "America/New_York from the list."
+        )
+    return value
+
+
 def _parse_custom_scene_fields(form, cfg) -> dict:
     """Normalise the three date-triggered custom message slots.
 
@@ -700,6 +724,7 @@ def parse_first_setup_form(form, cfg) -> dict:
         ),
         "clock_24hr": bool_val(form.get("clock_24hr")),
         "date_format": int_val(form.get("date_format"), cfg.date_format),
+        "timezone": _parse_timezone_field(form, cfg),
         # Optional: idle scenes and the birthday scene
         **_idle_theme_fields(idle_themes),
         "birthday_enabled": bool(birthday_date),
@@ -903,6 +928,7 @@ def parse_settings_form(form, cfg) -> dict:
         # Clock / date
         "clock_24hr": bool_val(form.get("clock_24hr")),
         "date_format": int_val(form.get("date_format"), 0),
+        "timezone": _parse_timezone_field(form, cfg),
         # Idle screen themes (ordered multi-select, plus the legacy field)
         **_idle_theme_fields(idle_themes),
         # Birthday scene (recurring yearly; only month/day are compared).
@@ -1146,6 +1172,9 @@ def _first_setup_page_data(cfg, form=None) -> dict:
         ),
         "clock_24hr": flag("clock_24hr", cfg.clock_24hr),
         "date_format": int_val(val("date_format", cfg.date_format), cfg.date_format),
+        "timezone": val("timezone", cfg.timezone),
+        "system_timezone": system_zone(),
+        "timezone_options": available_zones(),
         # Idle scenes / birthday / satellites
         "themes": [
             {
@@ -1488,6 +1517,8 @@ def _settings_page_data(
         "import_failed": import_failed,
         "location_detection_enabled": cfg.get("location_source") in ("auto", "ip"),
         "csrf_token": csrf_token(),
+        "timezone_options": available_zones(),
+        "system_timezone": system_zone(),
         "in_schedule": cfg.is_in_brightness_schedule(),
         "schedule_window": schedule_window,
         "schedule_window_json": sw_json,
@@ -1706,11 +1737,16 @@ HARDWARE_SETTING_KEYS = (
     "loading_led_gpio_pin",
 )
 
+# The time zone is environmental too: keeping it means a same-region handoff
+# shows the right time out of the box, and a unit whose OS clock is still on
+# UTC does not silently jump back to UTC when the next owner runs the wizard.
+PRESERVED_SETTING_KEYS = HARDWARE_SETTING_KEYS + ("timezone",)
 
-def _defaults_keeping_hardware(cfg) -> dict:
-    """Deep-copy the defaults, carrying the panel wiring over from *cfg*."""
+
+def _defaults_keeping_environment(cfg) -> dict:
+    """Deep-copy the defaults, carrying panel wiring and zone over from *cfg*."""
     data = copy.deepcopy(DEFAULTS)
-    for key in HARDWARE_SETTING_KEYS:
+    for key in PRESERVED_SETTING_KEYS:
         if key in cfg.data_store:
             data[key] = copy.deepcopy(cfg.data_store[key])
     return data
@@ -1722,19 +1758,21 @@ def reset_settings():
     """Restore application defaults without changing Wi-Fi or web access.
 
     Display hardware settings (bonnet type, colour order, scan rate,
-    slowdown and the loading indicator) are kept: they describe the panels
-    bolted to the unit, not the person using it.
+    slowdown and the loading indicator) and the time zone are kept: they
+    describe the unit and its environment, not the person using it.
     """
     if not validate_csrf(request.form):
         abort(403, description="Invalid CSRF token.")
 
     cfg = Config.instance()
     password_hash = cfg.get("web_password_hash", "")
-    cfg.data_store = _defaults_keeping_hardware(cfg)
+    cfg.data_store = _defaults_keeping_environment(cfg)
     cfg.data_store["web_password_hash"] = password_hash
     _migrate_provider_lists(cfg.data_store, {})
     cfg.save()
-    logger.info("Application settings reset to defaults; hardware settings kept.")
+    logger.info(
+        "Application settings reset to defaults; hardware settings and time zone kept."
+    )
     restart_after(delay=1.0)
     return jsonify(message="FlightTracker settings were reset to defaults.")
 
@@ -1840,17 +1878,20 @@ def prepare_handoff():
     the default and re-opens the first-setup wizard - then deletes every
     saved Wi-Fi network and opens the first-boot setup hotspot.  Unlike
     ``/settings/reset`` this does not keep the web password.  Display
-    hardware settings are kept so the next owner inherits a working panel
-    setup instead of having to rediscover it.
+    hardware settings and the time zone are kept so the next owner inherits
+    a working panel setup and a sensible clock instead of having to
+    rediscover them.
     """
     if not validate_csrf(request.form):
         abort(403, description="Invalid CSRF token.")
 
     cfg = Config.instance()
-    cfg.data_store = _defaults_keeping_hardware(cfg)
+    cfg.data_store = _defaults_keeping_environment(cfg)
     _migrate_provider_lists(cfg.data_store, {})
     cfg.save()
-    logger.info("Settings restored to defaults for handoff; hardware settings kept.")
+    logger.info(
+        "Settings restored to defaults for handoff; hardware settings and time zone kept."
+    )
 
     if not _run_wifi_helper({"action": "forget_wifi"}):
         return (

@@ -443,6 +443,22 @@ export default defineComponent({
           <option :value="2">MM-DD-YYYY</option>
         </select>
       </div>
+
+      <div class="mb-2">
+        <label class="form-label small" for="timezone">Time zone</label>
+        <input type="text" class="form-control form-control-sm" id="timezone" name="timezone"
+               list="timezone-options" v-model="store.config.timezone"
+               :placeholder="store.ui.systemTimezone || 'System default'"
+               style="max-width:320px" />
+        <datalist id="timezone-options">
+          <option v-for="zone in store.ui.timezoneOptions" :key="zone" :value="zone"></option>
+        </datalist>
+        <div class="form-text text-muted small">
+          Controls the clock, date, sunrise/sunset and the screen schedule. Leave blank to
+          follow the Pi's system time zone<span v-if="store.ui.systemTimezone">
+          (currently <strong>{{ store.ui.systemTimezone }}</strong>)</span>.
+        </div>
+      </div>
     </div>
     </div>
   `,

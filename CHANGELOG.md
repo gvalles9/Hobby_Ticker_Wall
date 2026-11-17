@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A **Time zone** picker on the Settings page (System -> Defaults -> Clock and
+  Date) and in the first-setup wizard. It accepts any IANA zone such as
+  `America/New_York` or `America/Chicago`; leaving it blank follows the Pi's
+  system time zone. Hobby Ticker applies the zone to its own clock, date,
+  sunrise/sunset and screen schedule without root access or a reflash, so a
+  unit can move between time zones - for example a handoff from Virginia to
+  Indiana - without touching the OS image. Resetting settings or preparing the
+  unit for handoff keeps the saved zone, so a same-region handoff shows the
+  right time out of the box and a unit whose OS clock is still on UTC does not
+  jump back to UTC.
+
+### Fixed
+
+- Satellite pass timing now uses an explicit UTC timestamp, so it stays correct
+  when the display follows a non-UTC time zone.
+
 ## [1.1.4] - 2026-11-15
 
 ### Changed

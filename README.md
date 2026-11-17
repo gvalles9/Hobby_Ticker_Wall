@@ -2,9 +2,9 @@
 
 Hobby Ticker is a Raspberry Pi flight, weather, and satellite display based on
 [Colin Waddell's FlightTracker](https://github.com/ColinWaddell/FlightTracker).
-It is customized primarily for a Raspberry Pi 3 B+ driving **three 64×32 HUB75
-panels in a horizontal chain** (192×32 logical pixels). The chain dimensions
-are set in `setup/screen.py`.
+It is customized primarily for a Raspberry Pi 3 B+ driving **three P5 64×32
+HUB75 panels in a horizontal chain** (192×32 logical pixels). The chain
+dimensions are set in `setup/screen.py`.
 
 ## What this fork adds
 
@@ -42,14 +42,13 @@ dimensions in `setup/screen.py` to match the panels you use.
 | Part | Notes |
 |------|-------|
 | Raspberry Pi 3 B+ | Runs the tracker and drives the panels. Pi 4 and Zero 2 W use the same install; Pi 5 has its own guide. |
-| 3 × 64×32 HUB75 RGB LED matrix panels | Chained horizontally for a 192×32 display. [AliExpress listing used for this build](https://www.aliexpress.us/item/2251832449878455.html) (choose the 64×32 HUB75 option). |
+| 3 × P5 64×32 HUB75 RGB LED matrix panels | 320×160 mm each, chained horizontally for a 192×32 display. [AliExpress listing used for this build](https://www.aliexpress.us/item/2251832449878455.html). |
 | [Adafruit Triple LED Matrix Bonnet](https://www.adafruit.com/product/6358) | Three HUB75 outputs ("active3" pinout), one per panel. |
 | [Aclorol 5 V 20 A (100 W) switching power supply](https://www.amazon.com/dp/B07KC55TJF) | 110/220 V AC in, 5 V DC out. Set the output to 5.0 V before connecting anything. |
 | [Vockjour 16/3 pigtail power cord](https://www.amazon.com/dp/B0FKT6242L) | 6 ft, 16 AWG, three-prong, open end. Wires mains into the power supply. |
 | [Teansic micro USB male to 2-pin screw-terminal adapters](https://www.amazon.com/dp/B0H3KY72XV) | 10-pack. Feeds 5 V from the supply into the Pi's micro USB power socket without soldering. |
 | microSD card | 16 GB or larger, with Raspberry Pi OS. |
 | HUB75 ribbon cables | Normally supplied with the bonnet and panels. |
-| 3D printed case (optional) | Files linked in [3D Printed Case](#3d-printed-case) below. |
 
 The 5 V supply feeds the panels and the Pi. Check the polarity of the pigtail
 and the screw-terminal adapter before the first connection, and keep the mains
@@ -280,15 +279,6 @@ If you'd rather do it manually - or you want to understand what the script does 
 The Pi guides retain some upstream-specific clone/install commands and are not
 yet fully rewritten for Hobby Ticker. Use them as hardware and driver
 references; for an automated install, use the Hobby Ticker commands above.
-
-## 3D Printed Case
-
-The original project's 3D-printable case was designed for a 64×32 HUB75 RGB LED matrix (4mm pitch). It's a two-piece interlocking design that works with any Raspberry Pi model and prints on a normal-sized bed with minimal supports.
-
-- Ready-to-print files on [Printables](https://www.printables.com/model/1820229-flight-tracker-screen-for-raspberry-pi-any-model-6)
-- OpenSCAD source and assembly instructions on [GitHub](https://github.com/ColinWaddell/FlightTracker-Case)
-
-![The original FlightTracker in its 3D printed case](assets/flight-tracker-case.jpg)
 
 ---
 

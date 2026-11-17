@@ -33,6 +33,28 @@ The original FlightTracker documentation remains useful for general hardware
 and driver background: [build guide](https://flight-tracker.dev/build/) ·
 [software guide](https://flight-tracker.dev/install/).
 
+## Materials used
+
+This is the hardware the reference Hobby Ticker build was put together with.
+Equivalent parts work too; the only thing the software needs is for the chain
+dimensions in `setup/screen.py` to match the panels you use.
+
+| Part | Notes |
+|------|-------|
+| Raspberry Pi 3 B+ | Runs the tracker and drives the panels. Pi 4 and Zero 2 W use the same install; Pi 5 has its own guide. |
+| 3 × 64×32 HUB75 RGB LED matrix panels | Chained horizontally for a 192×32 display. [AliExpress listing used for this build](https://www.aliexpress.us/item/2251832449878455.html) (choose the 64×32 HUB75 option). |
+| [Adafruit Triple LED Matrix Bonnet](https://www.adafruit.com/product/6358) | Three HUB75 outputs ("active3" pinout), one per panel. |
+| [Aclorol 5 V 20 A (100 W) switching power supply](https://www.amazon.com/dp/B07KC55TJF) | 110/220 V AC in, 5 V DC out. Set the output to 5.0 V before connecting anything. |
+| [Vockjour 16/3 pigtail power cord](https://www.amazon.com/dp/B0FKT6242L) | 6 ft, 16 AWG, three-prong, open end. Wires mains into the power supply. |
+| [Teansic micro USB male to 2-pin screw-terminal adapters](https://www.amazon.com/dp/B0H3KY72XV) | 10-pack. Feeds 5 V from the supply into the Pi's micro USB power socket without soldering. |
+| microSD card | 16 GB or larger, with Raspberry Pi OS. |
+| HUB75 ribbon cables | Normally supplied with the bonnet and panels. |
+| 3D printed case (optional) | Files linked in [3D Printed Case](#3d-printed-case) below. |
+
+The 5 V supply feeds the panels and the Pi. Check the polarity of the pigtail
+and the screw-terminal adapter before the first connection, and keep the mains
+side of the supply enclosed and strain-relieved.
+
 ## Installation
 
 ### Option 1: Prebuilt OS Image (Recommended)

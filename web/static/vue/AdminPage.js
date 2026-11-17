@@ -392,7 +392,7 @@ export default defineComponent({
       <div class="text-muted small mb-2">
         <p>
           Found a bug or need a hand? Open an issue on
-          <a href="https://github.com/ColinWaddell/FlightTracker/issues" target="_blank">GitHub</a>.
+          <a href="https://github.com/gvalles9/Hobby_Ticker_Wall/issues" target="_blank">GitHub</a>.
         </p>
         <p>
           If you need to post your config data use the button below, it removes your password and

@@ -17,7 +17,7 @@ FlightTracker repository; the commands below otherwise apply to either checkout.
 ## Setup
 
 ```bash
-git clone https://github.com/ColinWaddell/FlightTracker
+git clone https://github.com/gvalles9/Hobby_Ticker_Wall
 cd FlightTracker
 python3 -m venv env
 source env/bin/activate

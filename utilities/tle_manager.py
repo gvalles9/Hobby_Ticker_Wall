@@ -62,7 +62,7 @@ def fetch_tle(norad_id: int) -> tuple[str, str, str] | None:
     try:
         req = urllib.request.Request(
             url,
-            headers={"User-Agent": "FlightTracker/1.0 (raspberry-pi)"},
+            headers={"User-Agent": "HobbyTicker/1.0 (raspberry-pi)"},
         )
         with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as resp:
             body = resp.read().decode("utf-8", errors="replace")

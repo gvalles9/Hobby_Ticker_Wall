@@ -104,6 +104,30 @@ body { background: #f1f1f1; }
   box-shadow: 0 1px 6px rgba(0,0,0,.1);
   padding: .5rem .75rem;
 }
+/* On desktop the menu is taller than most screens.  Give it its own scroll
+   area, pinned below the sticky navbar (about 44px tall) with a small gap
+   top and bottom.  Scoped to md+ so the mobile "Configuration Menu" toggle
+   stays put instead of scrolling away with the list. */
+@media (min-width: 768px) {
+  .sidebar {
+    top: 3.5rem;
+    max-height: calc(100vh - 4.5rem);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0,0,0,.25) transparent;
+  }
+  .sidebar::-webkit-scrollbar {
+    width: 6px;
+  }
+  .sidebar::-webkit-scrollbar-thumb {
+    background: rgba(0,0,0,.25);
+    border-radius: 3px;
+  }
+  .sidebar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
 .sidebar .nav-link {
   color: #495057;
   padding: .4rem .75rem .4rem 1.75rem;

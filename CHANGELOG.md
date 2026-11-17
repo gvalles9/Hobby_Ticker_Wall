@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The settings menu on the left of the browser UI now scrolls on its own when
+  the list is taller than the window, instead of running off the bottom of the
+  screen. It also pins below the top navigation bar rather than sliding under
+  it, and uses a thin scrollbar.
+
 ## [1.1.9] - 2026-11-17
 
 ### Fixed

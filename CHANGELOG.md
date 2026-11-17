@@ -2,12 +2,19 @@
 
 All notable changes to Hobby Ticker are documented here. Earlier entries record the
 upstream FlightTracker release history on which this fork is based.
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
+release numbers use the `major.minor.patch` scheme from
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html) with one local rule: the
+patch field only runs from 0 to 9, so `1.1.9` is followed by `1.2.0`, never
+`1.1.10`. At 9 the next release bumps the minor number and resets the patch to 0.
+The minor number goes up for a new feature, and the major number only for a change
+that breaks existing settings or behaviour. Each field is a whole number, not a
+decimal. (The first 1.2.0 release was briefly numbered 1.1.10 before this rule was
+adopted.)
 
 ## [Unreleased]
 
-## [1.1.10] - 2026-11-17
+## [1.2.0] - 2026-11-17
 
 ### Fixed
 

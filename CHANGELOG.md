@@ -20,7 +20,8 @@ adopted.)
   build uses: the Raspberry Pi, three P5 64×32 HUB75 panels, the Adafruit
   Triple LED Matrix Bonnet, the 5 V power supply and its mains cord, the
   18 AWG wire and micro USB screw-terminal adapter that feed the Pi, and the
-  microSD card.
+  microSD card. A short **Power wiring** walkthrough covers the mains input,
+  the panel feeds and the Pi feed.
 
 ## [1.3.1] - 2026-11-17
 

@@ -55,6 +55,35 @@ The 5 V supply feeds the panels and the Pi. Check the polarity of the pigtail
 and the screw-terminal adapter before the first connection, and keep the mains
 side of the supply enclosed and strain-relieved.
 
+### Power wiring
+
+The bonnet carries only the panel data and logic; it does not power the
+panels. The 5 V supply feeds the three panels and the Pi.
+
+1. **Match the mains voltage.** Set the selector on the supply to `110V` for
+   North America (or `220V` where that is the mains voltage) before anything
+   is connected. Keep the supply unplugged from the wall while wiring.
+2. **Mains in.** Connect the Vockjour cord to the input terminals: black to
+   `L`, white to `N`, green to the earth terminal (`⏚`). Fit a strain relief
+   and keep this side enclosed.
+3. **5 V out.** Connect the three panel power leads and the Pi feed to the
+   output: `+V` to the red or `+` conductor, `-V` (sometimes labelled `COM`)
+   to the black or `-` conductor. A distribution block or bus bar makes the
+   three panel feeds easier if the terminals are crowded.
+4. **Pi feed.** Run the 18 AWG wire from `+V`/`-V` to the Teansic
+   screw-terminal adapter, then plug it into the Pi's micro USB socket. Before
+   the first connection, check the adapter with a multimeter: the terminal
+   that reaches micro USB pin 1 is +5 V and the other is ground. Reversed
+   polarity can destroy the Pi.
+5. **Set the output.** With the Pi and panels still disconnected, plug the
+   supply in and turn the small trim screw until the output measures 5.0 V.
+   Unplug it, connect everything, then check again at the Pi end under load;
+   4.8 V or more is healthy.
+
+The panel power connectors are keyed, so keep the same conductor on `+V` for
+every panel. The HUB75 ribbon cables carry data only; connect each bonnet
+output to a panel input, with port 2 going to the centre panel.
+
 ## Installation
 
 ### Option 1: Prebuilt OS Image (Recommended)

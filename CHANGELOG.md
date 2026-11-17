@@ -14,6 +14,8 @@ adopted.)
 
 ## [Unreleased]
 
+## [1.2.1] - 2026-11-17
+
 ### Fixed
 
 - The Classic idle screen no longer crash-loops on Raspberry Pi 3/4. The 1.1.8

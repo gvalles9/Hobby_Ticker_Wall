@@ -277,6 +277,12 @@ class TestFirstSetupRoute:
         assert lng == "-78.8894738"
         assert "estimated this location" in text
 
+    def test_wizard_offers_a_network_location_button(self, fresh_config):
+        text = _authenticated_client().get("/first-setup").get_data(as_text=True)
+
+        assert 'id="location-detect"' in text
+        assert "Use network location" in text
+
     def test_legacy_flag_alone_does_not_satisfy_the_wizard(self, fresh_config):
         fresh_config.set("first_setup_complete", True)
 

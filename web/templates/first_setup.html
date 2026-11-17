@@ -86,6 +86,12 @@
       <p class="text-muted small">Hobby Ticker could not determine a location yet. Enter your
         coordinates below, or leave both boxes blank and it will keep trying automatically.</p>
       {% endif %}
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="location-detect">
+          <i class="bi bi-globe2 me-1"></i>Use network location
+        </button>
+        <span class="form-text mb-0" id="location-status" role="status"></span>
+      </div>
       <div class="row g-2">
         <div class="col-4">
           <label class="form-label small" for="flight_lat">Latitude</label>
@@ -294,6 +300,40 @@
           "Automatic time zone was unavailable: " +
           error.message +
           " Choose one from the list.";
+      } finally {
+        button.disabled = false;
+      }
+    });
+  })();
+
+  // Optional helper: fill the coordinates from this network's public IP.
+  // Nothing runs on page load, so an offline unit still renders instantly.
+  (function () {
+    const button = document.getElementById("location-detect");
+    const lat = document.getElementById("flight_lat");
+    const lng = document.getElementById("flight_lng");
+    const status = document.getElementById("location-status");
+    if (!button || !lat || !lng || !status) return;
+
+    button.addEventListener("click", async function () {
+      button.disabled = true;
+      status.textContent = "Looking up this network's location\u2026";
+      try {
+        const response = await fetch("{{ url_for('ip_location') }}", {
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Lookup failed.");
+        lat.value = result.latitude;
+        lng.value = result.longitude;
+        status.textContent =
+          "Filled in from your network. Change it if it looks wrong.";
+      } catch (error) {
+        status.textContent =
+          "Network location was unavailable: " +
+          error.message +
+          " Enter coordinates manually.";
       } finally {
         button.disabled = false;
       }

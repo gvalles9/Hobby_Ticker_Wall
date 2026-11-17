@@ -452,9 +452,67 @@ export function createStore(initialConfig, pageData) {
     isImperial.value ? "30ft" : "10m",
   );
 
+  // -- Location detection ---------------------------------------------------
+  // Shared by the page-load detection and the "Use network location"
+  // button.  Automatic detection must never replace a manual pick, but the
+  // button is an explicit request, so it passes force=true.
+  function applyDetectedLocation(latitude, longitude, source, force = false) {
+    if (!force && !["auto", "ip"].includes(config.location_source)) return false;
+    const latitudeOffset = 10 / 111;
+    const longitudeOffset =
+      10 /
+      (111 *
+        Math.max(Math.abs(Math.cos((latitude * Math.PI) / 180)), 0.01));
+    const wrapLongitude = (value) => ((value + 180) % 360 + 360) % 360 - 180;
+    config.flight_lat = latitude;
+    config.flight_lng = longitude;
+    config.flight_observer_lat = latitude;
+    config.flight_observer_lng = longitude;
+    config.flight_zone_tl_y = Math.min(90, latitude + latitudeOffset);
+    config.flight_zone_tl_x = wrapLongitude(longitude - longitudeOffset);
+    config.flight_zone_br_y = Math.max(-90, latitude - latitudeOffset);
+    config.flight_zone_br_x = wrapLongitude(longitude + longitudeOffset);
+    config.location_source = source;
+    ui.locationStatus = `Location detected (${
+      source === "browser" ? "device" : "IP estimate"
+    }). Save settings to apply it.`;
+    return true;
+  }
+
+  async function useIpLocation(force = false) {
+    try {
+      const response = await fetch(
+        pageData.urls?.ipLocation || "/api/location/ip",
+        {
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        },
+      );
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Location lookup failed.");
+      const { latitude, longitude } = result;
+      if (
+        !Number.isFinite(latitude) ||
+        !Number.isFinite(longitude) ||
+        latitude < -90 ||
+        latitude > 90 ||
+        longitude < -180 ||
+        longitude > 180
+      ) {
+        throw new Error("Location service returned invalid coordinates.");
+      }
+      return applyDetectedLocation(latitude, longitude, "ip", force);
+    } catch (error) {
+      ui.locationStatus = `Automatic location was unavailable: ${error.message} Enter coordinates manually.`;
+      return false;
+    }
+  }
+
   return reactive({
     config,
     ui,
+    applyDetectedLocation,
+    useIpLocation,
     isImperial,
     isAdvancedLocation,
     isAdvancedBrightness,

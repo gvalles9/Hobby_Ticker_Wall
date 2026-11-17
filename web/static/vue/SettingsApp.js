@@ -63,68 +63,26 @@ export default defineComponent({
       store.ui.saving = true;
     }
 
-    function applyDetectedLocation(latitude, longitude, source) {
-      if (!["auto", "ip"].includes(store.config.location_source)) return;
-      const latitudeOffset = 10 / 111;
-      const longitudeOffset =
-        10 /
-        (111 *
-          Math.max(Math.abs(Math.cos((latitude * Math.PI) / 180)), 0.01));
-      const wrapLongitude = (value) => ((value + 180) % 360 + 360) % 360 - 180;
-      store.config.flight_lat = latitude;
-      store.config.flight_lng = longitude;
-      store.config.flight_observer_lat = latitude;
-      store.config.flight_observer_lng = longitude;
-      store.config.flight_zone_tl_y = Math.min(90, latitude + latitudeOffset);
-      store.config.flight_zone_tl_x = wrapLongitude(longitude - longitudeOffset);
-      store.config.flight_zone_br_y = Math.max(-90, latitude - latitudeOffset);
-      store.config.flight_zone_br_x = wrapLongitude(longitude + longitudeOffset);
-      store.config.location_source = source;
-      store.ui.locationStatus =
-        `Location detected (${source === "browser" ? "device" : "IP estimate"}). Save settings to apply it.`;
-    }
-
-    async function useIpLocation() {
-      try {
-        const response = await fetch(pageData.urls?.ipLocation || "/api/location/ip", {
-          credentials: "same-origin",
-          headers: { Accept: "application/json" },
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Location lookup failed.");
-        const { latitude, longitude } = result;
-        if (
-          !Number.isFinite(latitude) ||
-          !Number.isFinite(longitude) ||
-          latitude < -90 ||
-          latitude > 90 ||
-          longitude < -180 ||
-          longitude > 180
-        ) {
-          throw new Error("Location service returned invalid coordinates.");
-        }
-        applyDetectedLocation(latitude, longitude, "ip");
-      } catch (error) {
-        store.ui.locationStatus =
-          `Automatic location was unavailable: ${error.message} Enter coordinates manually.`;
-      }
-    }
-
     function detectInitialLocation() {
       if (!pageData.locationDetectionEnabled) return;
       store.ui.locationStatus = "Finding your location…";
       if (!navigator.geolocation) {
-        useIpLocation();
+        store.useIpLocation();
         return;
       }
       try {
         navigator.geolocation.getCurrentPosition(
-          ({ coords }) => applyDetectedLocation(coords.latitude, coords.longitude, "browser"),
-          useIpLocation,
+          ({ coords }) =>
+            store.applyDetectedLocation(
+              coords.latitude,
+              coords.longitude,
+              "browser",
+            ),
+          () => store.useIpLocation(),
           { enableHighAccuracy: false, maximumAge: 600000, timeout: 7000 },
         );
       } catch {
-        useIpLocation();
+        store.useIpLocation();
       }
     }
 

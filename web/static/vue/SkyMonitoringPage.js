@@ -3,7 +3,7 @@
  * plane details, and satellite tracking.
  */
 
-import { defineComponent } from "./vendor.js";
+import { defineComponent, ref } from "./vendor.js";
 import SimpleMap from "./SimpleMap.js";
 import AdvancedMap from "./AdvancedMap.js";
 import TemplateEditor from "./TemplateEditor.js";
@@ -15,8 +15,27 @@ export default defineComponent({
   props: {
     store: { type: Object, required: true },
   },
-  setup() {
+  setup(props) {
+    const ipBusy = ref(false);
+
+    async function useNetworkLocation() {
+      if (ipBusy.value) return;
+      ipBusy.value = true;
+      props.store.ui.locationStatus = "Looking up this network's location…";
+      try {
+        const applied = await props.store.useIpLocation(true);
+        if (applied) {
+          props.store.ui.locationStatus =
+            "IP estimate applied. Press Save & Restart to keep it.";
+        }
+      } finally {
+        ipBusy.value = false;
+      }
+    }
+
     return {
+      ipBusy,
+      useNetworkLocation,
       flightDataFields: TEMPLATE_FIELDS,
       satelliteDataFields: [
         { name: "azimuth", label: "Azimuth" },
@@ -47,6 +66,20 @@ export default defineComponent({
         location from its public IP through ipwho.is when device location is unavailable.
         This sends the server's public IP to that service. Manually entered locations are preserved.
       </p>
+
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <button type="button" class="btn btn-outline-secondary btn-sm"
+                :disabled="ipBusy" @click="useNetworkLocation">
+          <span v-if="ipBusy" class="spinner-border spinner-border-sm me-1"
+                role="status" aria-hidden="true"></span>
+          <i v-else class="bi bi-globe2 me-1"></i>
+          Use network location
+        </button>
+        <span class="form-text small text-muted mb-0">
+          Estimates the position from this network's public IP and fills the fields below.
+          Press Save &amp; Restart to keep it.
+        </span>
+      </div>
 
       <h5>Tracking Mode</h5>
       <div class="mb-3">

@@ -14,6 +14,16 @@ adopted.)
 
 ## [Unreleased]
 
+### Added
+
+- A "Use network location" button on the Location card re-runs the public-IP
+  lookup on demand and fills in the latitude, longitude, observer pin and
+  search box. A unit that has moved, or whose estimate was wrong, can be
+  re-located without typing coordinates, and a manual pick can be handed back
+  to automatic location the same way. The first-setup wizard gains the same
+  button beside its coordinate fields. Nothing moves unless the button is
+  pressed, and the result is only kept when the settings are saved.
+
 ## [1.2.3] - 2026-11-17
 
 ### Fixed

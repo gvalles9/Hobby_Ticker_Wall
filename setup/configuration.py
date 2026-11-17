@@ -464,7 +464,8 @@ DEFAULTS: dict[str, Any] = {
 # so existing imports from setup.configuration still work.
 # ---------------------------------------------------------------------------
 from utilities.sun_times import (  # noqa: E402
-    approx_sunrise_sunset,
+    approx_sunrise_sunset,  # noqa: F401 - re-exported for existing callers
+    local_sunrise_sunset,
     parse_time,
     time_in_window,
     time_to_mins,
@@ -907,7 +908,7 @@ class Config:
 
     def __init__(self):
         self.data_store: dict[str, Any] = {}
-        # Cache for approx_sunrise_sunset, keyed by (date, lat, lng) so the
+        # Cache for local_sunrise_sunset, keyed by (date, lat, lng) so the
         # trig math only runs once per day or when the location changes.
         self._sun_cache: dict[tuple, tuple[time, time]] = {}
         self.load()
@@ -1582,7 +1583,7 @@ class Config:
             key = (today, lat, lng)
             cached = self._sun_cache.get(key)
             if cached is None:
-                sunrise, sunset = approx_sunrise_sunset(lat, lng)
+                sunrise, sunset = local_sunrise_sunset(lat, lng)
                 cached = (sunset, sunrise)
                 self._sun_cache[key] = cached
             return cached

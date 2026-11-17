@@ -10,7 +10,7 @@ singleton.
 from __future__ import annotations
 
 import math
-from datetime import datetime, time
+from datetime import datetime, time, timedelta, timezone
 from typing import Any
 
 # ---------------------------------------------------------------------------
@@ -66,16 +66,13 @@ def time_in_window(start: time, end: time) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def approx_sunrise_sunset(lat: float, lng: float, date=None) -> tuple[time, time]:
-    """Approximate sunrise/sunset times for a given lat/lng and date.
+def _solar_utc_minutes(lat: float, lng: float, date) -> tuple[float, float]:
+    """Return sunrise/sunset as unwrapped minutes from UTC midnight.
 
-    Uses a simplified solar position algorithm (NOAA approximation).
-    Returns (sunrise, sunset) as ``datetime.time`` objects.
+    Values outside 0-1440 mean the event falls on the previous or next UTC
+    day.  The local-time conversion relies on that, because a local sunrise
+    can sit either side of UTC midnight.
     """
-
-    if date is None:
-        date = datetime.now()
-
     day_of_year = date.timetuple().tm_yday
 
     # Solar declination (degrees)
@@ -95,40 +92,75 @@ def approx_sunrise_sunset(lat: float, lng: float, date=None) -> tuple[time, time
         math.sin(math.radians(-0.833)) - math.sin(lat_rad) * math.sin(decl_rad)
     ) / (math.cos(lat_rad) * math.cos(decl_rad))
 
-    # Polar night / midnight sun - clamp to 0 or 1440 minutes
-    if cos_h > 1:
-        # Sun never rises
-        noon = mins_to_time(720)
-        return noon, noon
-    if cos_h < -1:
-        # Sun never sets
-        noon = mins_to_time(720)
-        return noon, noon
+    # Polar night / midnight sun - the sun never crosses the horizon.
+    if cos_h > 1 or cos_h < -1:
+        return 720.0, 720.0
 
-    ha = math.degrees(math.acos(cos_h))  # degrees
-    ha_minutes = ha * 4  # 1° = 4 minutes
+    ha_minutes = math.degrees(math.acos(cos_h)) * 4  # 1° = 4 minutes
+    return solar_noon_utc - ha_minutes, solar_noon_utc + ha_minutes
 
-    sunrise = solar_noon_utc - ha_minutes
-    sunset = solar_noon_utc + ha_minutes
 
-    # Wrap into 0-1440
-    sunrise = sunrise % 1440
-    sunset = sunset % 1440
+def approx_sunrise_sunset(lat: float, lng: float, date=None) -> tuple[time, time]:
+    """Approximate sunrise/sunset times for a given lat/lng and date.
 
+    Uses a simplified solar position algorithm (NOAA approximation).
+    Returns (sunrise, sunset) as **UTC** ``datetime.time`` objects; see
+    :func:`local_sunrise_sunset` for the local-clock version the display,
+    icon day/night test and brightness schedule need.
+    """
+
+    if date is None:
+        date = datetime.now()
+
+    sunrise, sunset = _solar_utc_minutes(lat, lng, date)
     return mins_to_time(sunrise), mins_to_time(sunset)
 
 
-def is_daytime(lat: float, lng: float, date=None) -> bool:
+def local_sunrise_sunset(
+    lat: float, lng: float, date=None, tz=None
+) -> tuple[time, time]:
+    """Return sunrise/sunset as clock times in the process's local zone.
+
+    The solar math works in UTC, but the icon day/night test, the sunrise
+    and sunset text, and the automatic brightness schedule all reason about
+    local wall-clock time.  Converting here - through the zone that
+    ``TZ``/``tzset()`` installed at startup - keeps daylight saving correct
+    without hardcoding an offset.
+
+    *tz* is for tests; the app leaves it as ``None`` to follow the process
+    zone, which is what ``datetime.now()`` uses.
+    """
+    if date is None:
+        date = datetime.now(tz) if tz is not None else datetime.now()
+
+    sunrise_utc, sunset_utc = _solar_utc_minutes(lat, lng, date)
+    midnight_utc = datetime(date.year, date.month, date.day, tzinfo=timezone.utc)
+
+    def to_local(minutes: float) -> time:
+        moment = midnight_utc + timedelta(minutes=minutes)
+        if tz is not None:
+            return moment.astimezone(tz).time()
+        return moment.astimezone().time()
+
+    return to_local(sunrise_utc), to_local(sunset_utc)
+
+
+def is_daytime(lat: float, lng: float, date=None, tz=None) -> bool:
     """Return True if *date* falls between sunrise and sunset at *lat*/*lng*.
 
     If *date* is None, the current time is used.  In polar regions where the
     sun never rises (polar night) this returns False; where it never sets
     (midnight sun) it returns True.
+
+    *date* is a local wall-clock time (naive), and the solar times are
+    converted to the same local zone before comparing, so the result stays
+    correct when the display follows a non-UTC time zone.  *tz* is for
+    tests; the app follows the process zone.
     """
     if date is None:
-        date = datetime.now()
+        date = datetime.now(tz) if tz is not None else datetime.now()
 
-    sunrise, sunset = approx_sunrise_sunset(lat, lng, date)
+    sunrise, sunset = local_sunrise_sunset(lat, lng, date, tz)
 
     # Polar night or midnight sun: sunrise == sunset
     if sunrise == sunset:

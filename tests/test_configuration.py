@@ -2,6 +2,7 @@
 
 import types
 from datetime import datetime, time
+from zoneinfo import ZoneInfo
 
 from setup.configuration import (
     DEFAULT_DEBUG_SCENE,
@@ -16,6 +17,7 @@ from setup.configuration import (
 from utilities.sun_times import (
     approx_sunrise_sunset,
     is_daytime,
+    local_sunrise_sunset,
     mins_to_time,
     parse_time,
     time_in_window,
@@ -408,33 +410,144 @@ class TestMigrateConfig:
 
 
 class TestIsDaytime:
+    """Day/night tests pinned to a zone.
+
+    ``is_daytime`` compares local wall-clock times, so these tests pass an
+    explicit zone instead of relying on whatever zone the machine running
+    the suite happens to use.
+    """
+
+    LONDON = ZoneInfo("Europe/London")
+
     def test_london_midday_summer(self):
         # London ~51.5N, -0.12W, June 21 at 12:00 - should be daytime
-        assert is_daytime(51.5, -0.12, datetime(2026, 6, 21, 12, 0)) is True
+        assert (
+            is_daytime(51.5, -0.12, datetime(2026, 6, 21, 12, 0), tz=self.LONDON)
+            is True
+        )
 
     def test_london_midnight_summer(self):
         # London ~51.5N, -0.12W, June 21 at 00:00 - should be night
-        assert is_daytime(51.5, -0.12, datetime(2026, 6, 21, 0, 0)) is False
+        assert (
+            is_daytime(51.5, -0.12, datetime(2026, 6, 21, 0, 0), tz=self.LONDON)
+            is False
+        )
 
     def test_london_midday_winter(self):
         # London ~51.5N, -0.12W, Dec 21 at 12:00 - should be daytime
-        assert is_daytime(51.5, -0.12, datetime(2026, 12, 21, 12, 0)) is True
+        assert (
+            is_daytime(51.5, -0.12, datetime(2026, 12, 21, 12, 0), tz=self.LONDON)
+            is True
+        )
 
     def test_london_midnight_winter(self):
         # London ~51.5N, -0.12W, Dec 21 at 00:00 - should be night
-        assert is_daytime(51.5, -0.12, datetime(2026, 12, 21, 0, 0)) is False
+        assert (
+            is_daytime(51.5, -0.12, datetime(2026, 12, 21, 0, 0), tz=self.LONDON)
+            is False
+        )
 
     def test_polar_night(self):
         # North Pole area in December - sun never rises
-        assert is_daytime(80.0, 0.0, datetime(2026, 12, 21, 12, 0)) is False
+        assert (
+            is_daytime(80.0, 0.0, datetime(2026, 12, 21, 12, 0), tz=self.LONDON)
+            is False
+        )
 
     def test_midnight_sun(self):
         # North Pole area in June - sun never sets
-        assert is_daytime(80.0, 0.0, datetime(2026, 6, 21, 0, 0)) is True
+        assert (
+            is_daytime(80.0, 0.0, datetime(2026, 6, 21, 0, 0), tz=self.LONDON) is True
+        )
 
     def test_returns_bool(self):
-        result = is_daytime(51.5, -0.12)
+        result = is_daytime(51.5, -0.12, tz=self.LONDON)
         assert isinstance(result, bool)
+
+    # --- Regression: the 1.1.5 app time zone made the icon show a moon ---
+    # Virginia, 2026-11-17: sunrise ~07:01 EST, sunset ~17:01 EST.  Before
+    # the fix the local clock was compared against UTC solar times, so the
+    # whole morning (and early evening) read as night.
+
+    VIRGINIA = (38.0685, -78.8895)
+    EASTERN = ZoneInfo("America/New_York")
+
+    def test_virginia_morning_is_day(self):
+        assert (
+            is_daytime(*self.VIRGINIA, datetime(2026, 11, 17, 10, 0), tz=self.EASTERN)
+            is True
+        )
+
+    def test_virginia_night_is_not_day(self):
+        assert (
+            is_daytime(*self.VIRGINIA, datetime(2026, 11, 17, 2, 0), tz=self.EASTERN)
+            is False
+        )
+        assert (
+            is_daytime(*self.VIRGINIA, datetime(2026, 11, 17, 20, 0), tz=self.EASTERN)
+            is False
+        )
+
+
+class TestLocalSunriseSunset:
+    def test_virginia_standard_time(self):
+        sunrise, sunset = local_sunrise_sunset(
+            *TestIsDaytime.VIRGINIA, datetime(2026, 11, 17), tz=TestIsDaytime.EASTERN
+        )
+        # ~07:01 / ~17:01 EST; a few minutes of slack for the approximation.
+        assert abs(time_to_mins(sunrise) - (7 * 60 + 1)) <= 10, sunrise
+        assert abs(time_to_mins(sunset) - (17 * 60 + 1)) <= 10, sunset
+
+    def test_virginia_daylight_saving(self):
+        # Summer must follow EDT (-4), not a hardcoded EST (-5): the
+        # clock times would be an hour early otherwise.
+        sunrise, sunset = local_sunrise_sunset(
+            *TestIsDaytime.VIRGINIA, datetime(2026, 6, 21), tz=TestIsDaytime.EASTERN
+        )
+        assert 5 <= sunrise.hour < 6, sunrise
+        assert 20 <= sunset.hour < 21, sunset
+
+    def test_utc_primitive_is_unchanged(self):
+        # approx_sunrise_sunset stays the raw UTC primitive the solar tests
+        # pin; the local wrapper is what adds the zone conversion.
+        utc_sunrise, _ = approx_sunrise_sunset(
+            *TestIsDaytime.VIRGINIA, datetime(2026, 11, 17)
+        )
+        local, _ = local_sunrise_sunset(
+            *TestIsDaytime.VIRGINIA, datetime(2026, 11, 17), tz=TestIsDaytime.EASTERN
+        )
+        assert abs(time_to_mins(local) - time_to_mins(utc_sunrise)) == 5 * 60
+
+
+class TestBrightnessScheduleWindow:
+    def test_auto_mode_uses_local_sun_times(self, fresh_config, monkeypatch):
+        cfg = fresh_config
+        cfg.data_store.update(
+            {
+                "flight_location_mode": "simple",
+                "flight_lat": TestIsDaytime.VIRGINIA[0],
+                "flight_lng": TestIsDaytime.VIRGINIA[1],
+                "screen_schedule_auto": True,
+            }
+        )
+        sentinel = (time(6, 0), time(18, 0))
+        calls = []
+
+        def fake_local_sunrise_sunset(lat, lng, *args, **kwargs):
+            calls.append((lat, lng))
+            return sentinel
+
+        monkeypatch.setattr(
+            "setup.configuration.local_sunrise_sunset", fake_local_sunrise_sunset
+        )
+
+        # Auto mode dims at sunset and brightens at sunrise.
+        assert cfg.brightness_schedule_window == (time(18, 0), time(6, 0))
+        assert len(calls) == 1
+
+        # Cached for the rest of the day - no second round of trig.
+        assert cfg.brightness_schedule_window == (time(18, 0), time(6, 0))
+        assert len(calls) == 1
 
 
 # ---------------------------------------------------------------------------

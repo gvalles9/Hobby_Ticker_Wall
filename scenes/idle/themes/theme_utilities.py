@@ -683,9 +683,9 @@ def _parse_noaa_weather(
             if start.astimezone(daily_tz_by_date[day]).date() == day
         )
 
-    from utilities.sun_times import approx_sunrise_sunset
+    from utilities.sun_times import local_sunrise_sunset
 
-    sunrise, sunset = approx_sunrise_sunset(lat, lng)
+    sunrise, sunset = local_sunrise_sunset(lat, lng)
     return {
         **current,
         "hourly": hourly,

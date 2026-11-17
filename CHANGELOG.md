@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- The idle screen no longer shows the moon icon during the day after setting a
+  time zone. Sunrise and sunset are calculated in UTC but were compared against
+  the display's local clock, so anywhere west of UTC read the morning (and part
+  of the evening) as night. Solar times are now converted to the display's time
+  zone before the day/night test, the sunrise/sunset text and the automatic
+  brightness schedule use them, and daylight saving is applied correctly all
+  year round.
+
 ## [1.1.6] - 2026-11-16
 
 ### Added

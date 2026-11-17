@@ -14,6 +14,8 @@ adopted.)
 
 ## [Unreleased]
 
+## [1.2.2] - 2026-11-17
+
 ### Fixed
 
 - Weather no longer disappears when the National Weather Service is serving only

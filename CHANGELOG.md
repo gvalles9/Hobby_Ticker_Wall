@@ -14,6 +14,8 @@ adopted.)
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-11-17
+
 ### Added
 
 - A "Use network location" button on the Location card re-runs the public-IP

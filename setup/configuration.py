@@ -146,6 +146,9 @@ DEFAULT_CLOCK_24HR = True
 DEFAULT_DATE_FORMAT = 0  # 0 = Month Dth YYYY, 1 = DD-MM-YYYY, 2 = MM-DD-YYYY
 # IANA zone the display renders in.  Empty follows the OS (/etc/localtime).
 DEFAULT_TIMEZONE = ""
+# Who owns the zone: "auto" lets the IP lookup seed it until the owner makes
+# a choice, "manual" means never overwrite what they picked.
+DEFAULT_TIMEZONE_SOURCE = "auto"
 
 # Number formatting
 DEFAULT_NUMBER_SEPARATOR = "none"  # 'none', 'comma', 'period'
@@ -352,6 +355,7 @@ DEFAULTS: dict[str, Any] = {
     "clock_24hr": DEFAULT_CLOCK_24HR,
     "date_format": DEFAULT_DATE_FORMAT,
     "timezone": DEFAULT_TIMEZONE,
+    "timezone_source": DEFAULT_TIMEZONE_SOURCE,
     # Number formatting
     "number_separator": DEFAULT_NUMBER_SEPARATOR,
     # Idle screen themes
@@ -1599,6 +1603,16 @@ class Config:
 
         value = str(self.data_store.get("timezone", DEFAULT_TIMEZONE)).strip()
         return value if is_valid_zone(value) else DEFAULT_TIMEZONE
+
+    @property
+    def timezone_source(self) -> str:
+        """``"auto"`` while the IP lookup may seed the zone, else ``"manual"``."""
+        value = (
+            str(self.data_store.get("timezone_source", DEFAULT_TIMEZONE_SOURCE))
+            .strip()
+            .lower()
+        )
+        return value if value in ("auto", "manual") else DEFAULT_TIMEZONE_SOURCE
 
     @property
     def number_separator(self) -> str:

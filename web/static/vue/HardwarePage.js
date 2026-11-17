@@ -9,6 +9,35 @@ export default defineComponent({
   props: {
     store: { type: Object, required: true },
   },
+  data() {
+    return {
+      timezoneBusy: false,
+      timezoneStatus: "",
+    };
+  },
+  methods: {
+    async useIpTimezone() {
+      this.timezoneBusy = true;
+      this.timezoneStatus = "Looking up this network's time zone…";
+      try {
+        const response = await fetch(
+          this.store.ui.urls?.ipTimezone || "/api/timezone/ip",
+          { credentials: "same-origin", headers: { Accept: "application/json" } }
+        );
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Lookup failed.");
+        this.store.config.timezone = result.timezone;
+        this.store.config.timezone_source = "manual";
+        this.timezoneStatus =
+          `Set to ${result.timezone} from your network. Save settings to apply it.`;
+      } catch (error) {
+        this.timezoneStatus =
+          `Automatic time zone was unavailable: ${error.message} Choose one from the list.`;
+      } finally {
+        this.timezoneBusy = false;
+      }
+    },
+  },
   computed: {
     scheduleWindowLabel() {
       const [start, end] = this.store.ui.scheduleWindow;
@@ -446,10 +475,17 @@ export default defineComponent({
 
       <div class="mb-2">
         <label class="form-label small" for="timezone">Time zone</label>
-        <input type="text" class="form-control form-control-sm" id="timezone" name="timezone"
-               list="timezone-options" v-model="store.config.timezone"
-               :placeholder="store.ui.systemTimezone || 'System default'"
-               style="max-width:320px" />
+        <div class="d-flex gap-2 align-items-start flex-wrap">
+          <input type="text" class="form-control form-control-sm" id="timezone" name="timezone"
+                 list="timezone-options" v-model="store.config.timezone"
+                 :placeholder="store.ui.systemTimezone || 'System default'"
+                 style="max-width:320px" />
+          <button type="button" class="btn btn-outline-secondary btn-sm"
+                  :disabled="timezoneBusy" @click="useIpTimezone">
+            <span v-if="timezoneBusy" class="spinner-border spinner-border-sm me-1"></span>
+            <i v-else class="bi bi-geo-alt me-1"></i>Use network location
+          </button>
+        </div>
         <datalist id="timezone-options">
           <option v-for="zone in store.ui.timezoneOptions" :key="zone" :value="zone"></option>
         </datalist>
@@ -458,6 +494,7 @@ export default defineComponent({
           follow the Pi's system time zone<span v-if="store.ui.systemTimezone">
           (currently <strong>{{ store.ui.systemTimezone }}</strong>)</span>.
         </div>
+        <div v-if="timezoneStatus" class="form-text small">{{ timezoneStatus }}</div>
       </div>
     </div>
     </div>

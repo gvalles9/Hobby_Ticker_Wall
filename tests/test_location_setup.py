@@ -54,6 +54,8 @@ def test_ip_location_provider_validates_response(monkeypatch):
     )
 
     assert location.ip_location() == (40.7, -74.0)
+    # No time zone in the payload: callers fall back to the OS zone.
+    assert location.ip_timezone() == ""
 
 
 def test_ip_location_provider_rejects_out_of_range_coordinates(monkeypatch):
@@ -79,11 +81,17 @@ def test_auto_location_is_persisted_and_manual_location_is_untouched(monkeypatch
     from utilities.location import resolve_auto_location
 
     config = MagicMock()
-    config.get.return_value = "auto"
+    config.get.side_effect = lambda key, default=None: {
+        "location_source": "auto",
+        "timezone_source": "auto",
+        "timezone": "",
+    }.get(key, default)
 
     import utilities.location as location
 
-    monkeypatch.setattr(location, "ip_location", lambda: (40.7, -74.0))
+    monkeypatch.setattr(
+        location, "ip_details", lambda: (40.7, -74.0, "America/New_York")
+    )
     assert resolve_auto_location(config)
     updated = config.update.call_args.args[0]
     assert updated["flight_lat"] == 40.7
@@ -91,9 +99,61 @@ def test_auto_location_is_persisted_and_manual_location_is_untouched(monkeypatch
     assert updated["flight_observer_lat"] == 40.7
     assert updated["flight_observer_lng"] == -74.0
     assert updated["location_source"] == "ip"
+    assert updated["timezone"] == "America/New_York"
     config.save.assert_called_once()
 
-    config.get.return_value = "manual"
+    config.get.side_effect = lambda key, default=None: {
+        "location_source": "manual",
+    }.get(key, default)
     config.update.reset_mock()
     assert not resolve_auto_location(config)
     config.update.assert_not_called()
+
+
+def test_auto_location_never_overwrites_a_chosen_zone(monkeypatch):
+    import utilities.location as location
+
+    monkeypatch.setattr(
+        location, "ip_details", lambda: (40.7, -74.0, "America/New_York")
+    )
+
+    for stored, source in (("America/Chicago", "auto"), ("America/Chicago", "manual")):
+        config = MagicMock()
+        config.get.side_effect = lambda key, default=None, _s=stored, _src=source: {
+            "location_source": "auto",
+            "timezone_source": _src,
+            "timezone": _s,
+        }.get(key, default)
+
+        assert location.resolve_auto_location(config)
+        assert "timezone" not in config.update.call_args.args[0]
+
+
+def test_ip_timezone_is_validated_against_the_zone_database(monkeypatch):
+    import utilities.location as location
+
+    response = MagicMock()
+    response.__enter__.return_value.read.return_value = json.dumps(
+        {
+            "success": True,
+            "latitude": 40.7,
+            "longitude": -74.0,
+            "timezone": {"id": "America/New_York", "offset": -18000},
+        }
+    ).encode()
+    monkeypatch.setattr(
+        location.urllib.request, "urlopen", lambda *args, **kwargs: response
+    )
+
+    assert location.ip_details() == (40.7, -74.0, "America/New_York")
+
+    # A provider that names something we cannot resolve is ignored.
+    response.__enter__.return_value.read.return_value = json.dumps(
+        {
+            "success": True,
+            "latitude": 40.7,
+            "longitude": -74.0,
+            "timezone": {"id": "Mars/Olympus"},
+        }
+    ).encode()
+    assert location.ip_timezone() == ""

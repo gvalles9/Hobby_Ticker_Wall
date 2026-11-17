@@ -134,6 +134,26 @@ def test_settings_form_keeps_a_valid_zone(fresh_config):
     assert data["timezone"] == "America/Chicago"
 
 
+def test_any_saved_zone_becomes_a_manual_choice(fresh_config):
+    """A value the owner saved must survive later automatic suggestions."""
+    from web.app import parse_settings_form
+
+    fresh_config.data_store["timezone_source"] = "auto"
+
+    data = parse_settings_form({"timezone": "America/Chicago"}, fresh_config)
+
+    assert data["timezone_source"] == "manual"
+
+
+def test_clearing_the_zone_is_also_a_manual_choice(fresh_config):
+    from web.app import parse_settings_form
+
+    data = parse_settings_form({"timezone": ""}, fresh_config)
+
+    assert data["timezone"] == ""
+    assert data["timezone_source"] == "manual"
+
+
 def test_settings_form_treats_blank_as_system_default(fresh_config):
     from web.app import parse_settings_form
 
@@ -147,9 +167,11 @@ def test_settings_form_keeps_the_saved_zone_when_the_key_is_absent(fresh_config)
     from web.app import parse_settings_form
 
     fresh_config.data_store["timezone"] = "America/New_York"
+    fresh_config.data_store["timezone_source"] = "auto"
     data = parse_settings_form({}, fresh_config)
 
     assert data["timezone"] == "America/New_York"
+    assert data["timezone_source"] == "auto"
 
 
 def test_settings_form_rejects_an_unknown_zone(fresh_config):
@@ -190,10 +212,11 @@ def test_settings_page_offers_the_time_zone_picker(fresh_config):
     html = _authenticated_client().get("/settings").get_data(as_text=True)
 
     # The picker itself lives in HardwarePage.js; the page ships it the
-    # zone list and the current OS zone.
+    # zone list, the current OS zone and the lookup URL.
     assert "timezoneOptions" in html
     assert "America/New_York" in html
     assert "systemTimezone" in html
+    assert "/api/timezone/ip" in html
 
 
 def test_first_setup_page_offers_the_time_zone_picker(fresh_config):
@@ -239,3 +262,82 @@ def test_settings_post_rejects_an_unknown_zone(fresh_config, monkeypatch):
     assert "Unknown time zone" in response.get_data(as_text=True)
     assert "timezone" not in fresh_config.data_store
     web_app.restart_after.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# "Use network location" suggestion
+# ---------------------------------------------------------------------------
+
+
+def test_config_timezone_source_only_accepts_known_values(fresh_config):
+    assert fresh_config.timezone_source == "auto"
+
+    fresh_config.data_store["timezone_source"] = "MANUAL"
+    assert fresh_config.timezone_source == "manual"
+
+    fresh_config.data_store["timezone_source"] = "something else"
+    assert fresh_config.timezone_source == "auto"
+
+
+def test_ip_timezone_endpoint_requires_login():
+    import web.app as web_app
+
+    assert web_app.app.test_client().get("/api/timezone/ip").status_code == 302
+
+
+def test_ip_timezone_endpoint_returns_the_network_zone(monkeypatch):
+    import utilities.location as location
+
+    monkeypatch.setattr(location, "ip_timezone", lambda: "America/Chicago")
+
+    response = _authenticated_client().get("/api/timezone/ip")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"timezone": "America/Chicago"}
+
+
+def test_ip_timezone_endpoint_reports_a_failed_lookup(monkeypatch):
+    import utilities.location as location
+
+    def boom():
+        raise OSError("network unreachable")
+
+    monkeypatch.setattr(location, "ip_timezone", boom)
+
+    response = _authenticated_client().get("/api/timezone/ip")
+
+    assert response.status_code == 502
+    assert "failed" in response.get_json()["error"].lower()
+
+
+def test_ip_timezone_endpoint_reports_an_unknown_zone(monkeypatch):
+    import utilities.location as location
+
+    monkeypatch.setattr(location, "ip_timezone", lambda: "")
+
+    response = _authenticated_client().get("/api/timezone/ip")
+
+    assert response.status_code == 502
+    assert "could not be determined" in response.get_json()["error"]
+
+
+def test_ip_timezone_endpoint_works_during_first_setup(monkeypatch, fresh_config):
+    """The wizard offers the button, so the guard must let the lookup through."""
+    import utilities.location as location
+
+    fresh_config.data_store["web_password_hash"] = ""
+    monkeypatch.setattr(location, "ip_timezone", lambda: "America/New_York")
+
+    response = _authenticated_client().get("/api/timezone/ip")
+
+    assert response.status_code == 200
+    assert response.get_json() == {"timezone": "America/New_York"}
+
+
+def test_first_setup_page_shows_the_detect_button(fresh_config):
+    fresh_config.data_store["web_password_hash"] = ""
+
+    html = _authenticated_client().get("/first-setup").get_data(as_text=True)
+
+    assert 'id="timezone-detect"' in html
+    assert "/api/timezone/ip" in html

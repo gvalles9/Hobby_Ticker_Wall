@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A **Use network location** button next to the time-zone picker (Settings ->
+  System -> Defaults -> Clock and Date, and the first-setup wizard). It asks
+  the IP lookup the tracker already uses for the flight location and fills in
+  the zone it reports - the provider returns the IANA name in the same response,
+  so it costs no extra request. Nothing runs on page load or at startup: an
+  offline unit renders instantly and simply reports that the lookup was
+  unavailable.
+- The zone from that lookup also seeds a fresh install, so a new unit starts on
+  local time without anyone opening the picker. A saved choice always wins -
+  `timezone_source` flips to `"manual"` the moment the form is submitted,
+  including a cleared field - so the automatic suggestion never overwrites a
+  decision.
+
 ## [1.1.5] - 2026-11-16
 
 ### Added

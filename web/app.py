@@ -590,27 +590,31 @@ def _parse_birthday_date_field(form, cfg) -> str:
     return value
 
 
-def _parse_timezone_field(form, cfg) -> str:
+def _parse_timezone_fields(form, cfg) -> dict:
     """Validate the optional time-zone picker.
 
     A blank value means "follow the Pi's system time zone".  A missing key
-    keeps the saved zone so partial submissions never reset it.
+    keeps the saved zone and its owner so partial submissions never reset
+    them.  Anything the owner submits counts as a manual choice, including
+    a value the "use network location" button filled in, so the automatic
+    suggestion never silently overwrites a decision.
     """
     from utilities.timezones import is_valid_zone
 
     submitted = form.get("timezone")
     if submitted is None:
-        return str(getattr(cfg, "timezone", "") or "")
+        return {
+            "timezone": str(getattr(cfg, "timezone", "") or ""),
+            "timezone_source": str(getattr(cfg, "timezone_source", "auto")),
+        }
 
     value = str(submitted).strip()
-    if not value:
-        return ""
-    if not is_valid_zone(value):
+    if value and not is_valid_zone(value):
         raise ValueError(
             f"Unknown time zone '{value}'. Choose a name such as "
             "America/New_York from the list."
         )
-    return value
+    return {"timezone": value, "timezone_source": "manual"}
 
 
 def _parse_custom_scene_fields(form, cfg) -> dict:
@@ -724,7 +728,7 @@ def parse_first_setup_form(form, cfg) -> dict:
         ),
         "clock_24hr": bool_val(form.get("clock_24hr")),
         "date_format": int_val(form.get("date_format"), cfg.date_format),
-        "timezone": _parse_timezone_field(form, cfg),
+        **_parse_timezone_fields(form, cfg),
         # Optional: idle scenes and the birthday scene
         **_idle_theme_fields(idle_themes),
         "birthday_enabled": bool(birthday_date),
@@ -928,7 +932,7 @@ def parse_settings_form(form, cfg) -> dict:
         # Clock / date
         "clock_24hr": bool_val(form.get("clock_24hr")),
         "date_format": int_val(form.get("date_format"), 0),
-        "timezone": _parse_timezone_field(form, cfg),
+        **_parse_timezone_fields(form, cfg),
         # Idle screen themes (ordered multi-select, plus the legacy field)
         **_idle_theme_fields(idle_themes),
         # Birthday scene (recurring yearly; only month/day are compared).
@@ -1099,7 +1103,17 @@ def _first_setup_pending(cfg) -> bool:
 # wizard itself and the login pages are obvious; the Wi-Fi setup page has
 # to work before anyone can log in, and /ping backs the restart screen.
 FIRST_SETUP_EXEMPT_ENDPOINTS = frozenset(
-    {"first_setup", "login", "logout", "static", "wifi_setup", "ping"}
+    {
+        "first_setup",
+        "login",
+        "logout",
+        "static",
+        "wifi_setup",
+        "ping",
+        # The wizard offers "use network location" for the time zone; it is
+        # a read-only lookup and must work before setup is finished.
+        "ip_timezone",
+    }
 )
 
 
@@ -1173,6 +1187,9 @@ def _first_setup_page_data(cfg, form=None) -> dict:
         "clock_24hr": flag("clock_24hr", cfg.clock_24hr),
         "date_format": int_val(val("date_format", cfg.date_format), cfg.date_format),
         "timezone": val("timezone", cfg.timezone),
+        "timezone_source": (
+            "manual" if form is not None and "timezone" in form else cfg.timezone_source
+        ),
         "system_timezone": system_zone(),
         "timezone_options": available_zones(),
         # Idle scenes / birthday / satellites
@@ -1447,6 +1464,9 @@ def _provider_ui_data(cfg) -> dict:
     # The stored list may be empty on installs that still use the legacy
     # single-theme setting; expose the effective selection to the UI.
     cfg_masked["idle_screen_themes"] = cfg.idle_screen_themes
+    # Older configs predate these keys; the picker always needs both.
+    cfg_masked["timezone"] = cfg.timezone
+    cfg_masked["timezone_source"] = cfg.timezone_source
 
     providers_meta = []
     for pid, spec in PROVIDERS.items():
@@ -1555,6 +1575,7 @@ def _settings_page_data(
         },
         "urls": {
             "ipLocation": _url_for("ip_location"),
+            "ipTimezone": _url_for("ip_timezone"),
             "logs": _url_for("logs"),
             "update": _url_for("update"),
             "cacheClear": "/cache-clear",
@@ -1977,6 +1998,31 @@ def ip_location():
         return jsonify(error="IP-based location lookup failed."), 502
 
     return jsonify(latitude=lat, longitude=lng)
+
+
+@app.route("/api/timezone/ip")
+@login_required
+def ip_timezone():
+    """Suggest the time zone of this network's public IP.
+
+    Read-only: the browser fills the picker with the answer and the owner
+    still saves the form, so a wrong estimate is never applied silently.
+    """
+    try:
+        from utilities.location import ip_timezone as lookup_ip_timezone
+
+        zone = lookup_ip_timezone()
+    except (OSError, TimeoutError, ValueError, KeyError) as exc:
+        logger.warning("IP time zone lookup failed: %s", exc)
+        return jsonify(error="Time zone lookup failed."), 502
+
+    if not zone:
+        return (
+            jsonify(error="The network's time zone could not be determined."),
+            502,
+        )
+
+    return jsonify(timezone=zone)
 
 
 @app.route("/ping")

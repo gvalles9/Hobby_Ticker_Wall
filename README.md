@@ -225,11 +225,14 @@ their defaults, and anything can be changed later on the Settings page.
 
 The **Time zone** picker (Settings -> System -> Defaults -> Clock and Date) accepts any
 IANA name such as `America/New_York` or `America/Chicago`. Leaving it blank
-follows the Pi's system time zone. Changing it updates the clock, date,
-sunrise/sunset and the screen schedule immediately, with no reflash and no root
-access; it does not change the OS time zone used by SSH and other services. If
-the picker is blank and the display shows UTC, set the OS zone once with
-`sudo timedatectl set-timezone America/New_York`.
+follows the Pi's system time zone. **Use network location** next to the field
+asks the same IP lookup the tracker already uses for the flight location and
+fills in the zone it reports, so a unit can be set up without looking anything
+up by hand; the value is only a suggestion until you save. Changing the zone
+updates the clock, date, sunrise/sunset and the screen schedule immediately,
+with no reflash and no root access. It does not change the OS time zone used by
+SSH and other services: if you want the whole Pi on local time, run
+`sudo timedatectl set-timezone America/New_York` once over SSH.
 
 The wizard cannot be skipped. Until a web password other than the shared
 default is saved, every page redirects back to
@@ -520,6 +523,7 @@ This table is for reference if you've disabled the web interface (`web_interface
 | `clock_24hr` | `true` for 24-hour clock | `true` |
 | `date_format` | `0` = YYYY-MM-DD, `1` = DD-MM-YYYY, `2` = MM-DD-YYYY | `0` |
 | `timezone` | IANA time zone for the display, e.g. `"America/New_York"`; `""` follows the OS time zone | `""` |
+| `timezone_source` | `"auto"` lets the IP lookup seed the zone until you save one; `"manual"` means never overwrite it | `"auto"` |
 | `web_interface_enabled` | Enable the config UI and QR code on boot | `true` |
 | `web_port` | TCP port for the Flask config server (1024-65535) | `8584` |
 | `web_password_hash` | SHA-256 hash for the web UI password | `""` |

@@ -176,9 +176,15 @@
 
       <div class="mt-3">
         <label class="form-label small" for="timezone">Time zone</label>
-        <input type="text" class="form-control" id="timezone" name="timezone"
-               list="timezone-options" value="{{ timezone }}"
-               placeholder="{{ system_timezone or 'System default' }}" />
+        <div class="d-flex gap-2 align-items-start flex-wrap">
+          <input type="text" class="form-control" id="timezone" name="timezone"
+                 list="timezone-options" value="{{ timezone }}"
+                 placeholder="{{ system_timezone or 'System default' }}"
+                 style="max-width:320px" />
+          <button type="button" class="btn btn-outline-secondary" id="timezone-detect">
+            <i class="bi bi-geo-alt me-1"></i>Use network location
+          </button>
+        </div>
         <datalist id="timezone-options">
           {% for zone in timezone_options %}<option value="{{ zone }}"></option>{% endfor %}
         </datalist>
@@ -186,7 +192,10 @@
           Controls the clock, date, sunrise/sunset and the screen schedule. Leave blank to
           follow the Pi's system time zone{% if system_timezone %}
           (<strong>{{ system_timezone }}</strong>){% endif %}.
+          {% if timezone_source == 'auto' and timezone %}Suggested from this network's
+          IP address; change it if it looks wrong.{% endif %}
         </div>
+        <div class="form-text" id="timezone-status" role="status"></div>
       </div>
     </div>
 
@@ -251,5 +260,39 @@
 
   {% include "footer.html" %}
 </div>
+
+<script>
+  // Optional helper: fill the zone from this network's IP. Nothing runs on
+  // page load, so an offline unit still renders the wizard instantly.
+  (function () {
+    const button = document.getElementById("timezone-detect");
+    const input = document.getElementById("timezone");
+    const status = document.getElementById("timezone-status");
+    if (!button || !input || !status) return;
+
+    button.addEventListener("click", async function () {
+      button.disabled = true;
+      status.textContent = "Looking up this network's time zone\u2026";
+      try {
+        const response = await fetch("{{ url_for('ip_timezone') }}", {
+          credentials: "same-origin",
+          headers: { Accept: "application/json" },
+        });
+        const result = await response.json();
+        if (!response.ok) throw new Error(result.error || "Lookup failed.");
+        input.value = result.timezone;
+        status.textContent =
+          "Filled in from your network. Change it if it looks wrong.";
+      } catch (error) {
+        status.textContent =
+          "Automatic time zone was unavailable: " +
+          error.message +
+          " Choose one from the list.";
+      } finally {
+        button.disabled = false;
+      }
+    });
+  })();
+</script>
 </body>
 </html>

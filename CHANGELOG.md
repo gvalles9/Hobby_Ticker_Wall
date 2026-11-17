@@ -14,6 +14,8 @@ adopted.)
 
 ## [Unreleased]
 
+## [1.3.1] - 2026-11-17
+
 ### Fixed
 
 - A failing scene can no longer crash the display or send the unit into a

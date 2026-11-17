@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime
 from math import ceil
 
+from display.spans import font_ink_offset, font_text_width
 from scenes.idle.idle_scene import BaseIdleScene
 from scenes.idle.themes.icons.weather.codes import code_to_weather
 from scenes.idle.themes.icons.weather.forecast_sprite import (
@@ -25,7 +26,6 @@ from scenes.idle.themes.theme_utilities import (
     RAINFALL_GRAPH_ORIGIN,
     RAINFALL_HOURS,
     RAINFALL_OVERSPILL_FLASH_ENABLED,
-    font_text_width,
     format_display_date,
     temperature_to_colour,
 )
@@ -52,12 +52,15 @@ CLOCK_AMPM_FONT = fonts.extrasmall
 CLOCK_POSITION = (1, 8)
 AMPM_POSITION_Y = 6
 
-# Date
+# Date / day of week.  Both rows are aligned on their first visible pixel
+# rather than the pen position: 5x8 glyphs have different left bearings, so
+# a date starting with "N" would sit a pixel or two left of a weekday
+# starting with "T" when drawn at the same x.
 DATE_FONT = fonts.small
-DATE_POSITION = (1, 31)
-# Day of week
+DATE_POSITION_Y = 31
 DAY_FONT = fonts.small
-DAY_POSITION = (2, 23)
+DAY_POSITION_Y = 23
+TEXT_INK_X = 2
 
 # Temperature display
 TEMPERATURE_FONT = fonts.extrasmall
@@ -180,6 +183,11 @@ class ClassicIdleTheme(BaseIdleScene):
     # Date
     # ------------------------------------------------------------------
 
+    @staticmethod
+    def _left_x(font, text: str) -> int:
+        """Pen x that puts *text*'s first visible pixel on TEXT_INK_X."""
+        return TEXT_INK_X - font_ink_offset(font, text)
+
     def draw_date(self) -> None:
         cfg = Config.instance()
         current_date = format_display_date(
@@ -193,8 +201,8 @@ class ClassicIdleTheme(BaseIdleScene):
             self.panel.draw_text(
                 self.canvas,
                 DATE_FONT,
-                DATE_POSITION[0],
-                DATE_POSITION[1],
+                self._left_x(DATE_FONT, self.last_date),
+                DATE_POSITION_Y,
                 TC(THEME_BG),
                 self.last_date,
             )
@@ -202,8 +210,8 @@ class ClassicIdleTheme(BaseIdleScene):
         self.panel.draw_text(
             self.canvas,
             DATE_FONT,
-            DATE_POSITION[0],
-            DATE_POSITION[1],
+            self._left_x(DATE_FONT, current_date),
+            DATE_POSITION_Y,
             TC(THEME_CURRENT_DATE),
             current_date,
         )
@@ -221,8 +229,8 @@ class ClassicIdleTheme(BaseIdleScene):
             self.panel.draw_text(
                 self.canvas,
                 DAY_FONT,
-                DAY_POSITION[0],
-                DAY_POSITION[1],
+                self._left_x(DAY_FONT, self.last_day),
+                DAY_POSITION_Y,
                 TC(THEME_BG),
                 self.last_day,
             )
@@ -230,8 +238,8 @@ class ClassicIdleTheme(BaseIdleScene):
         self.panel.draw_text(
             self.canvas,
             DAY_FONT,
-            DAY_POSITION[0],
-            DAY_POSITION[1],
+            self._left_x(DAY_FONT, current_day),
+            DAY_POSITION_Y,
             TC(THEME_CURRENT_DAY),
             current_day,
         )

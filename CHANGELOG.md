@@ -5,6 +5,16 @@ upstream FlightTracker release history on which this fork is based.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- The date on the Classic idle screen now lines up with the weekday above it.
+  Both rows are aligned on their first visible pixel instead of the text pen
+  position, so glyphs with different left bearings (a "T" is inset one pixel
+  in the 5x8 font, an "N" is flush) no longer leave the date a pixel or two
+  to the left.
+
 ## [1.1.7] - 2026-11-17
 
 ### Fixed

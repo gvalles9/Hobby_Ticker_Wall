@@ -46,6 +46,27 @@ def font_text_width(font: BDFFont, text: str) -> int:
     return sum(font.CharacterWidth(ord(c)) for c in text)
 
 
+def font_ink_offset(font: BDFFont, text: str) -> int:
+    """Pixels between the pen position and the first drawn pixel of *text*.
+
+    BDF glyphs carry their own left bearing, and some bitmaps (an ``S`` in
+    the 5x8 font, for example) also start with an empty column inside their
+    bounding box.  Both are counted here, so subtracting the result from the
+    column you want the visible edge on keeps stacked left-aligned rows in
+    line.
+    """
+    for char in text:
+        glyph = font.get_glyph(ord(char))
+        if glyph is None or not any(glyph.rows):
+            continue
+        total_bits = ((glyph.bbx_w + 7) // 8) * 8
+        for bit in range(glyph.bbx_w):
+            mask = 1 << (total_bits - 1 - bit)
+            if any(row & mask for row in glyph.rows):
+                return glyph.bbx_xoff + bit
+    return 0
+
+
 # ---------------------------------------------------------------------------
 # Placed spans - a Span with an (x, y) baseline position, used by scenes
 # that draw text at fixed positions (e.g. the satellite telemetry panel).

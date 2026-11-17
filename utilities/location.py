@@ -17,7 +17,9 @@ def ip_details(timeout: float = 5) -> tuple[float, float, str]:
     """
     request = urllib.request.Request(
         "https://ipwho.is/",
-        headers={"User-Agent": "FlightTracker location setup"},
+        headers={
+            "User-Agent": "HobbyTicker/1.0 (+https://github.com/gvalles9/Hobby_Ticker_Wall)"
+        },
     )
     with urllib.request.urlopen(request, timeout=timeout) as response:
         data = json.loads(response.read(65536))

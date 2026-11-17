@@ -700,6 +700,57 @@ def _unit_profile_fields(form, cfg) -> dict:
     }
 
 
+def _parse_wizard_location(form, cfg) -> dict:
+    """Parse the wizard's optional Location card.
+
+    The wizard is the first place a new owner can set coordinates, so a
+    supplied pair has to be authoritative.  It becomes a manual location and
+    is copied to the observer and map box that Advanced mode reads, so
+    switching mode later does not land the observer on 0,0.
+
+    Blank boxes keep the current point and leave ``location_source`` alone:
+    automatic detection is still allowed to run and fill it in.
+    """
+    from utilities.location import location_search_box
+
+    raw_lat = str(form.get("flight_lat", "") or "").strip()
+    raw_lng = str(form.get("flight_lng", "") or "").strip()
+    radius = float_val(form.get("flight_radius"), cfg.flight_radius)
+
+    if not raw_lat and not raw_lng:
+        return {
+            "flight_radius": radius,
+            "flight_lat": cfg.flight_lat,
+            "flight_lng": wrap_lng(cfg.flight_lng),
+        }
+    if not raw_lat or not raw_lng:
+        raise ValueError("Enter both latitude and longitude, or leave both blank.")
+
+    try:
+        latitude = float(raw_lat)
+    except ValueError as exc:
+        raise ValueError("Latitude must be a number, for example 38.07.") from exc
+    try:
+        longitude = float(raw_lng)
+    except ValueError as exc:
+        raise ValueError("Longitude must be a number, for example -78.89.") from exc
+    if not -90.0 <= latitude <= 90.0:
+        raise ValueError("Latitude must be between -90 and 90.")
+    if not -180.0 <= longitude <= 180.0:
+        raise ValueError("Longitude must be between -180 and 180.")
+
+    longitude = wrap_lng(longitude)
+    return {
+        "flight_radius": radius,
+        "location_source": "manual",
+        "flight_lat": latitude,
+        "flight_lng": longitude,
+        "flight_observer_lat": latitude,
+        "flight_observer_lng": longitude,
+        **location_search_box(latitude, longitude),
+    }
+
+
 def parse_first_setup_form(form, cfg) -> dict:
     """Parse the first-setup wizard form.
 
@@ -718,9 +769,7 @@ def parse_first_setup_form(form, cfg) -> dict:
             str_val(form.get("bonnet_type"), DEFAULT_BONNET_TYPE).lower()
         ),
         # Optional: location - blank keeps the current (auto-detected) spot
-        "flight_lat": float_val(form.get("flight_lat"), cfg.flight_lat),
-        "flight_lng": wrap_lng(float_val(form.get("flight_lng"), cfg.flight_lng)),
-        "flight_radius": float_val(form.get("flight_radius"), cfg.flight_radius),
+        **_parse_wizard_location(form, cfg),
         # Optional: units, brightness, clock and date
         **_unit_profile_fields(form, cfg),
         "screen_brightness": max(
@@ -1171,12 +1220,20 @@ def _first_setup_page_data(cfg, form=None) -> dict:
         if form is not None
         else list(cfg.idle_screen_themes)
     )
+    # A new unit holds 0,0 until the first IP lookup succeeds.  Showing that
+    # as if it were a location would let an owner save Null Island by
+    # accident, so the boxes stay empty until there is a real point.
+    location_known = not (
+        str(cfg.get("location_source", "auto")) == "auto"
+        and (cfg.flight_lat, cfg.flight_lng) == (0.0, 0.0)
+    )
     return {
         "csrf_token": csrf_token(),
         "bonnet_type": val("bonnet_type", cfg.bonnet_type),
         # Location (blank keeps the current, possibly auto-detected, spot)
-        "flight_lat": val("flight_lat", cfg.flight_lat),
-        "flight_lng": val("flight_lng", cfg.flight_lng),
+        "location_known": location_known,
+        "flight_lat": val("flight_lat", cfg.flight_lat if location_known else ""),
+        "flight_lng": val("flight_lng", cfg.flight_lng if location_known else ""),
         "flight_radius": val("flight_radius", cfg.flight_radius),
         # Units / brightness / clock
         "flight_units": val("flight_units", cfg.flight_units),

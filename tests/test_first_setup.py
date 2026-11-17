@@ -78,6 +78,61 @@ class TestParseFirstSetupForm:
         assert data["flight_lng"] == -74.0
         assert data["flight_radius"] == 15.0
 
+    def test_supplied_location_becomes_manual_and_fills_advanced_fields(
+        self, fresh_config
+    ):
+        import web.app as web_app
+
+        fresh_config.set("location_source", "auto")
+
+        data = web_app.parse_first_setup_form(
+            {"flight_lat": "38.0684718", "flight_lng": "-78.8894738"}, fresh_config
+        )
+
+        assert data["location_source"] == "manual"
+        assert data["flight_lat"] == pytest.approx(38.0684718)
+        assert data["flight_lng"] == pytest.approx(-78.8894738)
+        # Advanced mode reads the observer, so it has to move with the pin.
+        assert data["flight_observer_lat"] == pytest.approx(38.0684718)
+        assert data["flight_observer_lng"] == pytest.approx(-78.8894738)
+        # The 20 km search box is rebuilt around the same point.
+        assert data["flight_zone_tl_y"] > 38.0684718 > data["flight_zone_br_y"]
+        assert data["flight_zone_tl_x"] < -78.8894738 < data["flight_zone_br_x"]
+
+    def test_blank_location_leaves_the_source_alone(self, fresh_config):
+        import web.app as web_app
+
+        fresh_config.set("location_source", "auto")
+
+        data = web_app.parse_first_setup_form(
+            {"flight_lat": "", "flight_lng": ""}, fresh_config
+        )
+
+        # Automatic detection still owns the point; the wizard must not pin it.
+        assert "location_source" not in data
+
+    def test_half_a_location_is_rejected(self, fresh_config):
+        import web.app as web_app
+
+        with pytest.raises(ValueError, match="both latitude and longitude"):
+            web_app.parse_first_setup_form({"flight_lat": "38.07"}, fresh_config)
+
+    def test_non_numeric_location_is_rejected(self, fresh_config):
+        import web.app as web_app
+
+        with pytest.raises(ValueError, match="Latitude must be a number"):
+            web_app.parse_first_setup_form(
+                {"flight_lat": "abc", "flight_lng": "-78.9"}, fresh_config
+            )
+
+    def test_out_of_range_location_is_rejected(self, fresh_config):
+        import web.app as web_app
+
+        with pytest.raises(ValueError, match="between -90 and 90"):
+            web_app.parse_first_setup_form(
+                {"flight_lat": "91", "flight_lng": "-78.9"}, fresh_config
+            )
+
     def test_omitted_units_keep_defaults(self, fresh_config):
         import web.app as web_app
 
@@ -195,6 +250,33 @@ class TestFirstSetupRoute:
         assert 'name="bonnet_type"' in text
         assert 'name="idle_screen_themes"' in text
 
+    def test_wizard_leaves_the_location_blank_until_it_is_known(self, fresh_config):
+        import re
+
+        text = _authenticated_client().get("/first-setup").get_data(as_text=True)
+
+        # A fresh unit stores 0,0, which is not a location - showing it would
+        # let an owner save Null Island without noticing.
+        assert (
+            re.search(r'id="flight_lat".*?value="([^"]*)"', text, re.S).group(1) == ""
+        )
+        assert "could not determine a location" in text
+
+    def test_wizard_prefills_a_detected_location(self, fresh_config):
+        import re
+
+        fresh_config.set("location_source", "ip")
+        fresh_config.set("flight_lat", 38.0684718)
+        fresh_config.set("flight_lng", -78.8894738)
+
+        text = _authenticated_client().get("/first-setup").get_data(as_text=True)
+
+        lat = re.search(r'id="flight_lat".*?value="([^"]*)"', text, re.S).group(1)
+        lng = re.search(r'id="flight_lng".*?value="([^"]*)"', text, re.S).group(1)
+        assert lat == "38.0684718"
+        assert lng == "-78.8894738"
+        assert "estimated this location" in text
+
     def test_legacy_flag_alone_does_not_satisfy_the_wizard(self, fresh_config):
         fresh_config.set("first_setup_complete", True)
 
@@ -264,6 +346,22 @@ class TestFirstSetupRoute:
 
         assert resp.status_code == 400
         restart.assert_not_called()
+
+    def test_half_a_location_is_rejected_by_the_route(self, fresh_config, monkeypatch):
+        import web.app as web_app
+
+        restart = MagicMock()
+        monkeypatch.setattr(web_app, "restart_after", restart)
+
+        resp = _authenticated_client().post(
+            "/first-setup",
+            data=_wizard_form(flight_lat="51.5"),
+        )
+
+        assert resp.status_code == 400
+        assert "both latitude and longitude" in resp.get_data(as_text=True)
+        restart.assert_not_called()
+        assert fresh_config.get("first_setup_complete") is not True
 
     def test_valid_post_saves_config_and_restarts(self, fresh_config, monkeypatch):
         import web.app as web_app

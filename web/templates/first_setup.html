@@ -78,8 +78,14 @@
         <i class="bi bi-geo-alt me-2"></i>Location
         <span class="badge text-bg-secondary ms-1">Optional</span>
       </p>
-      <p class="text-muted small">Hobby Ticker already estimated a location from this network's
-        IP address. Enter your own coordinates to override it, or leave these as they are.</p>
+      {% if location_known %}
+      <p class="text-muted small">Hobby Ticker estimated this location from this network's IP
+        address. Enter your own coordinates to correct it; saving with these values keeps the
+        estimate.</p>
+      {% else %}
+      <p class="text-muted small">Hobby Ticker could not determine a location yet. Enter your
+        coordinates below, or leave both boxes blank and it will keep trying automatically.</p>
+      {% endif %}
       <div class="row g-2">
         <div class="col-4">
           <label class="form-label small" for="flight_lat">Latitude</label>
@@ -98,7 +104,7 @@
         </div>
       </div>
       <p class="form-text text-muted small">Flights and weather within this radius appear on the
-        display.</p>
+        display. Longitude west of Greenwich is negative: Virginia is about -78.9.</p>
     </div>
 
     <!-- ====== Optional: units ====== -->

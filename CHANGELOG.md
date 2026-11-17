@@ -14,6 +14,23 @@ adopted.)
 
 ## [Unreleased]
 
+### Fixed
+
+- Coordinates entered in the first-setup wizard now stick. They are saved as
+  a manual location, so the IP estimate can no longer replace them on the next
+  weather refresh, and the observer pin and search box that Advanced mode reads
+  are filled in at the same time, so switching mode later no longer starts
+  from 0,0. Half a coordinate pair, or a value that is not a number, is now
+  rejected with a readable message instead of being silently discarded. A
+  brand-new unit also shows empty boxes rather than the 0,0 placeholder when no
+  location has been detected yet, and the card notes that longitudes west of
+  Greenwich are negative.
+
+### Changed
+
+- The IP location lookup identifies itself as Hobby Ticker rather than the
+  upstream FlightTracker project.
+
 ## [1.2.2] - 2026-11-17
 
 ### Fixed

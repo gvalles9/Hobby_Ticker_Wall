@@ -14,6 +14,15 @@ adopted.)
 
 ## [Unreleased]
 
+### Fixed
+
+- The Classic idle screen no longer crash-loops on Raspberry Pi 3/4. The 1.1.8
+  date-alignment change asked the font for glyph bitmaps, but only the Pi 5 and
+  simulator font type provides those; the Pi 3/4 driver font raised
+  `AttributeError`, so systemd restarted the app roughly every 25 seconds. Glyph
+  data now falls back to the same BDF file the panel driver loaded, and the idle
+  screen renders normally again.
+
 ## [1.2.0] - 2026-11-17
 
 ### Fixed

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, NamedTuple, TypeAlias
 
-from display.bdf_font import BDFFont
+from display.bdf_font import BDFFont, glyph_for
 from display.rendered_pixel import Colour
 
 if TYPE_CHECKING:
@@ -46,7 +46,7 @@ def font_text_width(font: BDFFont, text: str) -> int:
     return sum(font.CharacterWidth(ord(c)) for c in text)
 
 
-def font_ink_offset(font: BDFFont, text: str) -> int:
+def font_ink_offset(font, text: str) -> int:
     """Pixels between the pen position and the first drawn pixel of *text*.
 
     BDF glyphs carry their own left bearing, and some bitmaps (an ``S`` in
@@ -54,9 +54,14 @@ def font_ink_offset(font: BDFFont, text: str) -> int:
     bounding box.  Both are counted here, so subtracting the result from the
     column you want the visible edge on keeps stacked left-aligned rows in
     line.
+
+    ``font`` may be a :class:`~display.bdf_font.BDFFont` or a driver font
+    such as the Pi 3/4 ``rgbmatrix.graphics.Font``; the latter has its
+    glyph data loaded from the registered BDF file.  When no glyph data is
+    available the offset is 0, leaving the pen position unchanged.
     """
     for char in text:
-        glyph = font.get_glyph(ord(char))
+        glyph = glyph_for(font, ord(char))
         if glyph is None or not any(glyph.rows):
             continue
         total_bits = ((glyph.bbx_w + 7) // 8) * 8

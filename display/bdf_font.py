@@ -143,6 +143,54 @@ class BDFFont:
         )
 
 
+# Cache of BDFFonts parsed on demand for fonts that carry no glyph bitmaps of
+# their own (e.g. the rgbmatrix graphics.Font on Pi 3/4).  Keyed by BDF path
+# so the same file is parsed only once, no matter how many font objects point
+# at it.
+_bdf_cache_by_path: dict[str, BDFFont] = {}
+
+
+def glyph_for(font, codepoint: int) -> Glyph | None:
+    """Return the :class:`Glyph` for *codepoint* in *font*, if available.
+
+    :class:`BDFFont` carries its own glyph bitmaps and is used directly.
+    Other font objects - notably ``rgbmatrix.graphics.Font`` on Pi 3/4 -
+    only expose metrics such as ``CharacterWidth``.  For those the panel
+    driver registers the BDF file the font was loaded from; that file is
+    parsed once and cached.  Returns ``None`` when no glyph data is
+    available, so callers can fall back instead of raising.
+    """
+    get_glyph = getattr(font, "get_glyph", None)
+    if get_glyph is not None:
+        return get_glyph(codepoint)
+
+    path = _registered_bdf_path(font)
+    if path is None:
+        return None
+
+    bdf = _bdf_cache_by_path.get(path)
+    if bdf is None:
+        bdf = BDFFont(path)
+        _bdf_cache_by_path[path] = bdf
+    return bdf.get_glyph(codepoint)
+
+
+def _registered_bdf_path(font) -> str | None:
+    """Return the BDF path a non-BDFFont was loaded from, if known.
+
+    The rgbmatrix ``graphics.Font`` (Pi 3/4) is a C++ object with no
+    ``__dict__``, so the panel driver registers its path in a module-level
+    dict keyed by ``id(font)``.  The import is lazy so platforms without
+    the rgbmatrix binding (Pi 5, simulator) don't pay for - or fail on -
+    importing it.
+    """
+    try:
+        from display.rgbpanel_rgbmatrix import bdf_path_for_font
+    except ImportError:
+        return None
+    return bdf_path_for_font(font)
+
+
 def render_pixels(font: BDFFont, colour, text: str) -> RenderedPixels:
     """Render text into sparse, column-oriented pixel data.
 

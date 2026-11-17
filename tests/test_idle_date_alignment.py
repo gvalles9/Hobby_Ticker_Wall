@@ -6,10 +6,15 @@ to start a pixel or two left of a weekday starting with "T".
 """
 
 import datetime
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 
+from display.bdf_font import BDFFont
 from display.spans import font_ink_offset
 from scenes.idle.themes import classic_idle_theme
+
+FONT_PATH = Path(__file__).resolve().parent.parent / "fonts" / "5x8.bdf"
 
 WEEKDAYS = (
     "Monday",
@@ -106,3 +111,44 @@ def test_drawn_date_lines_up_with_the_weekday_above_it(monkeypatch):
 
     font = classic_idle_theme.DATE_FONT
     assert _first_ink_x(font, day_text, day_x) == _first_ink_x(font, date_text, date_x)
+
+
+class _MetricsOnlyFont:
+    """Stand-in for ``rgbmatrix.graphics.Font``: metrics, no glyph bitmaps.
+
+    The Pi 3/4 driver font exposes ``CharacterWidth`` but no ``get_glyph``;
+    the glyph data has to come from the BDF file the panel loaded.
+    """
+
+    def __init__(self, reference: BDFFont):
+        self._reference = reference
+
+    def CharacterWidth(self, codepoint: int) -> int:
+        return self._reference.CharacterWidth(codepoint)
+
+
+def _stub_rgbmatrix_panel(monkeypatch, font, path):
+    """Make ``bdf_path_for_font`` report *path* for *font* only."""
+    resolved = None if path is None else str(path)
+    monkeypatch.setitem(
+        sys.modules,
+        "display.rgbpanel_rgbmatrix",
+        SimpleNamespace(bdf_path_for_font=lambda f: resolved if f is font else None),
+    )
+
+
+def test_ink_offset_falls_back_to_registered_bdf_for_driver_font(monkeypatch):
+    reference = BDFFont(str(FONT_PATH))
+    font = _MetricsOnlyFont(reference)
+    _stub_rgbmatrix_panel(monkeypatch, font, FONT_PATH)
+
+    for text in WEEKDAYS + DATES:
+        assert font_ink_offset(font, text) == font_ink_offset(reference, text), text
+
+
+def test_ink_offset_is_zero_when_no_glyph_data_is_available(monkeypatch):
+    reference = BDFFont(str(FONT_PATH))
+    font = _MetricsOnlyFont(reference)
+    _stub_rgbmatrix_panel(monkeypatch, font, None)
+
+    assert font_ink_offset(font, "Tuesday") == 0

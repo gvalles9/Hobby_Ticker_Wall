@@ -103,6 +103,7 @@ class CyclingIdleScene:
     """Rotate through two or more idle theme scenes every 30 seconds."""
 
     priority = PRIORITY
+    debug_name = "idle"
 
     def __init__(self, classic_scene, forecast_scene, *extra_scenes):
         self.scenes = (classic_scene, forecast_scene, *extra_scenes)

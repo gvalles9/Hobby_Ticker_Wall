@@ -14,6 +14,20 @@ adopted.)
 
 ## [Unreleased]
 
+### Fixed
+
+- A failing scene can no longer crash the display or send the unit into a
+  restart loop. Errors from polling, entering or drawing a scene are caught and
+  logged with a full traceback, the scene is left out of the rotation for five
+  minutes, and the idle screen carries on. A scene that cannot even be built at
+  startup (flight, image, satellite or INDYCAR) is skipped instead of stopping
+  the boot, and rebuilding the idle rotation at midnight keeps the old rotation
+  if the new one cannot be made.
+- The panel now says what went wrong: for ten seconds it shows
+  `<SCENE> FAILED` above `SEE LOG VIEWER`, then returns to the idle screen. The
+  message repeats whenever a retry fails again, so the cause is visible without
+  watching a terminal. The full details are in the web interface's Log Viewer.
+
 ## [1.3.0] - 2026-11-17
 
 ### Added

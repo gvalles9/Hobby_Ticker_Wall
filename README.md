@@ -460,6 +460,15 @@ source env/bin/activate
 python flight-tracker.py reset settings
 ```
 
+- **The panel says `<SCENE> FAILED` and `SEE LOG VIEWER`:**
+  One part of the display hit an error, so the unit skipped it and went back to
+  the idle screen instead of restarting. The panel repeats the message whenever
+  a retry fails. Open the web interface and choose **Log Viewer** to see the
+  full error, including which file and line failed. Nothing needs resetting:
+  the scene is retried every five minutes, and a reboot also clears it. If the
+  same scene keeps failing after an update, report the message and the log
+  entry.
+
 - **Everything is broken and it wont boot:**
   If you are using the upstream FlightTracker release, [report the issue there](https://github.com/ColinWaddell/FlightTracker/issues/new?template=bug_report.yml). For Hobby Ticker-specific changes, report it in your fork. The most useful diagnostic output comes from running the program manually:
 

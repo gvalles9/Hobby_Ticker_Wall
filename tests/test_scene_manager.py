@@ -2,7 +2,7 @@
 
 from unittest.mock import MagicMock
 
-from utilities.scene_manager import SceneManager
+from utilities.scene_manager import SceneManager, scene_label
 
 
 def _make_scene(priority, has_data=False, active=False):
@@ -202,3 +202,164 @@ class TestReplaceFallback:
 
         assert sm.scenes == [old]
         old.on_enter.assert_not_called()
+
+
+class TestSceneFailureContainment:
+    def test_poll_failure_does_not_stop_other_scenes(self):
+        sm = SceneManager()
+        first = _make_scene(1)
+        second = _make_scene(2)
+        first.poll.side_effect = RuntimeError("boom")
+        sm.register(first)
+        sm.register(second)
+
+        sm.kick()
+
+        second.poll.assert_called_once()
+
+    def test_failing_scene_is_skipped_and_idle_takes_over(self):
+        sm = SceneManager()
+        idle = _make_scene(0)
+        flight = _make_scene(5, has_data=True)
+        flight.draw.side_effect = RuntimeError("boom")
+        sm.register(idle)
+        sm.register(flight)
+
+        sm.kick()
+
+        assert sm.current_scene is idle
+        idle.on_enter.assert_called_once()
+        idle.draw.assert_called_once()
+
+    def test_failing_scene_is_not_retried_during_quarantine(self):
+        sm = SceneManager()
+        idle = _make_scene(0)
+        flight = _make_scene(5, has_data=True)
+        flight.draw.side_effect = RuntimeError("boom")
+        sm.register(idle)
+        sm.register(flight)
+
+        sm.kick()
+        sm.kick()
+
+        assert flight.draw.call_count == 1
+        assert idle.draw.call_count == 2
+
+    def test_scene_is_retried_after_quarantine_expires(self):
+        sm = SceneManager(quarantine_seconds=0)
+        idle = _make_scene(0)
+        flight = _make_scene(5, has_data=True)
+        flight.draw.side_effect = RuntimeError("boom")
+        sm.register(idle)
+        sm.register(flight)
+
+        sm.kick()
+        flight.draw.side_effect = None
+        sm.kick()
+
+        assert sm.current_scene is flight
+        assert flight.draw.call_count == 2
+
+    def test_has_data_failure_is_treated_as_no_data(self):
+        sm = SceneManager()
+        idle = _make_scene(0)
+        flight = _make_scene(5)
+        flight.has_data.side_effect = RuntimeError("boom")
+        sm.register(idle)
+        sm.register(flight)
+
+        sm.kick()
+
+        idle.draw.assert_called_once()
+
+    def test_active_failure_is_treated_as_not_active(self):
+        sm = SceneManager()
+        idle = _make_scene(0)
+        mid = _make_scene(3, has_data=True)
+        high = _make_scene(5, active=True)
+        high.active.side_effect = RuntimeError("boom")
+        sm.register(idle)
+        sm.register(mid)
+        sm.register(high)
+
+        sm.kick()
+
+        mid.draw.assert_called_once()
+
+    def test_on_enter_failure_falls_back_to_idle(self):
+        sm = SceneManager()
+        idle = _make_scene(0)
+        flight = _make_scene(5, has_data=True)
+        flight.on_enter.side_effect = RuntimeError("boom")
+        sm.register(idle)
+        sm.register(flight)
+
+        sm.kick()
+
+        assert sm.current_scene is idle
+        flight.draw.assert_not_called()
+        idle.draw.assert_called_once()
+
+    def test_fallback_failure_does_not_raise_or_draw_twice(self):
+        sm = SceneManager()
+        idle = _make_scene(0)
+        idle.draw.side_effect = RuntimeError("boom")
+        sm.register(idle)
+
+        sm.kick()
+
+        assert idle.draw.call_count == 1
+
+    def test_error_callback_receives_the_scene_label(self):
+        labels = []
+        sm = SceneManager(on_scene_error=labels.append)
+        idle = _make_scene(0)
+        flight = _make_scene(5, has_data=True)
+        flight.debug_name = "flight"
+        flight.draw.side_effect = RuntimeError("boom")
+        sm.register(idle)
+        sm.register(flight)
+
+        sm.kick()
+
+        assert labels == ["flight"]
+
+    def test_error_callback_failure_does_not_escape(self):
+        sm = SceneManager(on_scene_error=MagicMock(side_effect=RuntimeError))
+        idle = _make_scene(0)
+        flight = _make_scene(5, has_data=True)
+        flight.draw.side_effect = RuntimeError("boom")
+        sm.register(idle)
+        sm.register(flight)
+
+        sm.kick()
+
+        idle.draw.assert_called_once()
+
+    def test_forced_debug_scene_failure_falls_back(self):
+        sm = SceneManager()
+        idle = _make_scene(0)
+        idle.debug_name = "idle"
+        flight = _make_scene(5, has_data=True)
+        flight.debug_name = "flight"
+        flight.draw.side_effect = RuntimeError("boom")
+        sm.register(idle)
+        sm.register(flight)
+
+        sm.kick(debug_scene="flight")
+
+        idle.draw.assert_called_once()
+
+
+class TestSceneLabel:
+    def test_uses_the_debug_name(self):
+        class _Named:
+            debug_name = "indy_top3"
+
+        assert scene_label(_Named()) == "indy top3"
+
+    def test_falls_back_to_the_class_name(self):
+        class ImageScene:
+            pass
+
+        assert scene_label(ImageScene()) == "Image"

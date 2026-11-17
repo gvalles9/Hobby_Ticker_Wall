@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.5] - 2026-11-16
+
 ### Added
 
 - A **Time zone** picker on the Settings page (System -> Defaults -> Clock and

@@ -14,6 +14,8 @@ adopted.)
 
 ## [Unreleased]
 
+## [1.3.2] - 2026-11-17
+
 ### Added
 
 - A **Materials used** table in the README lists the hardware the reference

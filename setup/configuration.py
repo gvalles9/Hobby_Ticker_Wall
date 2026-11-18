@@ -114,7 +114,7 @@ DEFAULT_WEATHER_REFRESH_MINUTES = 5  # how often (minutes) to re-fetch weather d
 # Display
 DEFAULT_COLOUR_THEME = 0  # 0 = Default, 1 = Monochrome, 2 = Pastel, 3 = Classic (v1)
 DEFAULT_BRIGHTNESS_MODE = "simple"  # "simple" or "advanced"
-DEFAULT_SCREEN_BRIGHTNESS = 3  # 1-5
+DEFAULT_SCREEN_BRIGHTNESS = 1  # 1-5
 DEFAULT_SCREEN_ROTATE = False
 DEFAULT_DISPLAY_SPEED = "default"  # default / slower / faster
 DEFAULT_DISPLAY_SCAN_RATE = 16  # 1:16 or 1:32 multiplexing

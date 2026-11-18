@@ -14,6 +14,12 @@ adopted.)
 
 ## [Unreleased]
 
+### Changed
+
+- New installations start at brightness `1` (the dimmest level) instead of `3`.
+  Existing configurations keep their saved brightness; change it under
+  Settings → System → Display brightness.
+
 ## [1.6.0] - 2026-11-18
 
 ### Added

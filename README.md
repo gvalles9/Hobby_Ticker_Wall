@@ -625,7 +625,7 @@ This table is for reference if you've disabled the web interface (`web_interface
 | `idle_units` | Idle-screen weather and forecast: `"metric"` or `"standard"` | `"standard"` |
 | `theme` | `0` = default, `1` = monochrome, `2` = pastel | `0` |
 | `brightness_mode` | `"simple"` (brightness slider + schedule) or `"advanced"` | `"simple"` |
-| `screen_brightness` | Display brightness from `1` (dim) to `5` (full) | `3` |
+| `screen_brightness` | Display brightness from `1` (dim) to `5` (full) | `1` |
 | `screen_rotate` | Rotate the display by 180° | `false` |
 | `display_speed` | Animation speed preset: `default`, `slower`, or `faster` | `"default"` |
 | `screen_schedule_enabled` | Enable scheduled brightness changes | `false` |

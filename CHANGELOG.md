@@ -14,6 +14,8 @@ adopted.)
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-11-18
+
 ### Changed
 
 - New installations start at brightness `1` (the dimmest level) instead of `3`.

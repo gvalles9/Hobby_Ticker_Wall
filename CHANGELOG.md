@@ -14,6 +14,8 @@ adopted.)
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-11-17
+
 ### Added
 
 - A dedicated **Sleep** tab in Settings now gathers the night-standby controls:

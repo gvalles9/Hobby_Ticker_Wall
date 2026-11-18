@@ -14,6 +14,8 @@ adopted.)
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-11-18
+
 ### Added
 
 - A dedicated **Wi-Fi** tab in Settings shows the current network and IP

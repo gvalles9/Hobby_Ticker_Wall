@@ -72,6 +72,64 @@
         password separately under Admin &rarr; Remote Access later if SSH is needed.</p>
     </div>
 
+    <!-- ====== Wi-Fi ====== -->
+    <div class="card border-0 shadow-sm p-4 mb-3">
+      <p class="section-heading mb-3">
+        <i class="bi bi-wifi me-2"></i>Wi-Fi
+        {% if wifi_required %}
+        <span class="badge text-bg-danger ms-1">Required</span>
+        {% else %}
+        <span class="badge text-bg-secondary ms-1">Optional</span>
+        {% endif %}
+      </p>
+
+      {% if wifi_required %}
+      <div class="alert alert-warning small py-2">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        The Pi is running its setup hotspot and is not connected to a network.
+        Enter the home Wi-Fi network it should use before finishing. The
+        hotspot turns off after the Pi connects.
+      </div>
+      {% elif wifi_setup_active %}
+      <div class="alert alert-info small py-2">
+        <i class="bi bi-info-circle me-1"></i>
+        The setup hotspot is open, but an Ethernet connection is available.
+        You can finish setup now and add Wi-Fi later from the Wi-Fi tab.
+      </div>
+      {% elif wifi_current_ssid %}
+      <p class="text-muted small">
+        Connected to <strong>{{ wifi_current_ssid }}</strong>{% if wifi_current_ip %}
+        at <code>{{ wifi_current_ip }}</code>{% endif %}. Leave these boxes blank
+        to keep using it.
+      </p>
+      {% else %}
+      <p class="text-muted small">
+        Enter a Wi-Fi network to connect the Pi to it. Leave both boxes blank to
+        keep the current connection.
+      </p>
+      {% endif %}
+
+      <div class="row g-2">
+        <div class="col-md-6">
+          <label class="form-label small" for="wifi_ssid">Wi-Fi network name</label>
+          <input type="text" class="form-control" id="wifi_ssid" name="wifi_ssid"
+                 maxlength="32" autocomplete="off" value="{{ wifi_ssid }}"
+                 {% if wifi_required %}required{% endif %} />
+        </div>
+        <div class="col-md-6">
+          <label class="form-label small" for="wifi_password">Wi-Fi password</label>
+          <input type="password" class="form-control" id="wifi_password"
+                 name="wifi_password" autocomplete="new-password"
+                 {% if wifi_required %}required{% endif %} />
+        </div>
+      </div>
+      <p class="form-text text-muted small mb-0">
+        Passwords are 8&ndash;63 characters. If you are using the setup hotspot,
+        rejoin your home Wi-Fi after saving and open
+        <strong>{{ wifi_hostname }}.local:{{ web_port }}</strong> to finish.
+      </p>
+    </div>
+
     <!-- ====== Optional: location ====== -->
     <div class="card border-0 shadow-sm p-4 mb-3">
       <p class="section-heading mb-3">

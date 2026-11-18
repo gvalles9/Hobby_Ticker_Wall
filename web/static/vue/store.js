@@ -143,6 +143,15 @@ export const SIDEBAR_GROUPS = [
     ],
   },
   {
+    title: "Wi-Fi",
+    icon: "bi-wifi",
+    route: "/wifi",
+    items: [
+      { section: "group-wifi", icon: "bi-wifi", label: "Network" },
+      { section: "group-wifi-setup", icon: "bi-router", label: "Setup Hotspot" },
+    ],
+  },
+  {
     title: "Admin",
     icon: "bi-shield-lock",
     route: "/admin",

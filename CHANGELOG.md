@@ -14,6 +14,23 @@ adopted.)
 
 ## [Unreleased]
 
+### Added
+
+- A dedicated **Wi-Fi** tab in Settings shows the current network and IP
+  address, connects the Pi to a new network without restarting the web
+  interface, and gathers the setup-hotspot and forget-network actions. The
+  first-setup wizard now has a Wi-Fi card that is required while the setup
+  hotspot is open without Ethernet.
+- The Admin recovery card now labels its Wi-Fi action **Open Hotspot** and
+  directs network changes to the Wi-Fi tab.
+
+### Fixed
+
+- After **Prepare for Handoff**, `/` and the login page open `/wifi-setup`
+  instead of skipping straight to the first-setup wizard, so the next owner
+  joins the hotspot and enters the home Wi-Fi details first. An Ethernet escape
+  link keeps the wizard reachable when no Wi-Fi is needed.
+
 ## [1.5.1] - 2026-11-17
 
 ### Fixed

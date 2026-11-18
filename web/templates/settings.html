@@ -67,7 +67,11 @@
       backupRestore: "/backup/restore",
       debugConfig: "/debug-config",
       ipTimezone: "{{ url_for('ip_timezone') }}",
-      sshAccess: "{{ url_for('remote_access_ssh') }}"
+      sshAccess: "{{ url_for('remote_access_ssh') }}",
+      wifiStatus: "{{ url_for('wifi_status') }}",
+      wifiConnect: "{{ url_for('wifi_connect') }}",
+      wifiSetupReset: "{{ url_for('reset_wifi') }}",
+      wifiSetupForget: "{{ url_for('forget_wifi') }}"
     }
   };
 </script>

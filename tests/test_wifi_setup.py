@@ -626,3 +626,184 @@ def test_resets_keep_display_hardware_settings(monkeypatch, route):
     # The panels bolted to the unit - and its time zone - keep their settings.
     for key, value in HARDWARE.items():
         assert cfg.data_store[key] == value
+
+
+# ---------------------------------------------------------------------------
+# Wi-Fi status helper and the settings-page API
+# ---------------------------------------------------------------------------
+
+
+def test_wifi_status_reports_ssid_ip_and_wired_route(monkeypatch, tmp_path):
+    import utilities.wifi_setup as wifi_setup
+
+    setup_marker = tmp_path / "setup-active"
+    setup_marker.write_text("active")
+    configured_marker = tmp_path / "configured"
+    configured_marker.write_text("yes")
+    monkeypatch.setattr(wifi_setup, "SETUP_MARKER", str(setup_marker))
+    monkeypatch.setattr(wifi_setup, "CONFIGURED_MARKER", str(configured_marker))
+
+    def read(args, timeout=10):
+        if args[:4] == ["nmcli", "-t", "-f", "ACTIVE,SSID"]:
+            return "no:Other\nyes:Home\\:Net\n"
+        if args[:4] == ["nmcli", "-t", "-f", "IP4.ADDRESS"]:
+            return "IP4.ADDRESS[1]:192.168.1.42/24\n"
+        if args[:3] == ["ip", "route", "show"]:
+            return "default via 192.168.1.1 dev eth0 proto dhcp\n"
+        return ""
+
+    monkeypatch.setattr(wifi_setup, "_read_command", read)
+
+    assert wifi_setup.wifi_status() == {
+        "setup_active": True,
+        "connected": True,
+        "ssid": "Home:Net",
+        "ip": "192.168.1.42",
+        "wired": True,
+        "configured": True,
+    }
+
+
+def test_wifi_status_falls_back_to_the_connection_name(monkeypatch, tmp_path):
+    import utilities.wifi_setup as wifi_setup
+
+    monkeypatch.setattr(wifi_setup, "SETUP_MARKER", str(tmp_path / "missing"))
+    monkeypatch.setattr(wifi_setup, "CONFIGURED_MARKER", str(tmp_path / "missing"))
+
+    def read(args, timeout=10):
+        if args[:4] == ["nmcli", "-t", "-f", "ACTIVE,SSID"]:
+            return "no:Other\n"
+        if args[:4] == ["nmcli", "-t", "-f", "GENERAL.CONNECTION"]:
+            return "GENERAL.CONNECTION:Hidden\\:Network\n"
+        return ""
+
+    monkeypatch.setattr(wifi_setup, "_read_command", read)
+
+    assert wifi_setup.current_ssid() == "Hidden:Network"
+
+
+def test_wifi_status_route_returns_json(monkeypatch):
+    import web.app as web_app
+
+    monkeypatch.setattr(
+        web_app.wifi_helpers,
+        "wifi_status",
+        lambda: {
+            "setup_active": False,
+            "connected": True,
+            "ssid": "Home",
+            "ip": "192.168.1.42",
+            "wired": False,
+            "configured": True,
+        },
+    )
+
+    client = web_app.app.test_client()
+    with client.session_transaction() as session:
+        session["authenticated"] = True
+
+    response = client.get("/api/wifi/status")
+
+    assert response.status_code == 200
+    assert response.json["ssid"] == "Home"
+
+
+def test_wifi_connect_route_starts_the_helper_in_the_background(monkeypatch):
+    import web.app as web_app
+
+    started = []
+    monkeypatch.setattr(web_app, "_start_wifi_connect", started.append)
+
+    client = web_app.app.test_client()
+    with client.session_transaction() as session:
+        session["authenticated"] = True
+        session["csrf_token"] = "wifi-csrf"
+    response = client.post(
+        "/api/wifi/connect",
+        data={
+            "csrf_token": "wifi-csrf",
+            "ssid": " Home ",
+            "password": "valid-pass-123",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json["message"]
+    assert started == [{"ssid": "Home", "password": "valid-pass-123"}]
+
+
+def test_wifi_connect_route_rejects_invalid_credentials(monkeypatch):
+    import web.app as web_app
+
+    started = []
+    monkeypatch.setattr(web_app, "_start_wifi_connect", started.append)
+
+    client = web_app.app.test_client()
+    with client.session_transaction() as session:
+        session["authenticated"] = True
+        session["csrf_token"] = "wifi-csrf"
+    response = client.post(
+        "/api/wifi/connect",
+        data={"csrf_token": "wifi-csrf", "ssid": "Home", "password": "short"},
+    )
+
+    assert response.status_code == 400
+    assert "8" in response.json["error"]
+    assert started == []
+
+
+def test_wifi_connect_route_requires_csrf():
+    import web.app as web_app
+
+    client = web_app.app.test_client()
+    with client.session_transaction() as session:
+        session["authenticated"] = True
+        session["csrf_token"] = "wifi-csrf"
+    response = client.post(
+        "/api/wifi/connect", data={"ssid": "Home", "password": "valid-pass-123"}
+    )
+
+    assert response.status_code == 403
+
+
+def test_index_opens_wifi_setup_while_hotspot_is_active(monkeypatch):
+    import web.app as web_app
+
+    monkeypatch.setattr(web_app, "_wifi_setup_active", lambda: True)
+
+    response = web_app.app.test_client().get("/")
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/wifi-setup")
+
+
+def test_authenticated_settings_open_wifi_setup_while_hotspot_is_active(monkeypatch):
+    import web.app as web_app
+
+    monkeypatch.setattr(web_app, "_wifi_setup_active", lambda: True)
+
+    client = web_app.app.test_client()
+    with client.session_transaction() as session:
+        session["authenticated"] = True
+
+    response = client.get("/settings")
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/wifi-setup")
+
+
+def test_login_opens_wifi_setup_while_hotspot_is_active(monkeypatch, fresh_config):
+    import web.app as web_app
+
+    monkeypatch.setattr(web_app, "_wifi_setup_active", lambda: True)
+
+    client = web_app.app.test_client()
+    with client.session_transaction() as session:
+        session["csrf_token"] = "login-csrf"
+    response = client.post(
+        "/login",
+        data={"csrf_token": "login-csrf", "password": "flighttracker"},
+    )
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/wifi-setup")

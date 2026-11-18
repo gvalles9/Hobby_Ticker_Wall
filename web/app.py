@@ -12,6 +12,10 @@ GET  /first-setup    -> guided first-use wizard (requires login)
 POST /first-setup    -> save wizard answers + new web password, then restart
 POST /settings/reset -> restore application defaults (keeps Wi-Fi + password)
 POST /password/reset -> restore the default web password, reopen the wizard
+GET  /wifi-setup      -> first-boot Wi-Fi form while the setup hotspot is active
+POST /wifi-setup      -> save home Wi-Fi credentials
+GET  /api/wifi/status -> current Wi-Fi state for the settings tab
+POST /api/wifi/connect -> change the home Wi-Fi network from the settings tab
 POST /wifi-setup/reset -> reopen the setup hotspot (keeps saved credentials)
 POST /wifi-setup/forget -> delete saved Wi-Fi networks and open the hotspot
 POST /handoff/reset  -> full handoff reset: defaults + password + Wi-Fi
@@ -66,6 +70,7 @@ from setup.configuration import (
 )
 from setup.logging import get_buffer
 from utilities import ssh_access
+from utilities import wifi_setup as wifi_helpers
 from utilities.flight import Flight
 from utilities.lookups import cache as routes_cache
 from utilities.lookups import usage as usage_tally
@@ -1184,6 +1189,21 @@ def _first_setup_pending(cfg) -> bool:
     return not cfg.get("web_password_hash")
 
 
+def _wifi_setup_active() -> bool:
+    """True while the protected first-boot setup hotspot is open."""
+    return Path(wifi_helpers.SETUP_MARKER).exists()
+
+
+def _wifi_setup_required() -> bool:
+    """True when the wizard must collect Wi-Fi details to finish.
+
+    The setup hotspot only opens when there is no saved network, so the
+    owner has to supply credentials.  An Ethernet cable is the escape hatch:
+    with a wired default route the wizard can finish without touching Wi-Fi.
+    """
+    return _wifi_setup_active() and not wifi_helpers.has_wired_default_route()
+
+
 # Endpoints that must stay reachable while the wizard is pending.  The
 # wizard itself and the login pages are obvious; the Wi-Fi setup page has
 # to work before anyone can log in, and /ping backs the restart screen.
@@ -1194,6 +1214,8 @@ FIRST_SETUP_EXEMPT_ENDPOINTS = frozenset(
         "logout",
         "static",
         "wifi_setup",
+        "wifi_status",
+        "wifi_connect",
         "ping",
         # The wizard offers "use network location" for the time zone; it is
         # a read-only lookup and must work before setup is finished.
@@ -1217,6 +1239,10 @@ def _force_first_setup():
         return None
     if not session.get("authenticated"):
         return None
+    if _wifi_setup_active():
+        if request.method in ("GET", "HEAD"):
+            return redirect(url_for("wifi_setup"))
+        abort(403, description="Configure Wi-Fi before changing settings.")
     if not _first_setup_pending(Config.instance()):
         return None
     if request.method in ("GET", "HEAD"):
@@ -1226,6 +1252,8 @@ def _force_first_setup():
 
 def _default_landing() -> str:
     """Where to send a freshly authenticated user."""
+    if _wifi_setup_active():
+        return url_for("wifi_setup")
     if _first_setup_pending(Config.instance()):
         return url_for("first_setup")
     return url_for("settings")
@@ -1263,9 +1291,24 @@ def _first_setup_page_data(cfg, form=None) -> dict:
         str(cfg.get("location_source", "auto")) == "auto"
         and (cfg.flight_lat, cfg.flight_lng) == (0.0, 0.0)
     )
+    wifi = wifi_helpers.wifi_status()
+    wifi_setup_active = _wifi_setup_active()
+    wifi["setup_active"] = wifi_setup_active
+    wifi_required = wifi_setup_active and not wifi["wired"]
+    from utilities.system_info import hostname
+
     return {
         "csrf_token": csrf_token(),
         "bonnet_type": val("bonnet_type", cfg.bonnet_type),
+        # Wi-Fi: required while the setup hotspot is open without Ethernet
+        "wifi_required": wifi_required,
+        "wifi_setup_active": wifi_setup_active,
+        "wifi_wired": wifi["wired"],
+        "wifi_ssid": val("wifi_ssid", ""),
+        "wifi_current_ssid": "" if wifi_setup_active else wifi["ssid"],
+        "wifi_current_ip": "" if wifi_setup_active else wifi["ip"],
+        "wifi_hostname": hostname(),
+        "web_port": FLASK_PORT,
         # Location (blank keeps the current, possibly auto-detected, spot)
         "location_known": location_known,
         "flight_lat": val("flight_lat", cfg.flight_lat if location_known else ""),
@@ -1323,8 +1366,9 @@ def _first_setup_page_data(cfg, form=None) -> dict:
 def first_setup():
     """Guided first-use wizard.
 
-    Required: the LED matrix bonnet type and a new web-interface
-    password.  Everything else is clearly labelled optional and keeps its
+    Required: the LED matrix bonnet type, a new web-interface password and
+    - while the setup hotspot is open without Ethernet - the home Wi-Fi
+    network.  Everything else is clearly labelled optional and keeps its
     current or default value when left untouched.
     """
     cfg = Config.instance()
@@ -1353,7 +1397,31 @@ def first_setup():
             new_data = parse_first_setup_form(form, cfg)
             new_data["web_password_hash"] = hash_password(new_password)
 
+            wifi_ssid = form.get("wifi_ssid", "").strip()
+            wifi_password = form.get("wifi_password", "")
+            if _wifi_setup_required() and not wifi_ssid:
+                raise ValueError(
+                    "Enter the Wi-Fi network the Pi should use, or connect an "
+                    "Ethernet cable and reload this page."
+                )
+            if wifi_ssid:
+                try:
+                    wifi_helpers.validate_wifi_credentials(wifi_ssid, wifi_password)
+                except ValueError as exc:
+                    raise ValueError(f"Wi-Fi: {exc}") from exc
+
             logger.debug("Parsed first-setup settings: %s", new_data)
+            if wifi_ssid:
+                # Configure Wi-Fi before saving so a bad password leaves the
+                # wizard open.  On success the setup hotspot drops, so the
+                # browser may lose this response - the settings below are
+                # still saved and the unit is reachable on the new network.
+                ok, message = _call_wifi_helper(
+                    {"ssid": wifi_ssid, "password": wifi_password}
+                )
+                if not ok:
+                    raise ValueError(f"Could not connect to Wi-Fi. {message}")
+
             cfg.update(new_data)
             cfg.save()
             logger.info("First setup saved to %s", CONFIG_PATH)
@@ -1384,6 +1452,8 @@ def first_setup():
 
 @app.route("/")
 def index():
+    if _wifi_setup_active():
+        return redirect(url_for("wifi_setup"))
     if _first_setup_pending(Config.instance()):
         return redirect(url_for("first_setup"))
     return redirect(url_for("settings"))
@@ -1404,13 +1474,14 @@ def login():
             if check_password(password):
                 session["authenticated"] = True
                 logger.info("Login successful")
-                # The wizard takes priority over any ?next= target, so a
-                # bookmarked page cannot skip initial setup.
-                next_url = (
-                    url_for("first_setup")
-                    if _first_setup_pending(Config.instance())
-                    else request.args.get("next") or _default_landing()
-                )
+                # The setup hotspot and the wizard take priority over any
+                # ?next= target, so a bookmarked page cannot skip setup.
+                if _wifi_setup_active():
+                    next_url = url_for("wifi_setup")
+                elif _first_setup_pending(Config.instance()):
+                    next_url = url_for("first_setup")
+                else:
+                    next_url = request.args.get("next") or _default_landing()
                 return redirect(next_url)
             else:
                 logger.warning("Login failed - wrong password")
@@ -1689,6 +1760,10 @@ def _settings_page_data(
             "debugConfig": "/debug-config",
             "statusApi": "/api",
             "sshAccess": _url_for("remote_access_ssh"),
+            "wifiStatus": _url_for("wifi_status"),
+            "wifiConnect": _url_for("wifi_connect"),
+            "wifiSetupReset": _url_for("reset_wifi"),
+            "wifiSetupForget": _url_for("forget_wifi"),
         },
     }
 
@@ -1797,8 +1872,7 @@ def settings():
 @app.route("/wifi-setup", methods=["GET", "POST"])
 def wifi_setup():
     """Configure the Pi's home Wi-Fi while its temporary setup AP is active."""
-    setup_marker = Path("/run/flighttracker-wifi-setup")
-    if not setup_marker.exists():
+    if not _wifi_setup_active():
         abort(404)
 
     error = None
@@ -1903,11 +1977,12 @@ def reset_settings():
     return jsonify(message="FlightTracker settings were reset to defaults.")
 
 
-def _run_wifi_helper(payload: dict) -> bool:
+def _call_wifi_helper(payload: dict) -> tuple[bool, str]:
     """Run the privileged Wi-Fi helper with *payload* on stdin.
 
-    Returns True on success; failures are logged (the caller decides how
-    to report them).
+    Returns ``(ok, message)``; *message* is the helper's error text so the
+    wizard can show why a connection failed.  The password is only ever
+    passed on stdin and is never logged.
     """
     try:
         result = subprocess.run(
@@ -1920,11 +1995,67 @@ def _run_wifi_helper(payload: dict) -> bool:
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
         logger.error("Wi-Fi helper failed: %s", exc)
-        return False
+        return False, "Wi-Fi setup could not be started. Check the Pi installation."
     if result.returncode:
-        logger.error("Wi-Fi helper failed: %s", result.stderr.strip())
-        return False
-    return True
+        message = result.stderr.strip() or "Could not change the Wi-Fi configuration."
+        logger.error("Wi-Fi helper failed: %s", message)
+        return False, message
+    return True, ""
+
+
+def _run_wifi_helper(payload: dict) -> bool:
+    """Run the privileged Wi-Fi helper and report success.
+
+    Failures are logged (the caller decides how to report them).
+    """
+    ok, _ = _call_wifi_helper(payload)
+    return ok
+
+
+def _start_wifi_connect(payload: dict) -> None:
+    """Connect to a new network without holding the HTTP response open.
+
+    The setup hotspot disappears as soon as the helper succeeds, so the
+    browser needs the JSON response before that happens.  A short delay
+    gives the response time to leave the Pi.
+    """
+
+    def worker():
+        time.sleep(1.5)
+        _run_wifi_helper(payload)
+
+    threading.Thread(target=worker, daemon=True, name="wifi-connect").start()
+
+
+@app.route("/api/wifi/status")
+@login_required
+def wifi_status():
+    """Return the current Wi-Fi state for the settings tab."""
+    return jsonify(wifi_helpers.wifi_status())
+
+
+@app.route("/api/wifi/connect", methods=["POST"])
+@login_required
+def wifi_connect():
+    """Change the home Wi-Fi network from the settings tab."""
+    if not validate_csrf(request.form):
+        abort(403, description="Invalid CSRF token.")
+
+    ssid = request.form.get("ssid", "").strip()
+    password = request.form.get("password", "")
+    try:
+        wifi_helpers.validate_wifi_credentials(ssid, password)
+    except ValueError as exc:
+        return jsonify(error=str(exc)), 400
+
+    _start_wifi_connect({"ssid": ssid, "password": password})
+    logger.info("Wi-Fi change requested from the settings page.")
+    return jsonify(
+        message=(
+            "Connecting to the new Wi-Fi network. The setup hotspot or current "
+            "network may disconnect while the Pi switches over."
+        )
+    )
 
 
 @app.route("/wifi-setup/reset", methods=["POST"])

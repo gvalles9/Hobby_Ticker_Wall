@@ -650,3 +650,190 @@ class TestFirstSetupRoute:
         text = resp.get_data(as_text=True)
         assert 'value="51.5"' in text
         assert 'value="2026-03-14"' in text
+
+
+# ---------------------------------------------------------------------------
+# Wi-Fi step in the wizard
+# ---------------------------------------------------------------------------
+
+
+def _wifi_status(**overrides):
+    status = {
+        "setup_active": False,
+        "connected": True,
+        "ssid": "Home",
+        "ip": "192.168.1.5",
+        "wired": False,
+        "configured": True,
+    }
+    status.update(overrides)
+    return status
+
+
+class TestWizardWifi:
+    def test_page_offers_the_wifi_card(self, fresh_config, monkeypatch):
+        import web.app as web_app
+
+        monkeypatch.setattr(web_app.wifi_helpers, "wifi_status", lambda: _wifi_status())
+
+        text = _authenticated_client().get("/first-setup").get_data(as_text=True)
+
+        assert 'name="wifi_ssid"' in text
+        assert 'name="wifi_password"' in text
+        assert "Wi-Fi" in text
+
+    def test_page_marks_wifi_required_when_hotspot_is_active(
+        self, fresh_config, monkeypatch
+    ):
+        import re
+
+        import web.app as web_app
+
+        monkeypatch.setattr(web_app, "_wifi_setup_active", lambda: True)
+        monkeypatch.setattr(
+            web_app.wifi_helpers,
+            "wifi_status",
+            lambda: _wifi_status(setup_active=True, ssid="FlightTracker-Setup"),
+        )
+
+        text = _authenticated_client().get("/first-setup").get_data(as_text=True)
+
+        assert "The Pi is running its setup hotspot" in text
+        assert re.search(r'id="wifi_ssid".*?required', text, re.S)
+
+    def test_post_requires_wifi_when_hotspot_is_active(self, fresh_config, monkeypatch):
+        import web.app as web_app
+
+        monkeypatch.setattr(web_app, "_wifi_setup_required", lambda: True)
+        monkeypatch.setattr(web_app, "_wifi_setup_active", lambda: True)
+        monkeypatch.setattr(
+            web_app.wifi_helpers,
+            "wifi_status",
+            lambda: _wifi_status(setup_active=True),
+        )
+        restart = MagicMock()
+        monkeypatch.setattr(web_app, "restart_after", restart)
+
+        resp = _authenticated_client().post("/first-setup", data=_wizard_form())
+
+        assert resp.status_code == 400
+        assert "Wi-Fi network" in resp.get_data(as_text=True)
+        restart.assert_not_called()
+        assert fresh_config.get("web_password_hash") is None
+
+    def test_post_configures_wifi_before_saving(self, fresh_config, monkeypatch):
+        import web.app as web_app
+
+        monkeypatch.setattr(web_app, "_wifi_setup_required", lambda: True)
+        monkeypatch.setattr(web_app, "_wifi_setup_active", lambda: True)
+        monkeypatch.setattr(
+            web_app.wifi_helpers,
+            "wifi_status",
+            lambda: _wifi_status(setup_active=True),
+        )
+        calls = []
+
+        def helper(payload):
+            calls.append(payload)
+            return True, ""
+
+        monkeypatch.setattr(web_app, "_call_wifi_helper", helper)
+        restart = MagicMock()
+        monkeypatch.setattr(web_app, "restart_after", restart)
+
+        resp = _authenticated_client().post(
+            "/first-setup",
+            data=_wizard_form(wifi_ssid="Home", wifi_password="valid-pass-123"),
+        )
+
+        assert resp.status_code == 200
+        assert calls == [{"ssid": "Home", "password": "valid-pass-123"}]
+        assert (
+            fresh_config.get("web_password_hash")
+            == hashlib.sha256(b"s3cret-pass").hexdigest()
+        )
+        restart.assert_called_once()
+
+    def test_post_reports_wifi_failure_and_keeps_wizard_open(
+        self, fresh_config, monkeypatch
+    ):
+        import web.app as web_app
+
+        monkeypatch.setattr(web_app, "_wifi_setup_required", lambda: True)
+        monkeypatch.setattr(web_app, "_wifi_setup_active", lambda: True)
+        monkeypatch.setattr(
+            web_app.wifi_helpers,
+            "wifi_status",
+            lambda: _wifi_status(setup_active=True),
+        )
+        monkeypatch.setattr(
+            web_app, "_call_wifi_helper", lambda payload: (False, "bad password")
+        )
+        restart = MagicMock()
+        monkeypatch.setattr(web_app, "restart_after", restart)
+
+        resp = _authenticated_client().post(
+            "/first-setup",
+            data=_wizard_form(wifi_ssid="Home", wifi_password="wrong-pass"),
+        )
+
+        assert resp.status_code == 400
+        assert "Could not connect to Wi-Fi" in resp.get_data(as_text=True)
+        restart.assert_not_called()
+        assert fresh_config.get("web_password_hash") is None
+
+    def test_post_rejects_an_invalid_wifi_password_before_calling_the_helper(
+        self, fresh_config, monkeypatch
+    ):
+        import web.app as web_app
+
+        monkeypatch.setattr(web_app, "_wifi_setup_active", lambda: False)
+        monkeypatch.setattr(web_app, "_wifi_setup_required", lambda: False)
+        monkeypatch.setattr(web_app.wifi_helpers, "wifi_status", lambda: _wifi_status())
+        calls = []
+        monkeypatch.setattr(
+            web_app,
+            "_call_wifi_helper",
+            lambda payload: (calls.append(payload) or (True, "")),
+        )
+
+        resp = _authenticated_client().post(
+            "/first-setup",
+            data=_wizard_form(wifi_ssid="Home", wifi_password="short"),
+        )
+
+        assert resp.status_code == 400
+        assert "Wi-Fi" in resp.get_data(as_text=True)
+        assert calls == []
+
+    def test_post_allows_wifi_to_be_skipped_with_ethernet(
+        self, fresh_config, monkeypatch
+    ):
+        import web.app as web_app
+
+        monkeypatch.setattr(web_app, "_wifi_setup_active", lambda: True)
+        monkeypatch.setattr(web_app, "_wifi_setup_required", lambda: False)
+        monkeypatch.setattr(
+            web_app.wifi_helpers,
+            "wifi_status",
+            lambda: _wifi_status(setup_active=True, wired=True),
+        )
+        restart = MagicMock()
+        monkeypatch.setattr(web_app, "restart_after", restart)
+
+        resp = _authenticated_client().post("/first-setup", data=_wizard_form())
+
+        assert resp.status_code == 200
+        restart.assert_called_once()
+
+    def test_rejected_post_keeps_the_submitted_ssid(self, fresh_config, monkeypatch):
+        import web.app as web_app
+
+        monkeypatch.setattr(web_app.wifi_helpers, "wifi_status", lambda: _wifi_status())
+
+        resp = _authenticated_client().post(
+            "/first-setup",
+            data=_wizard_form(wifi_ssid="Home", confirm_password="different"),
+        )
+
+        assert 'value="Home"' in resp.get_data(as_text=True)

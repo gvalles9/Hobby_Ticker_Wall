@@ -240,10 +240,11 @@ export default defineComponent({
       </div>
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 border-bottom pb-3 mb-3">
         <div>
-          <div class="fw-semibold">Change Wi-Fi network</div>
+          <div class="fw-semibold">Open the setup hotspot</div>
           <div class="text-muted small">
-            Open the protected setup hotspot and QR code. Existing Wi-Fi details are kept until
-            you successfully save new ones.
+            Use the <strong>Wi-Fi</strong> tab to change networks. This starts the
+            protected setup hotspot and QR code instead. Existing Wi-Fi details are
+            kept until you successfully save new ones.
           </div>
         </div>
         <button type="button" class="btn btn-outline-danger btn-sm"
@@ -251,7 +252,7 @@ export default defineComponent({
                 @click="runMaintenanceAction('/wifi-setup/reset',
                   'Open the setup hotspot? The Pi may briefly disconnect from your home Wi-Fi.',
                   true)">
-          <i class="bi bi-wifi me-1"></i>Reset Wi-Fi
+          <i class="bi bi-wifi me-1"></i>Open Hotspot
         </button>
       </div>
       <div class="d-flex align-items-center justify-content-between flex-wrap gap-3 border-bottom pb-3 mb-3">

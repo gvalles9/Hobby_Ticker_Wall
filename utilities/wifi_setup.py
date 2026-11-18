@@ -9,6 +9,7 @@ import sys
 import tempfile
 import uuid
 from contextlib import suppress
+from pathlib import Path
 
 AP_CONNECTION = "FlightTracker-Setup"
 HOME_CONNECTION = "FlightTracker-Home"
@@ -17,12 +18,99 @@ CONFIGURED_MARKER = "/var/lib/flighttracker/wifi-configured"
 CONNECTIONS_DIR = "/etc/NetworkManager/system-connections"
 
 
+def _read_command(args: list[str], timeout: float = 10) -> str:
+    """Run a read-only query and return stdout, or "" when unavailable."""
+    try:
+        result = subprocess.run(
+            args,
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return result.stdout if result.returncode == 0 else ""
+
+
+def _unescape_nmcli(value: str) -> str:
+    return value.replace("\\:", ":").replace("\\\\", "\\")
+
+
+def setup_is_active() -> bool:
+    """True while the protected first-boot setup hotspot is open."""
+    return Path(SETUP_MARKER).exists()
+
+
+def current_ssid() -> str:
+    """The Wi-Fi network the Pi is using, or "" when it is not connected."""
+    output = _read_command(["nmcli", "-t", "-f", "ACTIVE,SSID", "device", "wifi"])
+    for line in output.splitlines():
+        active, separator, ssid = line.partition(":")
+        if separator and active == "yes" and ssid:
+            return _unescape_nmcli(ssid)
+
+    # A hidden network does not appear in the scan list; fall back to the
+    # active NetworkManager connection name (normally the SSID).
+    output = _read_command(
+        ["nmcli", "-t", "-f", "GENERAL.CONNECTION", "device", "show", "wlan0"]
+    )
+    for line in output.splitlines():
+        _, separator, name = line.partition(":")
+        if separator:
+            name = _unescape_nmcli(name)
+            if name and name != "--":
+                return name
+    return ""
+
+
+def current_ip() -> str:
+    """The wlan0 IPv4 address without the prefix length, or ""."""
+    output = _read_command(
+        ["nmcli", "-t", "-f", "IP4.ADDRESS", "device", "show", "wlan0"]
+    )
+    for line in output.splitlines():
+        _, separator, address = line.partition(":")
+        if separator and address:
+            return address.split("/", 1)[0]
+    return ""
+
+
+def has_wired_default_route() -> bool:
+    """True when a non-Wi-Fi interface owns the default route.
+
+    An Ethernet connection is the escape hatch in the setup wizard: Wi-Fi is
+    only required when the unit has no other way to reach the network.
+    """
+    output = _read_command(["ip", "route", "show", "default"])
+    for line in output.splitlines():
+        if " dev " not in line:
+            continue
+        device = line.split(" dev ", 1)[1].split()[0]
+        if device != "wlan0":
+            return True
+    return False
+
+
+def wifi_status() -> dict:
+    """Read-only connection state for the settings page and wizard."""
+    ssid = current_ssid()
+    return {
+        "setup_active": setup_is_active(),
+        "connected": bool(ssid),
+        "ssid": ssid,
+        "ip": current_ip(),
+        "wired": has_wired_default_route(),
+        "configured": Path(CONFIGURED_MARKER).exists(),
+    }
+
+
 def _keyfile_escape(value: str) -> str:
     return value.replace("\\", "\\\\").replace(" ", "\\s")
 
 
-def configure_wifi(ssid: str, password: str) -> None:
-    """Create and activate a home Wi-Fi connection without logging its password."""
+def validate_wifi_credentials(ssid: str, password: str) -> None:
+    """Raise ValueError when the SSID/password cannot be saved."""
     if not isinstance(ssid, str) or not ssid or len(ssid.encode("utf-8")) > 32:
         raise ValueError("Enter a valid Wi-Fi network name (SSID).")
     if any(ord(char) < 32 or ord(char) == 127 for char in ssid):
@@ -35,9 +123,14 @@ def configure_wifi(ssid: str, password: str) -> None:
             or (len(password) == 64 and re.fullmatch(r"[0-9a-fA-F]{64}", password))
         )
     ):
-        raise ValueError("Wi-Fi password must be 8–63 characters (or a 64-digit key).")
+        raise ValueError("Wi-Fi password must be 8-63 characters (or a 64-digit key).")
     if any(ord(char) < 32 or ord(char) == 127 for char in password):
         raise ValueError("The Wi-Fi password contains unsupported characters.")
+
+
+def configure_wifi(ssid: str, password: str) -> None:
+    """Create and activate a home Wi-Fi connection without logging its password."""
+    validate_wifi_credentials(ssid, password)
 
     connection_path = os.path.join(CONNECTIONS_DIR, "FlightTracker-Home.nmconnection")
     previous_connection = None

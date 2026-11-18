@@ -23,7 +23,9 @@ dimensions are set in `setup/screen.py`.
   recurring month and day, in a colour you choose.
 - **Separate unit profiles:** flight and satellite scenes default to metric;
   idle weather defaults to standard units. Both profiles are configurable.
-- **First-boot Wi-Fi setup and recovery** for supported Pi installations.
+- **First-boot Wi-Fi setup and recovery**, including a dedicated **Wi-Fi** tab
+  that shows the current network and changes it without a restart, plus a
+  required Wi-Fi step in the first-setup wizard while the setup hotspot is open.
 - **Fork-based updates:** the web updater checks `main` in
   `gvalles9/Hobby_Ticker_Wall`, regardless of the inherited FlightTracker
   upstream configuration. Updates fast-forward only and refuse tracked local
@@ -223,27 +225,36 @@ After setup, the configuration website remains available on your home network at
 The installers enable mDNS hostname discovery; the Pi and your phone/computer must be
 on the same local network.
 
-The Admin page includes separate recovery buttons to reset Hobby Ticker settings
-(while keeping the web password, Wi-Fi credentials, display hardware settings and
-time zone) or reopen the Wi-Fi setup hotspot to change networks. Two more support testing and
-handoffs: **Reset Web Password** restores the default password (`flighttracker`)
-and re-opens the first-setup wizard, and **Forget Wi-Fi** deletes every saved
-Wi-Fi network and opens the first-boot setup hotspot, exactly like a fresh
-install. **Prepare for Handoff** combines all of it - settings to defaults,
-default password, forgotten Wi-Fi, setup hotspot - in one click for gifting the
-device; the next owner scans the QR code on the display, joins the hotspot, and
-is taken straight to the first-setup wizard, which cannot be skipped until they
-choose their own web password. Both reset buttons keep the display hardware
-settings - bonnet type, panel colour order, scan rate, GPIO slowdown, PWM mode
-and loading indicator - and the time zone, because they describe the unit and
-its environment rather than the person using it; the wizard simply pre-selects
-the saved bonnet type and keeps the saved zone (the next owner can change it in
-the wizard or later on the Settings page). If no saved Wi-Fi network is reachable for 10 minutes,
-the Pi automatically opens the protected setup hotspot and displays its QR. The
-watchdog checks every saved Wi-Fi profile, including one created by Raspberry Pi
-Imager, and leaves the hotspot closed while Ethernet provides a default route.
-The saved network credentials are retained, so if that network reconnects the Pi
-returns to it and closes the temporary hotspot.
+The **Wi-Fi** tab in Settings shows the current network, its IP address and
+whether the setup hotspot is open. It can connect the Pi to a different network
+without restarting the web interface, and it holds the two recovery actions that
+were previously buried in Admin: **Open Hotspot** starts the protected setup
+hotspot and QR code without deleting saved credentials, and **Forget Wi-Fi**
+deletes every saved network and opens the first-boot hotspot. The Admin page's
+recovery card keeps matching buttons for troubleshooting.
+
+The Admin page also includes separate recovery buttons to reset Hobby Ticker
+settings (while keeping the web password, Wi-Fi credentials, display hardware
+settings and time zone) and to reset the web password (`flighttracker`), which
+re-opens the first-setup wizard. **Prepare for Handoff** combines all of it -
+settings to defaults, default password, forgotten Wi-Fi, setup hotspot - in one
+click for gifting the device. While the setup hotspot is open, the web interface
+sends the next owner to `/wifi-setup` first rather than the wizard, so they join
+the hotspot and enter the new home Wi-Fi details. Once the Pi connects, the
+hotspot closes and the first-setup wizard opens, which cannot be skipped until
+they choose their own web password. If Ethernet is connected, `/wifi-setup`
+offers a link to the wizard so Wi-Fi can be added later from the Wi-Fi tab. Both
+reset buttons keep the display hardware settings - bonnet type, panel colour
+order, scan rate, GPIO slowdown, PWM mode and loading indicator - and the time
+zone, because they describe the unit and its environment rather than the person
+using it; the wizard simply pre-selects the saved bonnet type and keeps the saved
+zone (the next owner can change it in the wizard or later on the Settings page).
+If no saved Wi-Fi network is reachable for 10 minutes, the Pi automatically opens
+the protected setup hotspot and displays its QR. The watchdog checks every saved
+Wi-Fi profile, including one created by Raspberry Pi Imager, and leaves the
+hotspot closed while Ethernet provides a default route. The saved network
+credentials are retained, so if that network reconnects the Pi returns to it and
+closes the temporary hotspot.
 
 SSH is disabled in the prebuilt Hobby Ticker OS image and is not needed for the
 web interface. To troubleshoot over the local network, open **Admin → Remote
@@ -280,7 +291,7 @@ release after `1.1.9` is `1.2.0`, not `1.1.10`.
 ## First-time setup
 
 On first run, the web interface opens a short setup wizard instead of the full
-settings page (the splash-screen QR code points there too). It asks for the two
+settings page (the splash-screen QR code points there too). It asks for the
 things every install needs:
 
 - **Bonnet type** - which Adafruit LED matrix board drives the display (the
@@ -289,13 +300,19 @@ things every install needs:
   choice is ignored there.
 - **Web password** - the tracker ships with a default password; the wizard
   replaces it with your own.
+- **Wi-Fi** - when the setup hotspot is open and no Ethernet cable provides a
+  network, the wizard requires the home Wi-Fi name and password. The hotspot
+  closes after the Pi connects, so rejoin your home network and open
+  `http://<pi-hostname>.local:8584` to finish. With Ethernet connected the
+  step is optional and the network can be changed later on the Wi-Fi tab.
 
 Everything else is optional and clearly labelled as such: location (an
 approximate one is already detected from your network), flight and weather
-units, screen brightness, clock and date format, time zone, which idle scenes
-rotate on the display, a birthday date for the celebration scene, up to three
-date-triggered custom messages, and satellite tracking. Untouched sections keep
-their defaults, and anything can be changed later on the Settings page.
+units, screen brightness, clock and date format, time zone, an overnight sleep
+window, which idle scenes rotate on the display, a birthday date for the
+celebration scene, up to three date-triggered custom messages, and satellite
+tracking. Untouched sections keep their defaults, and anything can be changed
+later on the Settings page.
 
 The **Time zone** picker (Settings → System → Defaults → Clock and Date) accepts any
 IANA name such as `America/New_York` or `America/Chicago`. Leaving it blank
@@ -311,9 +328,11 @@ SSH and other services: if you want the whole Pi on local time, run
 The wizard cannot be skipped. Until a web password other than the shared
 default is saved, every page redirects back to
 `http://<pi-hostname>.local:8584/first-setup` - including bookmarked URLs and
-direct links to the settings page - and form submissions are rejected. This
-also applies after **Prepare for Handoff**, so the next owner always sets their
-own password before using the tracker.
+direct links to the settings page - and form submissions are rejected. While the
+setup hotspot is open, the redirect goes to `/wifi-setup` first; the wizard stays
+reachable from there through the Ethernet escape link. This also applies after
+**Prepare for Handoff**, so the next owner always sets their own password before
+using the tracker.
 
 ## Platform guides
 

@@ -14,6 +14,8 @@ adopted.)
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-11-17
+
 ### Fixed
 
 - The **Fine-tune Schedule** sidebar link now lands on the schedule section

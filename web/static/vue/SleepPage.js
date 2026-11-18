@@ -155,9 +155,16 @@ export default defineComponent({
     </div>
 
     <!-- ====== Fine-tune schedule ====== -->
-    <div id="group-sleep-advanced" class="card mb-3 p-3" v-show="store.isAdvancedBrightness">
+    <div id="group-sleep-advanced" class="card mb-3 p-3">
       <p class="section-heading"><i class="bi bi-sliders me-2"></i>Fine-tune schedule</p>
 
+      <div v-if="!store.isAdvancedBrightness" class="text-muted small mb-0">
+        Choose <strong>Fine-tune</strong> above to hold several brightness
+        steps through the day. While <strong>Simple</strong> is selected, the
+        single sleep window above applies instead.
+      </div>
+
+      <div v-show="store.isAdvancedBrightness">
       <div class="form-text text-muted small mb-2">
         Each row sets the brightness from its time until the next row; the
         last row holds overnight until the first. A brightness of
@@ -230,6 +237,7 @@ export default defineComponent({
 
       <input type="hidden" name="screen_schedule_advanced_json"
              :value="store.scheduleAdvancedJson()" />
+      </div>
     </div>
     </div>
   `,

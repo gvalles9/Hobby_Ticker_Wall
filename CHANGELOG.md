@@ -14,6 +14,11 @@ adopted.)
 
 ## [Unreleased]
 
+### Fixed
+
+- The **Fine-tune Schedule** sidebar link now lands on the schedule section
+  even while Simple mode is selected, instead of scrolling to a hidden card.
+
 ## [1.5.0] - 2026-11-17
 
 ### Added

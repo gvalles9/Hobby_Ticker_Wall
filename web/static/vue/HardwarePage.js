@@ -38,17 +38,6 @@ export default defineComponent({
       }
     },
   },
-  computed: {
-    scheduleWindowLabel() {
-      const [start, end] = this.store.ui.scheduleWindow;
-      if (!start || !end) return "";
-      const fmt = (t) =>
-        this.store.formatTime(
-          `${String(t.hour).padStart(2, "0")}:${String(t.minute).padStart(2, "0")}`
-        );
-      return `(${fmt(start)} - ${fmt(end)})`;
-    },
-  },
   template: `
     <div>
     <h2 class="fs-4 fw-semibold mb-3"><i class="bi bi-cpu me-2"></i>System</h2>
@@ -80,170 +69,25 @@ export default defineComponent({
       </div>
 
       <div class="mb-3">
-        <h5>Brightness Mode</h5>
-        <div class="btn-group w-100 mb-1" role="group" aria-label="Brightness mode">
-          <input type="radio" class="btn-check" name="brightness_mode" id="brightness_mode_simple"
-                 value="simple" autocomplete="off"
-                 v-model="store.config.brightness_mode" />
-          <label class="btn btn-outline-primary btn-sm" for="brightness_mode_simple">
-            <i class="bi bi-brightness-high me-1"></i>Simple
-          </label>
-
-          <input type="radio" class="btn-check" name="brightness_mode" id="brightness_mode_advanced"
-                 value="advanced" autocomplete="off"
-                 v-model="store.config.brightness_mode" />
-          <label class="btn btn-outline-primary btn-sm" for="brightness_mode_advanced">
-            <i class="bi bi-sliders me-1"></i>Fine-tune
-          </label>
+        <h5>Brightness</h5>
+        <div v-show="!store.isAdvancedBrightness">
+          <label class="form-label small">Level: {{ store.config.screen_brightness }}/5</label>
+          <input type="range" class="form-range pt-3 px-2" name="screen_brightness" id="screen_brightness"
+              min="1" max="5" step="1" v-model.number="store.config.screen_brightness"
+              style="max-width:240px" />
+          <div class="form-text text-muted small">
+            Used outside any scheduled dimming or sleep window.
+          </div>
         </div>
-      </div>
-
-      <div id="brightness-simple" v-show="!store.isAdvancedBrightness">
-        <div class="mb-3">
-            <h5>Brightness</h5>
-            <label class="form-label small">Level: {{ store.config.screen_brightness }}/5</label>
-            <input type="range" class="form-range pt-3 px-2" name="screen_brightness" id="screen_brightness"
-                min="1" max="5" step="1" v-model.number="store.config.screen_brightness"
-                style="max-width:240px" />
-            <div v-if="store.ui.inSchedule" class="alert alert-warning small mt-2 mb-0 py-2">
-            <i class="bi bi-exclamation-triangle me-1"></i>
-            The brightness schedule is currently active - changes to the default brightness
-            will not take effect until the scheduled period ends
-            <span v-if="store.config.screen_schedule_auto">{{ scheduleWindowLabel }}</span>.
-            </div>
+        <div v-show="store.isAdvancedBrightness" class="form-text text-muted small">
+          Brightness is controlled by the fine-tune schedule on the
+          <strong>Sleep</strong> tab.
         </div>
-
-        <hr class="my-3" />
-        <h5>Brightness Schedule</h5>
-
-        <div class="mb-2 form-check">
-            <input type="checkbox" class="form-check-input" name="screen_schedule_enabled"
-                id="screen_schedule_enabled" v-model="store.config.screen_schedule_enabled" />
-            <label class="form-check-label" for="screen_schedule_enabled">Brightness schedule (dim at night)</label>
-            <div class="form-text text-muted small">Automatically dims the screen at a set time and brightens it again in the morning.</div>
-        </div>
-
-        <div v-show="store.config.screen_schedule_enabled">
-            <div class="form-check mb-2">
-            <input type="checkbox" class="form-check-input" name="screen_schedule_auto" id="screen_schedule_auto"
-                    v-model="store.config.screen_schedule_auto" />
-            <label class="form-check-label" for="screen_schedule_auto">Automatically based on sunrise &amp; sunset</label>
-            <div class="form-text text-muted small">Uses your flight location coordinates to estimate sunrise and sunset times.</div>
-            </div>
-
-            <div v-show="!store.config.screen_schedule_auto">
-            <div class="row g-2 mt-1">
-                <div class="col-auto">
-                <label class="form-label small">Dim at</label>
-                <input type="time" class="form-control form-control-sm"
-                        name="screen_schedule_start" v-model="store.config.screen_schedule_start" />
-                </div>
-                <div class="col-auto">
-                <label class="form-label small">Brighten at</label>
-                <input type="time" class="form-control form-control-sm"
-                        name="screen_schedule_end" v-model="store.config.screen_schedule_end" />
-                </div>
-            </div>
-            </div>
-
-            <div class="row g-2 mt-2">
-            <div class="col-auto">
-                <label class="form-label small">
-                Night brightness: {{ store.config.screen_schedule_brightness }}/5 (0=off)
-                </label>
-                <input type="range" class="form-range pt-3 px-2" name="screen_schedule_brightness"
-                    id="screen_schedule_brightness"
-                    min="0" max="5" step="1" v-model.number="store.config.screen_schedule_brightness"
-                    style="max-width:240px" />
-                <hr />
-                <div class="row">
-                <div class="col-1">
-                    <div class="text-center" style="font-size: 2em;">💤</div>
-                </div>
-                <div class="col-11">
-                    <p>Setting a brightness of <code>0</code> in the schedule puts the device in stand-by and will
-                    prevent polling of data-sources. Useful for keeping data-usage low.</p>
-                </div>
-                </div>
-            </div>
-            </div>
-        </div>
-      </div>
-
-      <div id="brightness-advanced" v-show="store.isAdvancedBrightness">
-        <hr class="my-3" />
-        <h5>Brightness Schedule</h5>
-        <div class="form-text text-muted small mb-2">
-          Fine-tune the display brightness at different times of day. A brightness of <code>0</code> puts
-          the device in stand-by and stops polling of data-sources.
-        </div>
-
-        <div v-if="store.ui.scheduleAdvancedActive" class="alert alert-warning small mt-2 mb-2 py-2">
+        <div v-if="store.ui.inSchedule" class="alert alert-warning small mt-2 mb-0 py-2">
           <i class="bi bi-exclamation-triangle me-1"></i>
-          The brightness schedule is currently active - showing
-          {{ store.formatTime(store.ui.scheduleAdvancedActive.time) }}
-          &rarr; {{ store.ui.scheduleAdvancedActive.brightness }}.
+          The brightness schedule is currently active - changes to the default brightness
+          will not take effect until the scheduled period ends.
         </div>
-
-        <div class="table-responsive">
-          <table class="table table-sm align-middle mb-2" style="max-width:420px">
-            <thead class="table-light">
-              <tr>
-                <th scope="col" style="width:45%">Time</th>
-                <th scope="col" style="width:35%">Brightness</th>
-                <th scope="col" class="text-end" style="width:20%"></th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in store.screenScheduleAdvanced" :key="row.id">
-                <td>
-                  <input type="time" class="form-control form-control-sm"
-                         :class="{ 'is-invalid': !store.scheduleRowValid(row) }"
-                         v-model="row.time" @change="store.resortSchedule()"
-                         :aria-label="'Schedule time ' + ($index + 1)" />
-                  <div class="invalid-feedback small">
-                    Enter a time that isn't already used by another row.
-                  </div>
-                </td>
-                <td>
-                  <select class="form-select form-select-sm" v-model.number="row.brightness"
-                          :aria-label="'Brightness ' + ($index + 1)">
-                    <option :value="0">0 (off)</option>
-                    <option :value="1">1</option>
-                    <option :value="2">2</option>
-                    <option :value="3">3</option>
-                    <option :value="4">4</option>
-                    <option :value="5">5</option>
-                  </select>
-                </td>
-                <td class="text-end">
-                  <button type="button" class="btn btn-sm btn-outline-danger"
-                          :aria-label="'Remove schedule entry ' + ($index + 1)"
-                          @click="store.removeScheduleRow(row.id)">
-                    <i class="bi bi-x-lg"></i>
-                  </button>
-                </td>
-              </tr>
-              <tr v-if="!store.screenScheduleAdvanced.length">
-                <td colspan="3" class="text-muted small">
-                  No schedule entries - the
-                  <a href="#brightness_mode_simple" role="button"
-                     @click.prevent="store.config.brightness_mode = 'simple'">default brightness</a>
-                  of {{ store.config.screen_brightness }}/5 applies all day.
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <button type="button" class="btn btn-sm btn-outline-primary"
-                :disabled="store.screenScheduleAdvanced.length >= 48"
-                @click="store.addScheduleRow()">
-          <i class="bi bi-plus-lg me-1"></i>Add
-        </button>
-
-        <input type="hidden" name="screen_schedule_advanced_json"
-               :value="store.scheduleAdvancedJson()" />
       </div>
     </div>
 

@@ -350,18 +350,21 @@ represent the exact route flown.
 ### Sleep (night standby)
 
 The brightness schedule can switch the panels off overnight instead of just
-dimming them. In **Settings → Hardware → Brightness Schedule**, enable the
-schedule, turn off **Automatically based on sunrise & sunset**, set **Dim at**
-to the time the display should go dark (for example `22:00`) and **Brighten
-at** to the wake time (`08:00`), then drag **Night brightness** to `0`.
+dimming them. Open the **Sleep** tab in Settings, enable **Sleep on a
+schedule**, turn off **Follow sunrise & sunset**, set **Sleep at** to the time
+the display should go dark (for example `22:00`) and **Wake at** to the wake
+time (`08:00`), then drag **Night brightness** to `0`.
+
+The first-run setup wizard offers the same switch under **Sleep**, so a new
+unit can be given its quiet hours before it ever reaches the Settings page.
 
 While the panel is off, the display stops polling flight data and stops
 drawing, so the unit is quiet and draws only a few watts. The weather and
 satellite refresh threads also pause until the schedule ends. The web
 interface stays available throughout, and the nightly update at 2:00 AM still
-runs. Overnight windows that cross midnight are handled, and the **Advanced**
-schedule can hold several brightness steps if you want dusk, sleep and morning
-levels.
+runs. Overnight windows that cross midnight are handled, and **Fine-tune**
+on the Sleep tab can hold several brightness steps if you want dusk, sleep and
+morning levels.
 
 ### Loading LED
 

@@ -224,6 +224,95 @@ class TestParseFirstSetupForm:
         assert data["clock_24hr"] is True
         assert data["date_format"] == 2
 
+    def test_sleep_card_is_off_by_default(self, fresh_config):
+        import web.app as web_app
+
+        data = web_app.parse_first_setup_form({"bonnet_type": "triple"}, fresh_config)
+
+        assert data["screen_schedule_enabled"] is False
+        assert "screen_schedule_start" not in data
+
+    def test_sleep_card_sets_times_and_forces_standby(self, fresh_config):
+        import web.app as web_app
+
+        data = web_app.parse_first_setup_form(
+            {
+                "screen_schedule_enabled": "on",
+                "screen_schedule_start": "22:00",
+                "screen_schedule_end": "08:00",
+            },
+            fresh_config,
+        )
+
+        assert data["screen_schedule_enabled"] is True
+        # The wizard's fixed times must win over sunrise/sunset mode.
+        assert data["screen_schedule_auto"] is False
+        assert data["screen_schedule_start"] == "22:00"
+        assert data["screen_schedule_end"] == "08:00"
+        # Level 0 is what puts the panels and polling to sleep.
+        assert data["screen_schedule_brightness"] == 0
+
+    def test_sleep_card_switches_advanced_units_to_the_simple_schedule(
+        self, fresh_config
+    ):
+        import web.app as web_app
+
+        fresh_config.set("brightness_mode", "advanced")
+        fresh_config.set(
+            "screen_schedule_advanced", [{"time": "12:00", "brightness": 5}]
+        )
+
+        data = web_app.parse_first_setup_form(
+            {
+                "screen_schedule_enabled": "on",
+                "screen_schedule_start": "22:00",
+                "screen_schedule_end": "08:00",
+            },
+            fresh_config,
+        )
+
+        # Fine-tune mode ignores the simple window, so the wizard's explicit
+        # choice has to select simple mode. The advanced rows stay stored.
+        assert data["brightness_mode"] == "simple"
+        assert fresh_config.screen_schedule_advanced == [
+            {"time": "12:00", "brightness": 5}
+        ]
+
+    def test_sleep_card_requires_both_times(self, fresh_config):
+        import web.app as web_app
+
+        with pytest.raises(ValueError, match="both a sleep time and a wake time"):
+            web_app.parse_first_setup_form(
+                {"screen_schedule_enabled": "on", "screen_schedule_start": "22:00"},
+                fresh_config,
+            )
+
+    def test_sleep_card_rejects_an_invalid_time(self, fresh_config):
+        import web.app as web_app
+
+        with pytest.raises(ValueError, match="both a sleep time and a wake time"):
+            web_app.parse_first_setup_form(
+                {
+                    "screen_schedule_enabled": "on",
+                    "screen_schedule_start": "22:00",
+                    "screen_schedule_end": "25:99",
+                },
+                fresh_config,
+            )
+
+    def test_sleep_card_rejects_identical_times(self, fresh_config):
+        import web.app as web_app
+
+        with pytest.raises(ValueError, match="must be different"):
+            web_app.parse_first_setup_form(
+                {
+                    "screen_schedule_enabled": "on",
+                    "screen_schedule_start": "22:00",
+                    "screen_schedule_end": "22:00",
+                },
+                fresh_config,
+            )
+
 
 # ---------------------------------------------------------------------------
 # /first-setup route
@@ -282,6 +371,28 @@ class TestFirstSetupRoute:
 
         assert 'id="location-detect"' in text
         assert "Use network location" in text
+
+    def test_wizard_offers_the_sleep_card(self, fresh_config):
+        text = _authenticated_client().get("/first-setup").get_data(as_text=True)
+
+        assert 'name="screen_schedule_enabled"' in text
+        assert 'name="screen_schedule_start"' in text
+        assert 'name="screen_schedule_end"' in text
+        assert 'value="22:00"' in text
+        assert 'value="07:00"' in text
+
+    def test_wizard_prefills_the_configured_sleep_window(self, fresh_config):
+        import re
+
+        fresh_config.set("screen_schedule_enabled", True)
+        fresh_config.set("screen_schedule_start", "21:30")
+        fresh_config.set("screen_schedule_end", "06:45")
+
+        text = _authenticated_client().get("/first-setup").get_data(as_text=True)
+
+        assert 'value="21:30"' in text
+        assert 'value="06:45"' in text
+        assert re.search(r'id="screen_schedule_enabled".*?checked', text, re.S)
 
     def test_legacy_flag_alone_does_not_satisfy_the_wizard(self, fresh_config):
         fresh_config.set("first_setup_complete", True)
@@ -402,6 +513,49 @@ class TestFirstSetupRoute:
         assert fresh_config.get("screen_brightness") == 4
         assert fresh_config.get("birthday_date") == "2026-03-14"
         assert fresh_config.get("satellite_norad_ids") == [25544]
+
+    def test_valid_post_saves_the_sleep_window(self, fresh_config, monkeypatch):
+        import web.app as web_app
+
+        restart = MagicMock()
+        monkeypatch.setattr(web_app, "restart_after", restart)
+
+        resp = _authenticated_client().post(
+            "/first-setup",
+            data=_wizard_form(
+                screen_schedule_enabled="on",
+                screen_schedule_start="22:00",
+                screen_schedule_end="08:00",
+            ),
+        )
+
+        assert resp.status_code == 200
+        assert fresh_config.get("screen_schedule_enabled") is True
+        assert fresh_config.get("screen_schedule_start") == "22:00"
+        assert fresh_config.get("screen_schedule_end") == "08:00"
+        assert fresh_config.get("screen_schedule_brightness") == 0
+
+    def test_invalid_sleep_time_is_rejected_by_the_route(
+        self, fresh_config, monkeypatch
+    ):
+        import web.app as web_app
+
+        restart = MagicMock()
+        monkeypatch.setattr(web_app, "restart_after", restart)
+
+        resp = _authenticated_client().post(
+            "/first-setup",
+            data=_wizard_form(
+                screen_schedule_enabled="on",
+                screen_schedule_start="22:00",
+                screen_schedule_end="not-a-time",
+            ),
+        )
+
+        assert resp.status_code == 400
+        assert "sleep time" in resp.get_data(as_text=True)
+        restart.assert_not_called()
+        assert fresh_config.get("first_setup_complete") is not True
 
     def test_skip_action_cannot_bypass_setup(self, fresh_config, monkeypatch):
         import web.app as web_app

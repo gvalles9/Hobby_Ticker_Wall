@@ -57,6 +57,8 @@ from setup.configuration import (
     BONNET_TYPES,
     CONFIG_PATH,
     DEFAULT_BONNET_TYPE,
+    DEFAULT_SCREEN_SCHEDULE_END,
+    DEFAULT_SCREEN_SCHEDULE_START,
     DEFAULTS,
     PLATFORM_DATA_DIR,
     Config,
@@ -751,6 +753,38 @@ def _parse_wizard_location(form, cfg) -> dict:
     }
 
 
+def _parse_wizard_sleep(form, cfg) -> dict:
+    """Parse the wizard's optional Sleep card.
+
+    The wizard offers the simple schedule only: a start/end pair held at
+    brightness 0, which is what puts the panels and the polling threads to
+    sleep.  Ticking the box disables sunrise/sunset mode so the entered
+    times are used exactly, and switches to the simple brightness mode so
+    the window applies even on a unit that was left in fine-tune mode (its
+    advanced rows are kept and reappear if fine-tune is chosen again).
+    """
+    from setup.configuration import _parse_schedule_time
+
+    if not bool_val(form.get("screen_schedule_enabled")):
+        return {"screen_schedule_enabled": False}
+
+    start = _parse_schedule_time(form.get("screen_schedule_start"))
+    end = _parse_schedule_time(form.get("screen_schedule_end"))
+    if start is None or end is None:
+        raise ValueError("Enter both a sleep time and a wake time, or untick Sleep.")
+    if start == end:
+        raise ValueError("Sleep and wake times must be different.")
+
+    return {
+        "screen_schedule_enabled": True,
+        "screen_schedule_auto": False,
+        "brightness_mode": "simple",
+        "screen_schedule_start": start.strftime("%H:%M"),
+        "screen_schedule_end": end.strftime("%H:%M"),
+        "screen_schedule_brightness": 0,
+    }
+
+
 def parse_first_setup_form(form, cfg) -> dict:
     """Parse the first-setup wizard form.
 
@@ -778,6 +812,8 @@ def parse_first_setup_form(form, cfg) -> dict:
         "clock_24hr": bool_val(form.get("clock_24hr")),
         "date_format": int_val(form.get("date_format"), cfg.date_format),
         **_parse_timezone_fields(form, cfg),
+        # Optional: night standby (simple schedule, panels off)
+        **_parse_wizard_sleep(form, cfg),
         # Optional: idle scenes and the birthday scene
         **_idle_theme_fields(idle_themes),
         "birthday_enabled": bool(birthday_date),
@@ -1243,6 +1279,18 @@ def _first_setup_page_data(cfg, form=None) -> dict:
         ),
         "clock_24hr": flag("clock_24hr", cfg.clock_24hr),
         "date_format": int_val(val("date_format", cfg.date_format), cfg.date_format),
+        # Night standby (simple schedule)
+        "screen_schedule_enabled": flag(
+            "screen_schedule_enabled", cfg.screen_schedule_enabled
+        ),
+        "screen_schedule_start": val(
+            "screen_schedule_start",
+            cfg.get("screen_schedule_start", DEFAULT_SCREEN_SCHEDULE_START),
+        ),
+        "screen_schedule_end": val(
+            "screen_schedule_end",
+            cfg.get("screen_schedule_end", DEFAULT_SCREEN_SCHEDULE_END),
+        ),
         "timezone": val("timezone", cfg.timezone),
         "timezone_source": (
             "manual" if form is not None and "timezone" in form else cfg.timezone_source

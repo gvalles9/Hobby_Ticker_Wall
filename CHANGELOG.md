@@ -14,6 +14,21 @@ adopted.)
 
 ## [Unreleased]
 
+### Added
+
+- A dedicated **Sleep** tab in Settings now gathers the night-standby controls:
+  the sleep/wake times, sunrise & sunset mode, night brightness and the
+  fine-tune schedule. The feature is no longer buried inside the System page,
+  which keeps only the base brightness and points at the new tab.
+- The first-run setup wizard has an optional **Sleep** card, so a new unit can
+  be given overnight quiet hours before setup finishes. It validates both
+  times and saves the simple schedule at brightness `0`.
+
+### Changed
+
+- The brightness-mode switch (Simple / Fine-tune) moved from the System page to
+  the Sleep tab, next to the schedule it controls.
+
 ## [1.4.0] - 2026-11-17
 
 ### Changed

@@ -211,6 +211,40 @@
       </div>
     </div>
 
+    <!-- ====== Optional: sleep ====== -->
+    <div class="card border-0 shadow-sm p-4 mb-3">
+      <p class="section-heading mb-3">
+        <i class="bi bi-moon-stars me-2"></i>Sleep
+        <span class="badge text-bg-secondary ms-1">Optional</span>
+      </p>
+      <div class="form-check mb-2">
+        <input type="checkbox" class="form-check-input" id="screen_schedule_enabled"
+               name="screen_schedule_enabled"
+               {% if screen_schedule_enabled %}checked{% endif %} />
+        <label class="form-check-label" for="screen_schedule_enabled">
+          Switch the panels off overnight
+        </label>
+        <div class="form-text text-muted small">The display goes dark and stops polling
+          weather and satellite data between these times. The web interface stays
+          available.</div>
+      </div>
+      <div class="row g-2">
+        <div class="col-sm-6">
+          <label class="form-label small" for="screen_schedule_start">Sleep at</label>
+          <input type="time" class="form-control" id="screen_schedule_start"
+                 name="screen_schedule_start" value="{{ screen_schedule_start }}" />
+        </div>
+        <div class="col-sm-6">
+          <label class="form-label small" for="screen_schedule_end">Wake at</label>
+          <input type="time" class="form-control" id="screen_schedule_end"
+                 name="screen_schedule_end" value="{{ screen_schedule_end }}" />
+        </div>
+      </div>
+      <p class="form-text text-muted small mb-0">Times use the time zone above. Leave
+        unticked to keep the display on all day. You can fine-tune several brightness
+        steps later on the Sleep tab.</p>
+    </div>
+
     <!-- ====== Optional: idle scenes ====== -->
     <div class="card border-0 shadow-sm p-4 mb-3">
       <p class="section-heading mb-3">

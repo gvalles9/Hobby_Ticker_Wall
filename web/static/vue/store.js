@@ -123,6 +123,15 @@ export const SIDEBAR_GROUPS = [
     ],
   },
   {
+    title: "Sleep",
+    icon: "bi-moon-stars",
+    route: "/sleep",
+    items: [
+      { section: "group-sleep", icon: "bi-moon-stars", label: "Night Standby" },
+      { section: "group-sleep-advanced", icon: "bi-sliders", label: "Fine-tune Schedule" },
+    ],
+  },
+  {
     title: "System",
     icon: "bi-cpu",
     route: "/hardware",
@@ -197,7 +206,7 @@ export function createStore(initialConfig, pageData) {
   );
 
   // Advanced brightness schedule - reactive rows of {id, time, brightness}.
-  // The Hardware page edits these and serialises them into a hidden JSON
+  // The Sleep page edits these and serialises them into a hidden JSON
   // input at submit time.  `id` is a stable row key so inputs keep focus
   // when the list is re-sorted; it is never submitted.
   let scheduleRowId = 0;

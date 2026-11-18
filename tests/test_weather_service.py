@@ -248,3 +248,55 @@ def test_weather_service_uses_weatherapi_when_key_is_configured(monkeypatch):
     assert len(requested) == 1
     assert "key=test-key" in requested[0][0]
     assert service.get() is not None
+
+
+class TestStandby:
+    def test_in_standby_helper_is_defensive(self):
+        assert theme_utilities._in_standby(SimpleNamespace()) is False
+
+    def test_run_skips_fetch_in_standby(self, monkeypatch):
+        monkeypatch.setattr(
+            "setup.configuration.Config.instance",
+            lambda: SimpleNamespace(weather_refresh_seconds=300),
+        )
+        monkeypatch.setattr(theme_utilities, "_in_standby", lambda cfg: True)
+        service = theme_utilities.WeatherService()
+        waits = []
+
+        def fake_wait(timeout):
+            waits.append(timeout)
+            return True  # stop the loop
+
+        service.stop_event.wait = fake_wait
+        fetched = []
+        service.do_fetch = lambda: fetched.append(True)
+
+        service.run()
+
+        assert fetched == []
+        assert waits == [theme_utilities.STANDBY_POLL_SECONDS]
+
+    def test_run_fetches_when_awake(self, monkeypatch):
+        monkeypatch.setattr(
+            "setup.configuration.Config.instance",
+            lambda: SimpleNamespace(weather_refresh_seconds=300),
+        )
+        monkeypatch.setattr(theme_utilities, "_in_standby", lambda cfg: False)
+        monkeypatch.setattr(
+            "utilities.location.resolve_auto_location", lambda cfg: None
+        )
+        service = theme_utilities.WeatherService()
+        waits = []
+
+        def fake_wait(timeout):
+            waits.append(timeout)
+            return True
+
+        service.stop_event.wait = fake_wait
+        fetched = []
+        service.do_fetch = lambda: fetched.append(True)
+
+        service.run()
+
+        assert fetched == [True]
+        assert waits == [300]

@@ -347,6 +347,22 @@ the origin relative to the origin-to-destination distance. The bar is hidden
 when the aircraft position or airport coordinates are unavailable; it does not
 represent the exact route flown.
 
+### Sleep (night standby)
+
+The brightness schedule can switch the panels off overnight instead of just
+dimming them. In **Settings → Hardware → Brightness Schedule**, enable the
+schedule, turn off **Automatically based on sunrise & sunset**, set **Dim at**
+to the time the display should go dark (for example `22:00`) and **Brighten
+at** to the wake time (`08:00`), then drag **Night brightness** to `0`.
+
+While the panel is off, the display stops polling flight data and stops
+drawing, so the unit is quiet and draws only a few watts. The weather and
+satellite refresh threads also pause until the schedule ends. The web
+interface stays available throughout, and the nightly update at 2:00 AM still
+runs. Overnight windows that cross midnight are handled, and the **Advanced**
+schedule can hold several brightness steps if you want dusk, sleep and morning
+levels.
+
 ### Loading LED
 
 An LED wired to a GPIO pin can blink while flight data is loading. Enable it in the web UI under Hardware settings, and set the GPIO pin number to match your wiring.
@@ -594,7 +610,7 @@ This table is for reference if you've disabled the web interface (`web_interface
 | `screen_schedule_auto` | Use the brightness schedule automatically | `false` |
 | `screen_schedule_start` | Schedule start time (`HH:MM`) | `"22:00"` |
 | `screen_schedule_end` | Schedule end time (`HH:MM`) | `"07:00"` |
-| `screen_schedule_brightness` | Brightness level used during the scheduled window | `0` |
+| `screen_schedule_brightness` | Brightness during the scheduled window; `0` switches the panels off and pauses polling | `0` |
 | `screen_schedule_advanced` | Advanced schedule: JSON list of `{"time": "HH:MM", "brightness": 0-5}` pairs, sorted by time; each entry holds until the next, the last holds overnight | `[]` |
 | `clock_24hr` | `true` for 24-hour clock | `true` |
 | `date_format` | `0` = YYYY-MM-DD, `1` = DD-MM-YYYY, `2` = MM-DD-YYYY | `0` |

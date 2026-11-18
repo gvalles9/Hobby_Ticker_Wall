@@ -195,3 +195,51 @@ class TestStandbyGate:
             disp.scene_manager.kick()
 
         disp.scene_manager.kick.assert_called_once()
+
+
+class TestStandbyFrame:
+    def _cfg(self, standby):
+        cfg = _advanced_cfg([])
+        cfg.is_in_device_standby.return_value = standby
+        return cfg
+
+    def test_standby_skips_polling_and_throttles(self):
+        cfg = self._cfg(True)
+        disp, panel = _make_display(cfg)
+
+        period = disp._step_frame(0, cfg)
+
+        disp.scene_manager.kick.assert_not_called()
+        panel.swap.assert_called_once_with(disp.canvas)
+        assert period == display.STANDBY_FRAME_PERIOD
+
+    def test_standby_still_checks_brightness_every_frame(self):
+        """The wake time must be noticed even at the reduced frame rate."""
+        cfg = self._cfg(True)
+        disp, _panel = _make_display(cfg)
+
+        with patch.object(disp, "update_brightness") as update:
+            disp._step_frame(3, cfg)
+
+        update.assert_called_once()
+
+    def test_active_frame_uses_normal_period(self):
+        cfg = self._cfg(False)
+        disp, _panel = _make_display(cfg)
+
+        period = disp._step_frame(0, cfg)
+
+        disp.scene_manager.kick.assert_called_once()
+        assert period == disp.frame_period
+
+    def test_wake_forces_full_repaint(self):
+        """Scenes repaint only changed pixels, so waking must reset them."""
+        cfg = self._cfg(True)
+        disp, _panel = _make_display(cfg)
+        disp._step_frame(0, cfg)  # enter standby
+
+        cfg.is_in_device_standby.return_value = False
+        disp.scene_manager.current_scene = object()
+        disp._step_frame(1, cfg)  # wake
+
+        assert disp.scene_manager.current_scene is None

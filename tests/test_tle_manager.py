@@ -139,3 +139,55 @@ class TestFailedRefreshHoldoff:
         # treats that as no-data, and get() callers unblock either way.
         assert mgr.ready.is_set()
         assert mgr.tles == []
+
+
+class TestStandby:
+    def test_in_standby_helper_is_defensive(self, monkeypatch):
+        class _StubConfig:
+            @classmethod
+            def instance(cls):
+                return cls()
+
+        monkeypatch.setattr(tle_manager, "Config", _StubConfig)
+
+        assert tle_manager._in_standby() is False
+
+    def test_run_loop_skips_fetch_in_standby(self, monkeypatch):
+        mgr = tle_manager.TLEManager()
+        monkeypatch.setattr(mgr, "prime_from_disk", lambda: None)
+        monkeypatch.setattr(tle_manager, "_in_standby", lambda: True)
+        fetched = []
+        monkeypatch.setattr(mgr, "do_fetch", lambda: fetched.append(True))
+
+        class _Stop(Exception):
+            pass
+
+        def fake_sleep(seconds):
+            raise _Stop
+
+        monkeypatch.setattr(tle_manager.time, "sleep", fake_sleep)
+
+        with pytest.raises(_Stop):
+            mgr.run_loop()
+
+        assert fetched == []
+
+    def test_run_loop_fetches_when_awake(self, monkeypatch):
+        mgr = tle_manager.TLEManager()
+        monkeypatch.setattr(mgr, "prime_from_disk", lambda: None)
+        monkeypatch.setattr(tle_manager, "_in_standby", lambda: False)
+        fetched = []
+        monkeypatch.setattr(mgr, "do_fetch", lambda: fetched.append(True))
+
+        class _Stop(Exception):
+            pass
+
+        def fake_sleep(seconds):
+            raise _Stop
+
+        monkeypatch.setattr(tle_manager.time, "sleep", fake_sleep)
+
+        with pytest.raises(_Stop):
+            mgr.run_loop()
+
+        assert fetched == [True]

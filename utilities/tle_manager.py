@@ -48,6 +48,10 @@ BACKOFF_MAX = 3600.0
 # all during a CelesTrak outage.  Beyond this age the cache is discarded.
 STALE_SERVE_MAX = 30 * 86400
 
+# How often the refresh loop re-checks the schedule while the display is
+# in night standby.  No CelesTrak requests are made until standby ends.
+STANDBY_POLL_SECONDS = 30.0
+
 GP_URL = "https://celestrak.org/NORAD/elements/gp.php?CATNR={catnr}&FORMAT=TLE"
 
 
@@ -115,6 +119,14 @@ def save_cache(
 # ---------------------------------------------------------------------------
 
 
+def _in_standby() -> bool:
+    """True when the night schedule has the display in standby."""
+    try:
+        return bool(Config.instance().is_in_device_standby())
+    except (AttributeError, TypeError):
+        return False
+
+
 class TLEManager:
     """
     Manages TLE fetching, caching, and serving for SatelliteScene.
@@ -162,6 +174,10 @@ class TLEManager:
         self.prime_from_disk()
 
         while True:
+            if _in_standby():
+                # Screen is off for the night: no CelesTrak traffic.
+                time.sleep(STANDBY_POLL_SECONDS)
+                continue
             now = time.time()
             with self.lock:
                 age = now - self.fetched_at

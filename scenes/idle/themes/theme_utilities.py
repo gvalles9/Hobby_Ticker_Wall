@@ -735,12 +735,35 @@ def _parse_noaa_weather(
 # ---------------------------------------------------------------------------
 
 
+# How often the weather thread re-checks the schedule while the display is
+# in night standby.  Short enough that the morning refresh starts soon
+# after the screen wakes.
+STANDBY_POLL_SECONDS = 30.0
+
+
+def _in_standby(cfg) -> bool:
+    """True when the night schedule has the display in standby.
+
+    Defensive because some callers use a stub config without the
+    schedule API.
+    """
+    try:
+        return bool(cfg.is_in_device_standby())
+    except (AttributeError, TypeError):
+        return False
+
+
 class WeatherService(threading.Thread):
     """
     Singleton daemon thread that fetches weather on startup and then every
     ``weather_refresh_minutes`` minutes (configurable). A WeatherAPI key
     selects WeatherAPI.com; without one, the U.S.-only NOAA/NWS API is used.
     Thread-safe via a lock.
+
+    While the night schedule has the display in standby the thread stays
+    quiet: no location lookup and no API calls.  It checks the schedule
+    every ``STANDBY_POLL_SECONDS`` so the first refresh after waking happens
+    promptly instead of waiting a whole refresh interval.
 
     Any consumer (idle theme, future scheduler, etc.) can call
     WeatherService.instance().get() to read the latest cached data.
@@ -774,6 +797,13 @@ class WeatherService(threading.Thread):
         # effect on the next refresh cycle without restarting the thread.
         while True:
             cfg = Config.instance()
+            if _in_standby(cfg):
+                # Screen is off for the night: stay quiet and check back
+                # soon so the first morning refresh is not delayed by a
+                # full refresh interval.
+                if self.stop_event.wait(STANDBY_POLL_SECONDS):
+                    break
+                continue
             try:
                 from utilities.location import resolve_auto_location
 

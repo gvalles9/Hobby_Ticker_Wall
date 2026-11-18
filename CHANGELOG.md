@@ -14,6 +14,15 @@ adopted.)
 
 ## [Unreleased]
 
+### Changed
+
+- Night standby now actually stops background polling. While the brightness
+  schedule holds the display at `0`, the weather and satellite (TLE) threads
+  make no requests, the render loop drops to four frames per second, and the
+  first refresh after waking starts within 30 seconds. The panels also get a
+  full repaint on wake instead of waiting for a scene to redraw. The README
+  documents the sleep schedule and its `0 = off` setting.
+
 ## [1.3.2] - 2026-11-17
 
 ### Added

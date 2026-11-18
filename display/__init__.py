@@ -7,6 +7,11 @@ from time import perf_counter, sleep
 # screen.  The failing scene is retried after the SceneManager quarantine.
 SCENE_ERROR_SECONDS = 10
 
+# Frame period used while the night schedule has the panel in standby.
+# Scenes are not polled or drawn, so the loop only needs to wake often
+# enough to notice the schedule ending and to keep the web UI responsive.
+STANDBY_FRAME_PERIOD = 0.25
+
 # ---------------------------------------------------------------------------
 # Lazy class construction - defers panel, font, and overhead imports
 # until first access so the boot screen and web interface start cheaply.
@@ -146,6 +151,7 @@ def build_display_class():
             self._error_frames = 1
             self._error_draw_failed = False
             self._pending_scene_error = None
+            self._was_standby = False
 
             self._init_panel(matrix, canvas, cfg)
 
@@ -386,6 +392,46 @@ def build_display_class():
                 logger.exception("Could not rebuild the idle rotation")
                 self._on_scene_error("idle")
 
+        def _step_frame(self, frame: int, cfg) -> float:
+            """Render one frame and return the delay before the next.
+
+            While the night schedule is in standby the panel is dark, so
+            scenes are neither polled nor drawn and the loop idles at
+            ``STANDBY_FRAME_PERIOD``.  The brightness schedule is still
+            checked on every pass so the screen wakes on time.
+            """
+            self._frame = frame
+
+            today = date.today()
+            if today != self._idle_date:
+                self._idle_date = today
+                self._refresh_idle_rotation()
+
+            standby = cfg.is_in_device_standby()
+            if standby or not (frame % self.brightness_update_interval):
+                self.update_brightness()
+
+            if not standby:
+                if self._was_standby:
+                    # Scenes repaint only changed pixels, so force a full
+                    # redraw now that the panel is visible again.
+                    self.scene_manager.current_scene = None
+                if self._error_label is not None and frame < self._error_until_frame:
+                    self._draw_error_frame()
+                else:
+                    if self._error_label is not None:
+                        self._error_label = None
+                        # Force a clean re-entry: scenes that only
+                        # repaint changed pixels must redraw every
+                        # pixel the error message covered.
+                        self.scene_manager.current_scene = None
+                    self.scene_manager.kick(cfg.debug_scene)
+                    self.loading.tick(frame)
+
+            self._was_standby = standby
+            self.panel.swap(self.canvas)
+            return STANDBY_FRAME_PERIOD if standby else self.frame_period
+
         def run(self):
             print("Press CTRL-C to stop")
 
@@ -404,38 +450,11 @@ def build_display_class():
             try:
                 while True:
                     start = perf_counter()
-                    self._frame = frame
-
-                    today = date.today()
-                    if today != self._idle_date:
-                        self._idle_date = today
-                        self._refresh_idle_rotation()
-
-                    if not (frame % self.brightness_update_interval):
-                        self.update_brightness()
-
-                    if not cfg.is_in_device_standby():
-                        if (
-                            self._error_label is not None
-                            and frame < self._error_until_frame
-                        ):
-                            self._draw_error_frame()
-                        else:
-                            if self._error_label is not None:
-                                self._error_label = None
-                                # Force a clean re-entry: scenes that only
-                                # repaint changed pixels must redraw every
-                                # pixel the error message covered.
-                                self.scene_manager.current_scene = None
-                            self.scene_manager.kick(cfg.debug_scene)
-                            self.loading.tick(frame)
-
-                    self.panel.swap(self.canvas)
-
+                    period = self._step_frame(frame, cfg)
                     frame += 1
 
                     elapsed = perf_counter() - start
-                    sleep_time = self.frame_period - elapsed
+                    sleep_time = period - elapsed
                     if sleep_time < 0.001:
                         sleep_time = 0.001
                     sleep(sleep_time)

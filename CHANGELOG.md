@@ -14,6 +14,8 @@ adopted.)
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-11-17
+
 ### Changed
 
 - Night standby now actually stops background polling. While the brightness

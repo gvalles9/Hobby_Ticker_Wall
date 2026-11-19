@@ -43,6 +43,12 @@ except ImportError:
 
 SPLASH_TIMEOUT = 5  # seconds to show the splash screen before switching to display
 
+# Splash layout.  The hotspot caption sits on the empty middle panel, level
+# with the "HOBBY TICKER" branding on the left panel and well above the
+# aircraft artwork at the bottom of that panel.
+SPLASH_CAPTION_Y = 12
+SPLASH_ADDRESS_Y = 31
+
 
 def local_ip() -> str:
     try:
@@ -181,6 +187,11 @@ def render_splash(
     """
     Render the splash BMP to canvas and swap it onto the display.
     """
+    # Start from a blank canvas so text left by the startup tests or by an
+    # earlier splash (for example "Loading" and the version) cannot show
+    # through the next layout.
+    panel.clear(canvas)
+
     # Read raw bytes and set pixels manually (works on both Pi 3/4 and Pi 5).
     splash_path = os.path.join(os.path.dirname(__file__), "assets", "splash.bmp")
     splash = Image.open(splash_path).convert("RGB")
@@ -242,7 +253,7 @@ def render_splash(
                     canvas,
                     loading_font,
                     screen.PANEL_WIDTH + 8,
-                    18,
+                    SPLASH_CAPTION_Y,
                     WHITE,
                     "SCAN TO JOIN",
                 )
@@ -250,7 +261,7 @@ def render_splash(
                 canvas,
                 loading_font,
                 qr_panel_x,
-                31,
+                SPLASH_ADDRESS_Y,
                 BLACK,
                 "192.168.4.1:8584",
             )

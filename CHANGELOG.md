@@ -14,6 +14,13 @@ adopted.)
 
 ## [Unreleased]
 
+### Fixed
+
+- The hotspot splash caption (`SCAN TO JOIN`) sits level with the Hobby
+  Ticker branding and clear of the aircraft artwork instead of low on the
+  middle panel. Redrawing the splash also clears the previous layout, so
+  the loading text no longer shows through it.
+
 ## [1.6.1] - 2026-11-18
 
 ### Changed

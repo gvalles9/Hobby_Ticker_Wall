@@ -30,6 +30,10 @@ class _SplashPanel:
         self.pixels = []
         self.text = []
 
+    def clear(self, canvas):
+        self.pixels.clear()
+        self.text.clear()
+
     def set_pixel(self, canvas, x, y, r, g, b):
         self.pixels.append((x, y))
 
@@ -159,16 +163,88 @@ def test_splash_wifi_caption_keeps_clear_of_the_artwork():
         wifi_setup={"ssid": "F1234", "password": "Ab12Cd34X"},
     )
 
-    assert (screen.PANEL_WIDTH + 8, 18, "SCAN TO JOIN") in panel.text
+    assert (
+        screen.PANEL_WIDTH + 8,
+        flight_tracker_module.SPLASH_CAPTION_Y,
+        "SCAN TO JOIN",
+    ) in panel.text
     assert (
         screen.WIDTH - screen.PANEL_WIDTH,
-        31,
+        flight_tracker_module.SPLASH_ADDRESS_Y,
         "192.168.4.1:8584",
     ) in panel.text
 
     # Only the branding is drawn over the splash artwork's panel.
     artwork_panel = [text for x, _, text in panel.text if x < screen.PANEL_WIDTH]
     assert artwork_panel == ["HOBBY TICKER"]
+
+
+def test_splash_wifi_caption_sits_above_the_aircraft_artwork():
+    """The caption must stay above the aircraft, not merely on another panel.
+
+    It used to be drawn low enough that it read as part of the aircraft
+    artwork on the left panel.  Keep the last row of text above the first
+    row of the plane so the two never crowd each other.
+    """
+    from PIL import Image
+
+    from display.bdf_font import BDFFont
+
+    root = Path(__file__).resolve().parents[1]
+    artwork = Image.open(root / "assets" / "splash.bmp").convert("RGB")
+    pixels = artwork.load()
+
+    # The aircraft and colour bars occupy the lower half of the bitmap.
+    plane_top = min(
+        y
+        for y in range(artwork.height // 2, artwork.height)
+        for x in range(artwork.width)
+        if pixels[x, y] != (0, 0, 0)
+    )
+
+    font = BDFFont(str(root / "fonts" / "4x6.bdf"))
+    baseline = flight_tracker_module.SPLASH_CAPTION_Y
+    glyphs = [font.get_glyph(ord(ch)) for ch in "SCAN TO JOIN"]
+    caption_top = min(baseline - glyph.bbx_yoff - glyph.bbx_h + 1 for glyph in glyphs)
+
+    assert caption_top >= 0
+    assert baseline < plane_top
+
+
+def test_splash_redraw_clears_earlier_splash_text():
+    """A second splash must not leave the previous layout's text behind.
+
+    The handoff splash is drawn over the loading splash, which already put
+    "Loading" and the version on the middle panel.  Without a clear those
+    lines showed through the hotspot caption.
+    """
+    panel = _SplashPanel()
+
+    class FakeImageModule:
+        @staticmethod
+        def open(path):
+            return _SplashImage()
+
+    flight_tracker_module.render_splash(panel, "canvas", FakeImageModule, "font")
+    assert (screen.PANEL_WIDTH + 1, 20, "Loading") in panel.text
+
+    flight_tracker_module.render_splash(
+        panel,
+        "canvas",
+        FakeImageModule,
+        "font",
+        url="http://192.168.4.1:8584/wifi-setup",
+        qrcode=_fake_qrcode([[True, False], [False, True]]),
+        ERROR_CORRECT_L=1,
+        wifi_setup={"ssid": "F1234", "password": "Ab12Cd34X"},
+    )
+
+    assert (screen.PANEL_WIDTH + 1, 20, "Loading") not in panel.text
+    assert (
+        screen.PANEL_WIDTH + 8,
+        flight_tracker_module.SPLASH_CAPTION_Y,
+        "SCAN TO JOIN",
+    ) in panel.text
 
 
 def test_splash_wifi_caption_fits_inside_the_qr_panel():

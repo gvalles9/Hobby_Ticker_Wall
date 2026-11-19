@@ -14,6 +14,8 @@ adopted.)
 
 ## [Unreleased]
 
+## [1.7.1] - 2026-11-18
+
 ### Changed
 
 - The startup QR splash stays up for 30 seconds instead of 5, so there is

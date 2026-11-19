@@ -1217,9 +1217,11 @@ FIRST_SETUP_EXEMPT_ENDPOINTS = frozenset(
         "wifi_status",
         "wifi_connect",
         "ping",
-        # The wizard offers "use network location" for the time zone; it is
-        # a read-only lookup and must work before setup is finished.
+        # The wizard offers "use network location" for the time zone and the
+        # coordinates; both are read-only lookups and must work before setup
+        # is finished.
         "ip_timezone",
+        "ip_location",
     }
 )
 

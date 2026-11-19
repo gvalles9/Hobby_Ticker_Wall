@@ -14,6 +14,18 @@ adopted.)
 
 ## [Unreleased]
 
+### Added
+
+- Once the setup hotspot closes, the splash says `WIFI CONFIGURED!` and
+  `SCAN TO SETUP` beside a QR for the wizard on the home network, and the
+  code is redrawn if DHCP hands out a different address.
+
+### Fixed
+
+- **Use network location** in the first-setup wizard works again. The
+  lookup was redirected to the wizard page, so the browser reported
+  `Unexpected token '<'` instead of filling in the coordinates.
+
 ## [1.6.3] - 2026-11-18
 
 ### Fixed

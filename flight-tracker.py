@@ -52,6 +52,30 @@ SETUP_SPLASH_TIMEOUT = 60
 SPLASH_CAPTION_Y = 12
 SPLASH_ADDRESS_Y = 28
 SPLASH_ADDRESS_Y_SINGLE = 31
+# Once the hotspot closes, the middle panel says the Wi-Fi part is done and
+# points at the QR for the setup wizard.  "WIFI CONFIGURED!" is exactly 64
+# pixels wide in the 4x6 font, so it starts at the panel edge below the
+# branding; the second line is centred underneath it.
+SPLASH_CONFIGURED_Y = 19
+SPLASH_SETUP_Y = 28
+SPLASH_CONFIGURED_X = screen.PANEL_WIDTH
+SPLASH_SETUP_X = screen.PANEL_WIDTH + 6
+
+
+def _wifi_ready() -> bool:
+    """True when the unit already has a working Wi-Fi connection."""
+    try:
+        from utilities.wifi_setup import CONFIGURED_MARKER
+    except Exception:
+        return False
+    if os.path.exists(CONFIGURED_MARKER):
+        return True
+    try:
+        from utilities.wifi_setup import current_ssid
+
+        return bool(current_ssid())
+    except Exception:
+        return False
 
 
 def _centered_qr_y(matrix_height: int) -> int:
@@ -192,6 +216,7 @@ def render_splash(
     qrcode=None,
     ERROR_CORRECT_L=None,
     wifi_setup=None,
+    wifi_configured=False,
 ):
     """
     Render the splash BMP to canvas and swap it onto the display.
@@ -286,6 +311,26 @@ def render_splash(
                     BLACK,
                     "192.168.4.1:8584",
                 )
+        elif wifi_configured and multi_panel:
+            # The hotspot is gone and the QR now opens the setup wizard on
+            # the home network, so tell the owner what just happened and
+            # that there is one more step.
+            panel.draw_text(
+                canvas,
+                loading_font,
+                SPLASH_CONFIGURED_X,
+                SPLASH_CONFIGURED_Y,
+                WHITE,
+                "WIFI CONFIGURED!",
+            )
+            panel.draw_text(
+                canvas,
+                loading_font,
+                SPLASH_SETUP_X,
+                SPLASH_SETUP_Y,
+                WHITE,
+                "SCAN TO SETUP",
+            )
     else:
         # Show loading status and the product version on the middle panel.
         dim = WHITE.__class__(180, 180, 180)
@@ -396,6 +441,12 @@ def load_full_interface(panel, canvas, cfg: Config):
     # the first-setup wizard, or settings as appropriate.  Keeping the
     # payload short keeps the QR small enough to centre on a 32-row panel.
     url = f"http://{host}:{cfg.web_port}"
+    # A unit that already has Wi-Fi but still needs the wizard (first boot
+    # after the hotspot closed, or a handoff reset) should say the Wi-Fi part
+    # is done instead of showing the join instructions.
+    wifi_configured = (
+        not setup_mode and not cfg.get("web_password_hash") and _wifi_ready()
+    )
     print(f"[web] Config interface: {url}", flush=True)
 
     result: dict = {}
@@ -439,6 +490,7 @@ def load_full_interface(panel, canvas, cfg: Config):
             qrcode,
             ERROR_CORRECT_L,
             wifi_setup,
+            wifi_configured,
         )
 
     deadline = time.time() + splash_timeout
@@ -447,6 +499,7 @@ def load_full_interface(panel, canvas, cfg: Config):
         if setup_mode and not os.path.exists("/run/flighttracker-wifi-setup"):
             setup_mode = False
             wifi_setup = None
+            wifi_configured = not cfg.get("web_password_hash") and _wifi_ready()
             url = f"http://{local_ip()}:{cfg.web_port}"
             render_splash(
                 panel,
@@ -456,8 +509,32 @@ def load_full_interface(panel, canvas, cfg: Config):
                 url,
                 qrcode,
                 ERROR_CORRECT_L,
+                None,
+                wifi_configured,
             )
-            deadline = time.time() + SPLASH_TIMEOUT
+            deadline = time.time() + splash_timeout
+        elif wifi_configured:
+            # The home network's address only arrives once DHCP finishes.
+            # Redraw if it changes so the code never keeps pointing at the
+            # hotspot or at a stale address.
+            new_url = f"http://{local_ip()}:{cfg.web_port}"
+            if (
+                new_url != url
+                and "127.0.0.1" not in new_url
+                and not new_url.startswith("http://192.168.4.1")
+            ):
+                url = new_url
+                render_splash(
+                    panel,
+                    canvas,
+                    Image,
+                    loading_font,
+                    url,
+                    qrcode,
+                    ERROR_CORRECT_L,
+                    None,
+                    True,
+                )
         setup_complete = bool(cfg.get("web_password_hash"))
         if (
             time.time() >= deadline

@@ -304,6 +304,69 @@ def test_splash_wifi_caption_fits_inside_the_qr_panel():
     assert advance <= screen.PANEL_WIDTH
 
 
+def test_splash_wifi_configured_caption_replaces_scan_to_join():
+    """After the hotspot closes the display says the Wi-Fi part is done."""
+    panel = _SplashPanel()
+    encoded = []
+
+    class FakeQRCode:
+        def __init__(self, **kwargs):
+            pass
+
+        def add_data(self, data):
+            encoded.append(data)
+
+        def make(self, fit):
+            pass
+
+        def get_matrix(self):
+            return [[True, False], [False, True]]
+
+    class FakeImageModule:
+        @staticmethod
+        def open(path):
+            return _SplashImage()
+
+    flight_tracker_module.render_splash(
+        panel,
+        "canvas",
+        FakeImageModule,
+        "font",
+        url="http://192.168.1.123:8584",
+        qrcode=types.SimpleNamespace(QRCode=FakeQRCode),
+        ERROR_CORRECT_L=1,
+        wifi_configured=True,
+    )
+
+    texts = [text for _x, _y, text in panel.text]
+    assert "WIFI CONFIGURED!" in texts
+    assert "SCAN TO SETUP" in texts
+    assert "SCAN TO JOIN" not in texts
+    # The code now opens the wizard on the home network, not the hotspot.
+    assert encoded == ["http://192.168.1.123:8584"]
+
+
+def test_splash_wifi_configured_captions_fit_the_middle_panel():
+    from display.bdf_font import BDFFont
+
+    font_path = Path(__file__).resolve().parents[1] / "fonts" / "4x6.bdf"
+    font = BDFFont(str(font_path))
+    qr_panel_x = screen.WIDTH - screen.PANEL_WIDTH
+
+    for text, x in (
+        ("WIFI CONFIGURED!", flight_tracker_module.SPLASH_CONFIGURED_X),
+        ("SCAN TO SETUP", flight_tracker_module.SPLASH_SETUP_X),
+    ):
+        assert x >= screen.PANEL_WIDTH
+        assert x + font.text_width(text) <= qr_panel_x
+
+    assert (
+        flight_tracker_module.SPLASH_CONFIGURED_Y
+        < flight_tracker_module.SPLASH_SETUP_Y
+        <= screen.HEIGHT - 2
+    )
+
+
 def test_pygame_close_resets_simulator_config(monkeypatch):
     saved = []
     cfg = types.SimpleNamespace(

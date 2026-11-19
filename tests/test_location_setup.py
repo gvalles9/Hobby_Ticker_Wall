@@ -28,6 +28,24 @@ def test_ip_location_returns_validated_coordinates(monkeypatch):
     assert result.get_json() == {"latitude": 40.7, "longitude": -74.0}
 
 
+def test_ip_location_works_during_first_setup(monkeypatch, fresh_config):
+    """The wizard offers the button, so the guard must let the lookup through.
+
+    Without an exemption the authenticated fetch was redirected to the wizard
+    HTML page, and the browser reported "Unexpected token '<'".
+    """
+    import utilities.location as location
+
+    fresh_config.data_store["web_password_hash"] = ""
+    monkeypatch.setattr(location, "ip_location", lambda: (40.7, -74.0))
+
+    result = _authenticated_client().get("/api/location/ip")
+
+    assert result.status_code == 200
+    assert result.is_json
+    assert result.get_json() == {"latitude": 40.7, "longitude": -74.0}
+
+
 def test_ip_location_rejects_invalid_coordinates(monkeypatch):
     import utilities.location as location
 

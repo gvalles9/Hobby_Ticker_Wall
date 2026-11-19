@@ -169,7 +169,7 @@ def test_splash_wifi_caption_keeps_clear_of_the_artwork():
         "SCAN TO JOIN",
     ) in panel.text
     assert (
-        screen.WIDTH - screen.PANEL_WIDTH,
+        screen.PANEL_WIDTH,
         flight_tracker_module.SPLASH_ADDRESS_Y,
         "192.168.4.1:8584",
     ) in panel.text
@@ -209,6 +209,53 @@ def test_splash_wifi_caption_sits_above_the_aircraft_artwork():
 
     assert caption_top >= 0
     assert baseline < plane_top
+
+
+def test_splash_qr_is_centred_vertically():
+    """The code should sit in the middle of its panel, not on the bottom edge."""
+    # A 27-row code (Wi-Fi credentials or a short URL) leaves two rows above
+    # and three below; a taller code still fits without being clipped.
+    assert flight_tracker_module._centered_qr_y(27) == 2
+    assert flight_tracker_module._centered_qr_y(31) == 0
+    assert flight_tracker_module._centered_qr_y(32) == 0
+    assert flight_tracker_module._centered_qr_y(40) == 0
+
+
+def test_setup_splash_stays_up_long_enough_to_scan():
+    """First boot and the hotspot should leave a minute to scan the code."""
+    assert flight_tracker_module.SETUP_SPLASH_TIMEOUT >= 60
+
+
+def test_splash_wifi_address_uses_the_middle_panel():
+    """The address moved off the QR panel so the QR can be centred."""
+    panel = _SplashPanel()
+
+    class FakeImageModule:
+        @staticmethod
+        def open(path):
+            return _SplashImage()
+
+    flight_tracker_module.render_splash(
+        panel,
+        "canvas",
+        FakeImageModule,
+        "font",
+        url="http://192.168.4.1:8584",
+        qrcode=_fake_qrcode([[True, False], [False, True]]),
+        ERROR_CORRECT_L=1,
+        wifi_setup={"ssid": "F1234", "password": "Ab12Cd34X"},
+    )
+
+    assert (
+        screen.PANEL_WIDTH,
+        flight_tracker_module.SPLASH_ADDRESS_Y,
+        "192.168.4.1:8584",
+    ) in panel.text
+    assert (
+        screen.PANEL_WIDTH + 8,
+        flight_tracker_module.SPLASH_CAPTION_Y,
+        "SCAN TO JOIN",
+    ) in panel.text
 
 
 def test_splash_redraw_clears_earlier_splash_text():

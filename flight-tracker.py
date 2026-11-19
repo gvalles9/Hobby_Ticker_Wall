@@ -41,13 +41,22 @@ except ImportError:
     qrcode = None
     ERROR_CORRECT_L = None
 
-SPLASH_TIMEOUT = 5  # seconds to show the splash screen before switching to display
+SPLASH_TIMEOUT = 5  # seconds to show the normal splash before switching to display
+# First boot and the setup hotspot keep the QR up longer so there is time to
+# scan it from a phone.
+SETUP_SPLASH_TIMEOUT = 60
 
-# Splash layout.  The hotspot caption sits on the empty middle panel, level
-# with the "HOBBY TICKER" branding on the left panel and well above the
-# aircraft artwork at the bottom of that panel.
+# Splash layout.  The hotspot caption and address sit on the empty middle
+# panel, level with the "HOBBY TICKER" branding and well above the aircraft
+# artwork at the bottom of the left panel.
 SPLASH_CAPTION_Y = 12
-SPLASH_ADDRESS_Y = 31
+SPLASH_ADDRESS_Y = 28
+SPLASH_ADDRESS_Y_SINGLE = 31
+
+
+def _centered_qr_y(matrix_height: int) -> int:
+    """Centre the QR vertically, keeping it inside the panel."""
+    return max(0, (screen.HEIGHT - matrix_height) // 2)
 
 
 def local_ip() -> str:
@@ -231,9 +240,12 @@ def render_splash(
             qr.add_data(url)
         qr.make(fit=True)
         qr_matrix = qr.get_matrix()
+        multi_panel = screen.WIDTH > screen.PANEL_WIDTH
         qr_panel_x = max(0, screen.WIDTH - screen.PANEL_WIDTH)
         qr_x = qr_panel_x + (screen.PANEL_WIDTH - len(qr_matrix[0])) // 2
-        qr_y = 0 if wifi_setup else 2
+        # Centre the code vertically.  On a single panel the address has to
+        # stay underneath it, so leave the code at the top there.
+        qr_y = _centered_qr_y(len(qr_matrix)) if multi_panel else 0
         for y in range(screen.HEIGHT):
             for x in range(qr_panel_x, screen.WIDTH):
                 panel.set_pixel(canvas, x, y, 255, 255, 255)
@@ -246,9 +258,9 @@ def render_splash(
         if wifi_setup:
             # Keep the text clear of the splash artwork (left panel) and of
             # the QR itself.  The QR carries the Wi-Fi credentials, so the
-            # middle panel says what to do and the white strip under the QR
-            # carries the address to open afterwards.
-            if screen.WIDTH > screen.PANEL_WIDTH:
+            # middle panel says what to do and carries the address to open
+            # afterwards.
+            if multi_panel:
                 panel.draw_text(
                     canvas,
                     loading_font,
@@ -257,14 +269,23 @@ def render_splash(
                     WHITE,
                     "SCAN TO JOIN",
                 )
-            panel.draw_text(
-                canvas,
-                loading_font,
-                qr_panel_x,
-                SPLASH_ADDRESS_Y,
-                BLACK,
-                "192.168.4.1:8584",
-            )
+                panel.draw_text(
+                    canvas,
+                    loading_font,
+                    screen.PANEL_WIDTH,
+                    SPLASH_ADDRESS_Y,
+                    WHITE,
+                    "192.168.4.1:8584",
+                )
+            else:
+                panel.draw_text(
+                    canvas,
+                    loading_font,
+                    qr_panel_x,
+                    SPLASH_ADDRESS_Y_SINGLE,
+                    BLACK,
+                    "192.168.4.1:8584",
+                )
     else:
         # Show loading status and the product version on the middle panel.
         dim = WHITE.__class__(180, 180, 180)
@@ -370,15 +391,11 @@ def load_full_interface(panel, canvas, cfg: Config):
             logging.getLogger("startup").error(
                 "Could not read Wi-Fi setup QR data: %s", exc
             )
-    if setup_mode:
-        url = f"http://192.168.4.1:{cfg.web_port}/wifi-setup"
-    elif not cfg.get("web_password_hash"):
-        # First run (or a handoff reset): send the QR to the setup wizard
-        # instead of settings.  Mirrors web.app._first_setup_pending: the
-        # wizard is done once a real web password exists.
-        url = f"http://{local_ip()}:{cfg.web_port}/first-setup"
-    else:
-        url = f"http://{local_ip()}:{cfg.web_port}/settings"
+    host = "192.168.4.1" if setup_mode else local_ip()
+    # The QR encodes the site root; "/" redirects to the Wi-Fi setup page,
+    # the first-setup wizard, or settings as appropriate.  Keeping the
+    # payload short keeps the QR small enough to centre on a 32-row panel.
+    url = f"http://{host}:{cfg.web_port}"
     print(f"[web] Config interface: {url}", flush=True)
 
     result: dict = {}
@@ -402,9 +419,15 @@ def load_full_interface(panel, canvas, cfg: Config):
     flask_thread.start()
     display_thread.start()
 
-    # -- Phase 3: Wait for Flask, then show QR and start 8-second clock --
+    # -- Phase 3: Wait for Flask, then show the QR and start the clock --
     # The countdown begins only once Flask is provably ready so the user
-    # always has a full 8 seconds to scan the code.
+    # always has the full window to scan the code.  First boot and the
+    # setup hotspot keep it up for a minute; a normal boot only flashes it.
+    splash_timeout = (
+        SETUP_SPLASH_TIMEOUT
+        if setup_mode or not cfg.get("web_password_hash")
+        else SPLASH_TIMEOUT
+    )
     flask_ready.wait()
     if "flask_error" not in result:
         render_splash(
@@ -418,13 +441,13 @@ def load_full_interface(panel, canvas, cfg: Config):
             wifi_setup,
         )
 
-    deadline = time.time() + SPLASH_TIMEOUT
+    deadline = time.time() + splash_timeout
     while True:
         time.sleep(0.5)
         if setup_mode and not os.path.exists("/run/flighttracker-wifi-setup"):
             setup_mode = False
             wifi_setup = None
-            url = f"http://{local_ip()}:{cfg.web_port}/settings"
+            url = f"http://{local_ip()}:{cfg.web_port}"
             render_splash(
                 panel,
                 canvas,

@@ -14,6 +14,8 @@ adopted.)
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-11-18
+
 ### Added
 
 - Once the setup hotspot closes, the splash says `WIFI CONFIGURED!` and

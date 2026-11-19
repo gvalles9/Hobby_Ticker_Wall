@@ -14,6 +14,17 @@ adopted.)
 
 ## [Unreleased]
 
+## [1.6.3] - 2026-11-18
+
+### Fixed
+
+- The setup QR is centred on its panel instead of starting two rows down,
+  which pushed the last row of a taller code onto the bottom edge. The
+  hotspot address moved to the middle panel and the code now encodes the
+  site root, so it stays small enough to sit comfortably on the display.
+  First boot and the setup hotspot also keep the splash up for 60 seconds
+  instead of 5, giving more time to scan it.
+
 ## [1.6.2] - 2026-11-18
 
 ### Fixed

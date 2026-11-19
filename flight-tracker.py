@@ -41,7 +41,7 @@ except ImportError:
     qrcode = None
     ERROR_CORRECT_L = None
 
-SPLASH_TIMEOUT = 5  # seconds to show the normal splash before switching to display
+SPLASH_TIMEOUT = 30  # seconds to show the normal splash before switching to display
 # First boot and the setup hotspot keep the QR up longer so there is time to
 # scan it from a phone.
 SETUP_SPLASH_TIMEOUT = 60
@@ -473,7 +473,8 @@ def load_full_interface(panel, canvas, cfg: Config):
     # -- Phase 3: Wait for Flask, then show the QR and start the clock --
     # The countdown begins only once Flask is provably ready so the user
     # always has the full window to scan the code.  First boot and the
-    # setup hotspot keep it up for a minute; a normal boot only flashes it.
+    # setup hotspot keep it up for a minute; a normal boot gets half a
+    # minute, which is enough to reach for a phone and scan it.
     splash_timeout = (
         SETUP_SPLASH_TIMEOUT
         if setup_mode or not cfg.get("web_password_hash")

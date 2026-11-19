@@ -226,6 +226,15 @@ def test_setup_splash_stays_up_long_enough_to_scan():
     assert flight_tracker_module.SETUP_SPLASH_TIMEOUT >= 60
 
 
+def test_normal_splash_stays_up_long_enough_to_scan():
+    """A normal boot needs more than a few seconds to reach for a phone."""
+    assert flight_tracker_module.SPLASH_TIMEOUT >= 30
+    assert (
+        flight_tracker_module.SPLASH_TIMEOUT
+        < flight_tracker_module.SETUP_SPLASH_TIMEOUT
+    )
+
+
 def test_splash_wifi_address_uses_the_middle_panel():
     """The address moved off the QR panel so the QR can be centred."""
     panel = _SplashPanel()

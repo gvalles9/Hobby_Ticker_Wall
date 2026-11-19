@@ -14,6 +14,12 @@ adopted.)
 
 ## [Unreleased]
 
+### Changed
+
+- The startup QR splash stays up for 30 seconds instead of 5, so there is
+  time to pick up a phone and scan it. First boot and the setup hotspot
+  keep their 60-second window.
+
 ## [1.7.0] - 2026-11-18
 
 ### Added

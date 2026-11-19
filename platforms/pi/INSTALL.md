@@ -323,7 +323,7 @@ The installer needs internet access to download FlightTracker and dependencies. 
 Ethernet or temporary Wi-Fi during installation; the first-boot hotspot lets you set
 the Wi-Fi credentials you want to keep afterward.
 
-On subsequent boots, the QR code appears for five seconds before the normal display begins.
+On subsequent boots, the QR code appears for 30 seconds before the normal display begins.
 
 Scan the QR code or open the following address from another device on the same network:
 

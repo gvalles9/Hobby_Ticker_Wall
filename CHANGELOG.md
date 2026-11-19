@@ -14,6 +14,8 @@ adopted.)
 
 ## [Unreleased]
 
+## [1.6.2] - 2026-11-18
+
 ### Fixed
 
 - The hotspot splash caption (`SCAN TO JOIN`) sits level with the Hobby

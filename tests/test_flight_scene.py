@@ -1445,9 +1445,20 @@ class TestFlightDatedPages:
             scene._advance_page()
 
         assert seen == [
-            0, 1, 2, 3, 4, ("dated", 0),
-            0, 1, 2, 3, 4, ("dated", 1),
-            0, 1,
+            0,
+            1,
+            2,
+            3,
+            4,
+            ("dated", 0),
+            0,
+            1,
+            2,
+            3,
+            4,
+            ("dated", 1),
+            0,
+            1,
         ]
 
     def test_one_flight_alternates_with_dated_pages(self):

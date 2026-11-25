@@ -32,7 +32,7 @@ def test_idle_scene_factory_builds_classic_and_three_day_forecast(monkeypatch):
     assert scene.scenes == (classic, forecast)
 
 
-def test_idle_scene_factory_appends_birthday_when_scheduled(monkeypatch):
+def test_idle_scene_factory_puts_scheduled_birthday_first(monkeypatch):
     from scenes.idle.themes import (
         birthday_idle_theme,
         classic_idle_theme,
@@ -67,10 +67,10 @@ def test_idle_scene_factory_appends_birthday_when_scheduled(monkeypatch):
 
     scene = idle_scene.IdleScene(object(), object())
 
-    assert scene.scenes == (classic, forecast, birthday)
+    assert scene.scenes == (birthday, classic, forecast)
 
 
-def test_idle_scene_factory_wraps_a_single_theme_with_birthday(monkeypatch):
+def test_idle_scene_factory_puts_scheduled_birthday_first_in_pair(monkeypatch):
     from scenes.idle.themes import birthday_idle_theme, classic_idle_theme
 
     classic = MagicMock()
@@ -95,7 +95,7 @@ def test_idle_scene_factory_wraps_a_single_theme_with_birthday(monkeypatch):
     scene = idle_scene.IdleScene(object(), object())
 
     assert isinstance(scene, idle_scene.CyclingIdleScene)
-    assert scene.scenes == (classic, birthday)
+    assert scene.scenes == (birthday, classic)
 
 
 def test_idle_scene_factory_skips_birthday_off_date(monkeypatch):
@@ -299,7 +299,7 @@ def test_idle_scene_factory_does_not_duplicate_an_explicit_birthday(monkeypatch)
     assert scene.scenes == (classic, birthday)
 
 
-def test_idle_scene_factory_appends_birthday_to_a_multi_theme_selection(monkeypatch):
+def test_idle_scene_factory_puts_scheduled_birthday_first_in_multi_theme(monkeypatch):
     from scenes.idle.themes import (
         birthday_idle_theme,
         classic_idle_theme,
@@ -333,7 +333,7 @@ def test_idle_scene_factory_appends_birthday_to_a_multi_theme_selection(monkeypa
 
     scene = idle_scene.IdleScene(object(), object())
 
-    assert scene.scenes == (classic, conditions, birthday)
+    assert scene.scenes == (birthday, classic, conditions)
 
 
 def test_idle_theme_cycle_switches_every_configured_interval(monkeypatch):
@@ -362,7 +362,7 @@ def _mmdd(day: datetime.date) -> str:
     return f"{day.month:02d}-{day.day:02d}"
 
 
-def test_idle_scene_factory_appends_a_custom_scene_when_scheduled(monkeypatch):
+def test_idle_scene_factory_puts_scheduled_custom_scene_first(monkeypatch):
     from scenes.idle.themes import classic_idle_theme, custom_text_idle_theme
 
     classic = MagicMock()
@@ -390,7 +390,57 @@ def test_idle_scene_factory_appends_a_custom_scene_when_scheduled(monkeypatch):
     scene = idle_scene.IdleScene(object(), object())
 
     assert isinstance(scene, idle_scene.CyclingIdleScene)
-    assert scene.scenes == (classic, custom)
+    assert scene.scenes == (custom, classic)
+
+
+def test_idle_scene_factory_puts_all_scheduled_dated_scenes_first(monkeypatch):
+    from scenes.idle.themes import (
+        birthday_idle_theme,
+        classic_idle_theme,
+        custom_text_idle_theme,
+    )
+
+    classic = MagicMock()
+    birthday = MagicMock()
+    custom_by_slot = {1: MagicMock(), 2: MagicMock(), 3: MagicMock()}
+    dated_date = _mmdd(datetime.date.today())
+    monkeypatch.setattr(
+        Config,
+        "instance",
+        lambda: MagicMock(
+            idle_screen_themes=["classic"],
+            birthday_enabled=True,
+            birthday_date=dated_date,
+            custom_scene_1_text="First",
+            custom_scene_1_date=dated_date,
+            custom_scene_2_text="Second",
+            custom_scene_2_date=dated_date,
+            custom_scene_3_text="Third",
+            custom_scene_3_date=dated_date,
+        ),
+    )
+    monkeypatch.setattr(birthday_utils, "is_birthday", lambda value: True)
+    monkeypatch.setattr(
+        classic_idle_theme, "ClassicIdleTheme", lambda canvas, panel: classic
+    )
+    monkeypatch.setattr(
+        birthday_idle_theme, "BirthdayIdleTheme", lambda canvas, panel: birthday
+    )
+    monkeypatch.setattr(
+        custom_text_idle_theme,
+        "CustomTextIdleTheme",
+        lambda canvas, panel, slot=1: custom_by_slot[slot],
+    )
+
+    scene = idle_scene.IdleScene(object(), object())
+
+    assert scene.scenes == (
+        birthday,
+        custom_by_slot[1],
+        custom_by_slot[2],
+        custom_by_slot[3],
+        classic,
+    )
 
 
 def test_idle_scene_factory_drops_an_empty_custom_slot(monkeypatch):

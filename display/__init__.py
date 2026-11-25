@@ -152,6 +152,7 @@ def build_display_class():
             self._error_draw_failed = False
             self._pending_scene_error = None
             self._was_standby = False
+            self._flight_scene = None
 
             self._init_panel(matrix, canvas, cfg)
 
@@ -197,6 +198,7 @@ def build_display_class():
                     self.canvas, self.panel, overhead, REFRESH_INTERVAL
                 ),
                 "flight",
+                store_as="_flight_scene",
             )
             image_ok = self._register_scene(
                 lambda: ImageScene(self.canvas, self.panel), "image"
@@ -247,19 +249,25 @@ def build_display_class():
                 logger.exception("Could not start the INDYCAR scenes; skipping them")
                 self._remember_scene_error("indycar")
 
-        def _register_scene(self, factory, label: str) -> bool:
+        def _register_scene(
+            self, factory, label: str, store_as: str | None = None
+        ) -> bool:
             """Build and register a scene, skipping it if construction fails.
 
             A scene that cannot be built at startup used to stop the whole
             display from booting.  Now it is logged and the rest of the
-            rotation starts, with the failure shown on the panel.
+            rotation starts, with the failure shown on the panel.  Callers
+            can keep a reference via ``store_as`` for later refresh hooks.
             """
             try:
-                self.scene_manager.register(factory())
+                scene = factory()
+                self.scene_manager.register(scene)
             except Exception:
                 logger.exception("Could not build the %s scene; skipping it", label)
                 self._remember_scene_error(label)
                 return False
+            if store_as:
+                setattr(self, store_as, scene)
             return True
 
         def _remember_scene_error(self, label: str) -> None:
@@ -392,6 +400,17 @@ def build_display_class():
                 logger.exception("Could not rebuild the idle rotation")
                 self._on_scene_error("idle")
 
+        def _refresh_flight_dated_pages(self):
+            """Rebuild the flight rotation's dated slot after midnight."""
+            if self._flight_scene is None:
+                return
+            try:
+                self._flight_scene.refresh_dated_pages()
+            except Exception:
+                # Leave the existing pages in place and tell the owner.
+                logger.exception("Could not rebuild the flight dated scenes")
+                self._on_scene_error("flight")
+
         def _step_frame(self, frame: int, cfg) -> float:
             """Render one frame and return the delay before the next.
 
@@ -406,6 +425,7 @@ def build_display_class():
             if today != self._idle_date:
                 self._idle_date = today
                 self._refresh_idle_rotation()
+                self._refresh_flight_dated_pages()
 
             standby = cfg.is_in_device_standby()
             if standby or not (frame % self.brightness_update_interval):

@@ -34,7 +34,8 @@ from scenes.flight.custom_details import (
     format_number,
 )
 from scenes.flight.journey import make_label
-from setup import colours, fonts, screen
+from scenes.idle import idle_scene
+from setup import colours, fonts, frames, screen
 from setup.configuration import Config
 from setup.themes import (
     TC,
@@ -56,6 +57,11 @@ PRIORITY = 1
 # Prevents log spam and rapid reconnection attempts when the data
 # source is unreachable.
 ERROR_BACKOFF_S = 60
+
+# A date-triggered scene gets one slot at the end of each flight cycle.
+# The frame count is derived from the display speed so the slot always
+# lasts this many real seconds.
+DATED_SCENE_SECONDS = 30
 
 # ---------------------------------------------------------------------------
 # Data update helpers
@@ -178,6 +184,14 @@ class FlightScene:
         self.all_looped_flag: bool = False
         self.frame: int = 0
 
+        # Dated pages are appended to the flight rotation, one per cycle.
+        # _dated_index decides which scheduled scene the next cycle shows.
+        self._dated_pages: list = []
+        self._dated_index: int = 0
+        self._dated_frames: int = 0
+        self._dated_scene_frames: int = 0
+        self._on_dated_page: bool = False
+
         # Airline icon + journey label - built once from current config.
         # Settings changes force a restart, so selection at construction is
         # safe and avoids per-frame config branching.
@@ -219,6 +233,11 @@ class FlightScene:
         # prevents reset() (triggered from poll() -> on_data()) from
         # blacking out another scene's canvas while it is displayed.
         self._needs_bg_clear: bool = False
+        # Crossing a flight/dated boundary needs the whole canvas wiped:
+        # idle themes leave pixels outside the flight's top half behind.
+        self._needs_full_clear: bool = False
+
+        self.refresh_dated_pages()
 
     # ------------------------------------------------------------------
     # Data ownership
@@ -278,6 +297,11 @@ class FlightScene:
             self.flight_index = 0
             self.all_looped_flag = False
             self.flights = new_flights
+            if self._on_dated_page:
+                # Fresh flight data wins over a celebration in progress.
+                self._on_dated_page = False
+                self._dated_frames = 0
+                self._needs_full_clear = True
             if there_is_data:
                 self.reset()
         else:
@@ -288,10 +312,87 @@ class FlightScene:
             # scroller continues uninterrupted.
             self.flights = new_flights
 
+    # ------------------------------------------------------------------
+    # Rotation state
+    # ------------------------------------------------------------------
+
+    @property
+    def page_count(self) -> int:
+        """Number of pages in the rotation, including the dated slot."""
+        return len(self.flights) + (1 if self._dated_pages else 0)
+
+    def _dated_page_active(self) -> bool:
+        return self._on_dated_page and bool(self._dated_pages)
+
+    def _current_dated_page(self):
+        if not self._dated_pages:
+            return None
+        return self._dated_pages[self._dated_index % len(self._dated_pages)]
+
+    def _rotate_dated_page(self) -> None:
+        if self._dated_pages:
+            self._dated_index = (self._dated_index + 1) % len(self._dated_pages)
+
+    def _advance_page(self) -> None:
+        """Advance the rotation by one page (a flight or the dated slot)."""
+        if self._dated_page_active():
+            # A full cycle just finished: show the next dated scene next time.
+            self._on_dated_page = False
+            self._dated_frames = 0
+            self._rotate_dated_page()
+            self.flight_index = 0
+            self.all_looped_flag = True
+            self._needs_full_clear = True
+        elif self._dated_pages and self.flight_index == len(self.flights) - 1:
+            self._on_dated_page = True
+            self._dated_frames = 0
+            page = self._current_dated_page()
+            if page is not None:
+                page.reset()
+            self._needs_full_clear = True
+        elif self.flights:
+            self.flight_index = (self.flight_index + 1) % len(self.flights)
+            if not self._dated_pages and not self.flight_index:
+                self.all_looped_flag = True
+        self.reset()
+
+    def _build_dated_pages(self) -> list:
+        """Instantiate the themes whose recurring date matches today."""
+        cfg = Config.instance()
+        names = idle_scene.dated_theme_names(cfg)
+        if not names:
+            return []
+        themes = idle_scene._load_themes()
+        return [
+            themes[name](self.canvas, self.panel) for name in names if name in themes
+        ]
+
+    def refresh_dated_pages(self) -> None:
+        """Rebuild the dated slot at startup and whenever the date changes."""
+        self._dated_pages = self._build_dated_pages()
+        self._dated_index = 0
+        self._dated_frames = 0
+
+        cfg = Config.instance()
+        factor = float(getattr(cfg, "display_speed_factor", 1.0) or 1.0)
+        if factor <= 0:
+            factor = 1.0
+        self._dated_scene_frames = max(
+            1, int(round(DATED_SCENE_SECONDS * frames.PER_SECOND / factor))
+        )
+
+        if self._on_dated_page:
+            # The scheduled set changed while the slot was on screen.
+            self._on_dated_page = False
+            self.flight_index = 0
+            self._needs_full_clear = True
+            self.reset()
+
     @property
     def all_looped(self) -> bool:
-        """True when the scene has cycled through all flights at least once,
-        or when there are 0-1 flights (no meaningful looping to wait for)."""
+        """True once the whole rotation (flights plus dated page) has run."""
+        if self._dated_pages:
+            return self.all_looped_flag
         return self.all_looped_flag or len(self.flights) <= 1
 
     # ------------------------------------------------------------------
@@ -311,6 +412,7 @@ class FlightScene:
 
     def reset(self) -> None:
         self.frame = 0
+        self._dated_frames = 0
 
         # Defer the top-half blank (journey band + icon area, rows 0-15)
         # to the next draw() call.  reset() can be invoked from poll() ->
@@ -345,20 +447,40 @@ class FlightScene:
     def draw(self) -> None:
         # Consume the deferred background clear from reset().  This only
         # runs when this scene is the active scene, so it never clobbers
-        # another scene's canvas.
-        if self._needs_bg_clear:
+        # another scene's canvas.  Flight/dated boundaries wipe everything;
+        # a plain flight change only needs the journey band blanked.
+        if self._needs_full_clear:
+            self.panel.clear(self.canvas)
+            self._needs_bg_clear = False
+            self._needs_full_clear = False
+        elif self._needs_bg_clear:
             self.panel.draw_square(
                 self.canvas, 0, 0, screen.WIDTH - 1, 15, TC(THEME_BG)
             )
             self._needs_bg_clear = False
 
         self.frame += 1
+        if self._dated_page_active():
+            self._draw_dated_page()
+            return
+
         self.airline_logo.draw(self.canvas, self.flights[self.flight_index])
         self.draw_callsign()
         self.draw_journey()
         self.draw_header_telemetry()
         self.draw_plane_details()
         self.draw_bottom_progress()
+
+    def _draw_dated_page(self) -> None:
+        """Render the current dated theme for its 30-second slot."""
+        page = self._current_dated_page()
+        if page is None:
+            self._advance_page()
+            return
+        page.draw()
+        self._dated_frames += 1
+        if self._dated_frames >= self._dated_scene_frames:
+            self._advance_page()
 
     # ------------------------------------------------------------------
     # Callsign bar
@@ -662,10 +784,8 @@ class FlightScene:
 
         if (
             self.details_scroller.loop_count > previous_loop_count
-            and len(self.flights) > 1
+            and self.page_count > 1
             and self.journey_label.loop_completed
             and self.callsign_bar.loop_completed
         ):
-            self.flight_index = (self.flight_index + 1) % len(self.flights)
-            self.all_looped_flag = (not self.flight_index) or self.all_looped_flag
-            self.reset()
+            self._advance_page()

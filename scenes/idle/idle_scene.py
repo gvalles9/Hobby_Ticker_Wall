@@ -196,6 +196,19 @@ def _scheduled_custom_scenes(cfg) -> list[str]:
     return scheduled_scene_names(cfg)
 
 
+def dated_theme_names(cfg) -> list[str]:
+    """Date-triggered themes scheduled for today, in display order.
+
+    Shared with the flight scene so the idle rotation and the flight
+    rotation agree on which dated scenes are due.
+    """
+    names: list[str] = []
+    if _birthday_scheduled(cfg):
+        names.append("birthday")
+    names.extend(_scheduled_custom_scenes(cfg))
+    return names
+
+
 def _selected_theme_names(cfg) -> list[str]:
     """Return the validated, de-duplicated idle theme selection."""
     names = getattr(cfg, "idle_screen_themes", None)
@@ -231,8 +244,9 @@ def IdleScene(canvas, panel):
     forecast duration.
 
     Selecting the birthday theme previews it regardless of the saved date.
-    When the birthday setting is enabled and today matches, the birthday
-    scene joins the rotation even if it was not selected.
+    When the birthday or a custom slot has a saved recurring date matching
+    today, those scenes join the rotation at the front, even if they were
+    not selected.
     """
     cfg = Config.instance()
     debug_scene = str(getattr(cfg, "debug_scene", "auto"))
@@ -261,12 +275,10 @@ def IdleScene(canvas, panel):
         selected = ["classic"]
     rotating = len(selected) > 1
 
-    if _birthday_scheduled(cfg) and "birthday" not in selected:
-        selected.append("birthday")
-
-    for name in _scheduled_custom_scenes(cfg):
-        if name not in selected:
-            selected.append(name)
+    # Date-triggered scenes lead the rotation so they appear in the first
+    # slot whenever idle is on screen. Keep birthday ahead of custom slots.
+    dated = [name for name in dated_theme_names(cfg) if name not in selected]
+    selected = dated + selected
 
     themes = _load_themes()
     scenes = []

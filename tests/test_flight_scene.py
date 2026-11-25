@@ -1374,3 +1374,267 @@ class TestEmergencySquawkBlink:
         )
         assert dark != colour
         assert squawk_blink_colour(colour, False) is colour
+
+
+# ---------------------------------------------------------------------------
+# Dated pages in the flight rotation
+# ---------------------------------------------------------------------------
+
+
+class TestFlightDatedPages:
+    """One date-triggered page is appended to the flight rotation."""
+
+    def _scene(self, flights, dated_pages=(), speed=1.0):
+        from scenes.flight.flight_scene import FlightScene
+        from setup.configuration import Config
+
+        panel, canvas = _make_panel_and_canvas()
+        overhead = MagicMock()
+        overhead.error = None
+        overhead.new_data = False
+        overhead.data = []
+        overhead.processing = False
+        cfg = MagicMock(display_speed_factor=speed)
+        pages = list(dated_pages)
+        with (
+            patch.object(Config, "instance", return_value=cfg),
+            patch.object(FlightScene, "_build_dated_pages", return_value=pages),
+        ):
+            scene = FlightScene(canvas, panel, overhead, refresh_interval=60)
+        scene.flights = list(flights)
+        return scene, panel
+
+    def test_page_count_includes_the_dated_slot_only_when_scheduled(self):
+        scene, _ = self._scene([Flight(), Flight(), Flight()], [MagicMock()])
+        assert scene.page_count == 4
+
+        scene._dated_pages = []
+        assert scene.page_count == 3
+
+        scene.flights = [Flight()]
+        assert scene.page_count == 1
+        scene._dated_pages = [MagicMock()]
+        assert scene.page_count == 2
+
+    def test_three_flights_then_one_dated_page_then_repeat(self):
+        pages = [MagicMock(name="birthday"), MagicMock(name="custom_1")]
+        scene, _ = self._scene([Flight() for _ in range(3)], pages)
+
+        seen = []
+        for _ in range(8):
+            seen.append(
+                ("dated", scene._dated_index)
+                if scene._dated_page_active()
+                else scene.flight_index
+            )
+            scene._advance_page()
+
+        assert seen == [0, 1, 2, ("dated", 0), 0, 1, 2, ("dated", 1)]
+
+    def test_any_flight_count_ends_the_cycle_with_the_dated_page(self):
+        pages = [MagicMock(name="birthday"), MagicMock(name="custom_1")]
+        scene, _ = self._scene([Flight() for _ in range(5)], pages)
+
+        seen = []
+        for _ in range(14):
+            seen.append(
+                ("dated", scene._dated_index)
+                if scene._dated_page_active()
+                else scene.flight_index
+            )
+            scene._advance_page()
+
+        assert seen == [
+            0, 1, 2, 3, 4, ("dated", 0),
+            0, 1, 2, 3, 4, ("dated", 1),
+            0, 1,
+        ]
+
+    def test_one_flight_alternates_with_dated_pages(self):
+        pages = [MagicMock(name="birthday"), MagicMock(name="custom_1")]
+        scene, _ = self._scene([Flight()], pages)
+
+        seen = []
+        for _ in range(6):
+            seen.append(
+                ("dated", scene._dated_index)
+                if scene._dated_page_active()
+                else scene.flight_index
+            )
+            scene._advance_page()
+
+        assert seen == [0, ("dated", 0), 0, ("dated", 1), 0, ("dated", 0)]
+
+    def test_no_dated_pages_keeps_the_single_flight_pinned(self):
+        scene, _ = self._scene([Flight()])
+
+        scene._advance_page()
+
+        assert scene.flight_index == 0
+        assert scene._dated_page_active() is False
+        assert scene.all_looped is True
+
+    def test_one_flight_advances_to_dated_page_on_scroller_loop(self):
+        from scenes.flight.flight_scene import FlightScene
+        from setup import screen
+        from setup.configuration import Config
+
+        scene, _ = self._scene([Flight(plane="Boeing 787")], [MagicMock()])
+        cfg = MagicMock(details=0, show_emergency_squawk=False)
+        scroller = MagicMock()
+        scroller.loop_count = 1
+
+        def tick():
+            scroller.loop_count += 1
+
+        scroller.draw.side_effect = tick
+        scene.details_scroller = scroller
+        scene.details_spans = scene.build_spans(cfg)
+        scene.last_details_mode = 0
+        scene.details_viewport = (0, screen.WIDTH)
+        scene.journey_label = MagicMock(loop_completed=True)
+        scene.callsign_bar = MagicMock(loop_completed=True)
+
+        with (
+            patch.object(Config, "instance", return_value=cfg),
+            patch.object(FlightScene, "_advance_page") as advance,
+        ):
+            scene.draw_plane_details()
+
+        advance.assert_called_once_with()
+
+    def test_dated_slot_last_thirty_real_seconds_at_any_speed(self):
+        from scenes.flight.flight_scene import DATED_SCENE_SECONDS
+        from setup import frames
+
+        fast, _ = self._scene([Flight()], [MagicMock()], speed=2.0)
+        assert fast._dated_scene_frames == round(
+            DATED_SCENE_SECONDS * frames.PER_SECOND / 2.0
+        )
+
+        slow, _ = self._scene([Flight()], [MagicMock()], speed=0.75)
+        assert slow._dated_scene_frames == round(
+            DATED_SCENE_SECONDS * frames.PER_SECOND / 0.75
+        )
+
+    def test_dated_slot_expires_after_its_frame_count(self):
+        page = MagicMock()
+        scene, _ = self._scene([Flight()], [page])
+        scene._on_dated_page = True
+        threshold = scene._dated_scene_frames
+
+        for _ in range(threshold - 1):
+            scene.draw()
+            assert scene._dated_page_active() is True
+
+        scene.draw()
+
+        assert scene._dated_page_active() is False
+        assert scene.flight_index == 0
+        assert page.draw.call_count == threshold
+
+    def test_dated_page_clears_canvas_and_hides_the_flight_counter(self):
+        page = MagicMock()
+        scene, panel = self._scene([Flight()], [page])
+        scene.callsign_bar = MagicMock()
+        scene.journey_label = MagicMock()
+        scene._on_dated_page = True
+        scene._needs_full_clear = True
+
+        scene.draw()
+
+        panel.clear.assert_called_once_with(scene.canvas)
+        panel.draw_square.assert_not_called()
+        page.draw.assert_called_once_with()
+        scene.callsign_bar.draw.assert_not_called()
+        assert not scene.journey_label.draw.called
+
+    def test_fresh_flight_data_leaves_the_dated_page(self):
+        scene, _ = self._scene([Flight(callsign="BAW123")], [MagicMock()])
+        scene._on_dated_page = True
+        scene._needs_full_clear = False
+
+        scene.on_data([Flight(callsign="UAL456")])
+
+        assert scene._on_dated_page is False
+        assert scene._dated_frames == 0
+        assert scene.flight_index == 0
+        assert scene._needs_full_clear is True
+
+    def test_telemetry_only_update_does_not_interrupt_the_dated_page(self):
+        scene, _ = self._scene([Flight(callsign="BAW123")], [MagicMock()])
+        scene._on_dated_page = True
+        scene._needs_full_clear = False
+
+        scene.on_data([Flight(callsign="BAW123", altitude=35000)])
+
+        assert scene._on_dated_page is True
+        assert scene._needs_full_clear is False
+
+    def test_refresh_rebuilds_pages_and_leaves_the_dated_slot(self):
+        from scenes.flight.flight_scene import FlightScene
+        from setup.configuration import Config
+
+        scene, _ = self._scene([Flight()], [MagicMock(), MagicMock()])
+        scene._on_dated_page = True
+        scene._dated_index = 1
+        replacement = [MagicMock(name="custom_2")]
+        cfg = MagicMock(display_speed_factor=1.0)
+
+        with (
+            patch.object(Config, "instance", return_value=cfg),
+            patch.object(FlightScene, "_build_dated_pages", return_value=replacement),
+        ):
+            scene.refresh_dated_pages()
+
+        assert scene._dated_pages == replacement
+        assert scene._dated_index == 0
+        assert scene._on_dated_page is False
+        assert scene.flight_index == 0
+        assert scene._needs_full_clear is True
+
+    def test_build_dated_pages_follows_the_today_schedule(self):
+        from scenes.idle import idle_scene
+        from setup.configuration import Config
+
+        scene, _ = self._scene([Flight()])
+        birthday = object()
+        custom = object()
+        with (
+            patch.object(Config, "instance", return_value=MagicMock()),
+            patch.object(
+                idle_scene,
+                "dated_theme_names",
+                return_value=["birthday", "custom_2"],
+            ),
+            patch.object(
+                idle_scene,
+                "_load_themes",
+                return_value={
+                    "birthday": lambda canvas, panel: birthday,
+                    "custom_2": lambda canvas, panel: custom,
+                },
+            ),
+        ):
+            pages = scene._build_dated_pages()
+
+        assert pages == [birthday, custom]
+
+    def test_off_date_builds_no_pages(self):
+        from scenes.idle import idle_scene
+        from setup.configuration import Config
+
+        scene, _ = self._scene([Flight(), Flight()])
+        with (
+            patch.object(Config, "instance", return_value=MagicMock()),
+            patch.object(idle_scene, "dated_theme_names", return_value=[]),
+        ):
+            scene.refresh_dated_pages()
+
+        assert scene._dated_pages == []
+        assert scene.page_count == 2
+        scene._advance_page()
+        assert scene.flight_index == 1
+        scene._advance_page()
+        assert scene.flight_index == 0
+        assert scene.all_looped is True

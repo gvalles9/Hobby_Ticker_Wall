@@ -243,3 +243,25 @@ class TestStandbyFrame:
         disp._step_frame(1, cfg)  # wake
 
         assert disp.scene_manager.current_scene is None
+
+
+class TestFlightDatedPageWiring:
+    """The flight scene's dated slot is rebuilt when the date changes."""
+
+    def test_flight_scene_is_stored_and_refreshable(self):
+        cfg = _advanced_cfg([])
+        disp, _panel = _make_display(cfg)
+
+        assert disp._flight_scene is not None
+        disp._refresh_flight_dated_pages()
+        disp._flight_scene.refresh_dated_pages.assert_called_once_with()
+
+    def test_date_change_refreshes_flight_dated_pages(self):
+        cfg = _advanced_cfg([])
+        cfg.is_in_device_standby.return_value = True
+        disp, _panel = _make_display(cfg)
+        disp._idle_date = None  # force the same path midnight takes
+
+        disp._step_frame(0, cfg)
+
+        disp._flight_scene.refresh_dated_pages.assert_called_once_with()

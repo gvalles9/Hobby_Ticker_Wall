@@ -14,6 +14,14 @@ adopted.)
 
 ## [Unreleased]
 
+### Changed
+
+- Birthday and date-matched custom scenes now lead the idle rotation, so they
+  appear in the first slot whenever the display is idle.
+- Date-triggered scenes now also appear at the end of the flight rotation:
+  one 30-second slot per flight cycle, alternating between the scheduled
+  scenes. The flight counter stays hidden on those pages.
+
 ## [1.7.1] - 2026-11-18
 
 ### Changed

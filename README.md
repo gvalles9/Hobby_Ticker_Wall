@@ -19,8 +19,8 @@ dimensions are set in `setup/screen.py`.
   cycle automatically. NOAA/NWS is used for U.S. locations when no optional
   WeatherAPI key is configured.
 - **Date-triggered custom messages:** up to three personalised greetings (an
-  anniversary, a pet's birthday, and so on) appear automatically on their
-  recurring month and day, in a colour you choose.
+  anniversary, a pet's birthday, and so on) appear on their recurring month and
+  day when allowed in the idle rotation, in a colour you choose.
 - **Separate unit profiles:** flight and satellite scenes default to metric;
   idle weather defaults to standard units. Both profiles are configurable.
 - **First-boot Wi-Fi setup and recovery**, including a dedicated **Wi-Fi** tab
@@ -349,6 +349,46 @@ If you'd rather do it manually - or you want to understand what the script does 
 The Pi guides retain some upstream-specific clone/install commands and are not
 yet fully rewritten for Hobby Ticker. Use them as hardware and driver
 references; for an automated install, use the Hobby Ticker commands above.
+
+### Desktop simulator quick start
+
+No Raspberry Pi or LED hardware is needed. On a desktop machine the app falls
+back to a pygame window that draws the same 192×32 matrix.
+
+On Windows, from PowerShell in your checkout:
+
+```powershell
+cd C:\Users\<you>\Hobby_Ticker_Wall
+py -3.10 -m venv env
+.\env\Scripts\python.exe -m pip install -r platforms\simulator\requirements.txt
+.\env\Scripts\python.exe -m pip install platformdirs
+.\env\Scripts\python.exe flight-tracker.py
+```
+
+Skip the `py -3.10 -m venv env` line if `env` already exists. Calling the venv's
+Python directly avoids the `Activate.ps1` execution-policy error on a fresh
+Windows install. If you prefer activating, allow scripts for the current session
+with `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`, then run
+`.\env\Scripts\Activate.ps1`.
+
+On macOS/Linux:
+
+```bash
+python3 -m venv env
+source env/bin/activate
+pip install -r platforms/simulator/requirements.txt
+pip install platformdirs
+python3 flight-tracker.py
+```
+
+`platformdirs` is installed separately because `setup/configuration.py` needs it
+but it is not yet listed in the simulator requirements. A pygame window opens;
+on first run, configure the app at `http://localhost:8584`. Press `P` for a
+screenshot or `R` to toggle a PNG frame sequence, both written under
+`captures/`. Closing the window resets the simulator's settings to defaults
+(this does not happen on Raspberry Pi installs), so expect to reconfigure on the
+next run. See [platforms/simulator/INSTALL.md](platforms/simulator/INSTALL.md)
+for capture and recording details.
 
 ---
 

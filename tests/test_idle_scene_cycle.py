@@ -47,6 +47,7 @@ def test_idle_scene_factory_puts_scheduled_birthday_first(monkeypatch):
         "instance",
         lambda: MagicMock(
             idle_screen_theme="cycle",
+            idle_screen_themes=["classic", "forecast", "birthday"],
             idle_cycle_include_indycar=False,
             birthday_enabled=True,
             birthday_date="12-25",
@@ -80,6 +81,7 @@ def test_idle_scene_factory_puts_scheduled_birthday_first_in_pair(monkeypatch):
         "instance",
         lambda: MagicMock(
             idle_screen_theme="classic",
+            idle_screen_themes=["classic", "birthday"],
             birthday_enabled=True,
             birthday_date="12-25",
         ),
@@ -107,6 +109,7 @@ def test_idle_scene_factory_skips_birthday_off_date(monkeypatch):
         "instance",
         lambda: MagicMock(
             idle_screen_theme="classic",
+            idle_screen_themes=["classic", "birthday"],
             birthday_enabled=True,
             birthday_date="12-25",
         ),
@@ -121,15 +124,20 @@ def test_idle_scene_factory_skips_birthday_off_date(monkeypatch):
     assert scene is classic
 
 
-def test_idle_scene_factory_selects_birthday_directly(monkeypatch):
+def test_idle_scene_factory_allows_legacy_birthday_on_date(monkeypatch):
     from scenes.idle.themes import birthday_idle_theme
 
     birthday = MagicMock()
     monkeypatch.setattr(
         Config,
         "instance",
-        lambda: MagicMock(idle_screen_theme="birthday", birthday_enabled=False),
+        lambda: MagicMock(
+            idle_screen_theme="birthday",
+            birthday_enabled=True,
+            birthday_date="12-25",
+        ),
     )
+    monkeypatch.setattr(birthday_utils, "is_birthday", lambda value: True)
     monkeypatch.setattr(
         birthday_idle_theme, "BirthdayIdleTheme", lambda canvas, panel: birthday
     )
@@ -137,6 +145,86 @@ def test_idle_scene_factory_selects_birthday_directly(monkeypatch):
     scene = idle_scene.IdleScene(object(), object())
 
     assert scene is birthday
+
+
+def test_idle_scene_factory_uses_classic_when_no_themes_are_selected(monkeypatch):
+    from scenes.idle.themes import classic_idle_theme
+
+    classic = MagicMock()
+    monkeypatch.setattr(
+        Config,
+        "instance",
+        lambda: MagicMock(
+            idle_screen_theme="classic",
+            idle_screen_themes=[],
+            birthday_enabled=False,
+        ),
+    )
+    monkeypatch.setattr(
+        classic_idle_theme, "ClassicIdleTheme", lambda canvas, panel: classic
+    )
+
+    scene = idle_scene.IdleScene(object(), object())
+
+    assert scene is classic
+
+
+def test_idle_scene_factory_hides_an_unselected_birthday_on_date(monkeypatch):
+    from scenes.idle.themes import birthday_idle_theme, classic_idle_theme
+
+    classic = MagicMock()
+    birthday = MagicMock()
+    monkeypatch.setattr(
+        Config,
+        "instance",
+        lambda: MagicMock(
+            idle_screen_theme="classic",
+            idle_screen_themes=["classic"],
+            birthday_enabled=True,
+            birthday_date="12-25",
+        ),
+    )
+    monkeypatch.setattr(birthday_utils, "is_birthday", lambda value: True)
+    monkeypatch.setattr(
+        classic_idle_theme, "ClassicIdleTheme", lambda canvas, panel: classic
+    )
+    monkeypatch.setattr(
+        birthday_idle_theme, "BirthdayIdleTheme", lambda canvas, panel: birthday
+    )
+
+    scene = idle_scene.IdleScene(object(), object())
+
+    assert scene is classic
+
+
+def test_idle_scene_factory_falls_back_when_only_birthday_is_selected_off_date(
+    monkeypatch,
+):
+    from scenes.idle.themes import birthday_idle_theme, classic_idle_theme
+
+    classic = MagicMock()
+    birthday = MagicMock()
+    monkeypatch.setattr(
+        Config,
+        "instance",
+        lambda: MagicMock(
+            idle_screen_theme="classic",
+            idle_screen_themes=["birthday"],
+            birthday_enabled=True,
+            birthday_date="12-25",
+        ),
+    )
+    monkeypatch.setattr(birthday_utils, "is_birthday", lambda value: False)
+    monkeypatch.setattr(
+        classic_idle_theme, "ClassicIdleTheme", lambda canvas, panel: classic
+    )
+    monkeypatch.setattr(
+        birthday_idle_theme, "BirthdayIdleTheme", lambda canvas, panel: birthday
+    )
+
+    scene = idle_scene.IdleScene(object(), object())
+
+    assert scene is classic
 
 
 def test_idle_scene_factory_forces_birthday_from_debug_scene(monkeypatch):
@@ -272,7 +360,7 @@ def test_idle_scene_factory_honours_forecast_duration_when_alone(monkeypatch):
     assert scene is forecast
 
 
-def test_idle_scene_factory_does_not_duplicate_an_explicit_birthday(monkeypatch):
+def test_idle_scene_factory_puts_permitted_birthday_first_once(monkeypatch):
     from scenes.idle.themes import birthday_idle_theme, classic_idle_theme
 
     classic = MagicMock()
@@ -296,7 +384,7 @@ def test_idle_scene_factory_does_not_duplicate_an_explicit_birthday(monkeypatch)
 
     scene = idle_scene.IdleScene(object(), object())
 
-    assert scene.scenes == (classic, birthday)
+    assert scene.scenes == (birthday, classic)
 
 
 def test_idle_scene_factory_puts_scheduled_birthday_first_in_multi_theme(monkeypatch):
@@ -313,7 +401,7 @@ def test_idle_scene_factory_puts_scheduled_birthday_first_in_multi_theme(monkeyp
         Config,
         "instance",
         lambda: MagicMock(
-            idle_screen_themes=["classic", "conditions"],
+            idle_screen_themes=["classic", "conditions", "birthday"],
             birthday_enabled=True,
             birthday_date="12-25",
         ),
@@ -372,7 +460,7 @@ def test_idle_scene_factory_puts_scheduled_custom_scene_first(monkeypatch):
         Config,
         "instance",
         lambda: MagicMock(
-            idle_screen_themes=["classic"],
+            idle_screen_themes=["classic", "custom_1"],
             birthday_enabled=False,
             custom_scene_1_text="Happy Anniversary",
             custom_scene_1_date=_mmdd(today),
@@ -408,7 +496,13 @@ def test_idle_scene_factory_puts_all_scheduled_dated_scenes_first(monkeypatch):
         Config,
         "instance",
         lambda: MagicMock(
-            idle_screen_themes=["classic"],
+            idle_screen_themes=[
+                "classic",
+                "birthday",
+                "custom_1",
+                "custom_2",
+                "custom_3",
+            ],
             birthday_enabled=True,
             birthday_date=dated_date,
             custom_scene_1_text="First",
@@ -465,7 +559,7 @@ def test_idle_scene_factory_drops_an_empty_custom_slot(monkeypatch):
     assert scene is classic
 
 
-def test_idle_scene_factory_previews_a_selected_custom_scene_off_date(monkeypatch):
+def test_idle_scene_factory_date_gates_a_selected_custom_scene_off_date(monkeypatch):
     from scenes.idle.themes import classic_idle_theme, custom_text_idle_theme
 
     classic = MagicMock()
@@ -477,7 +571,7 @@ def test_idle_scene_factory_previews_a_selected_custom_scene_off_date(monkeypatc
         lambda: MagicMock(
             idle_screen_themes=["classic", "custom_1"],
             birthday_enabled=False,
-            custom_scene_1_text="Preview only",
+            custom_scene_1_text="Date-gated",
             custom_scene_1_date=_mmdd(tomorrow),
         ),
     )
@@ -492,7 +586,37 @@ def test_idle_scene_factory_previews_a_selected_custom_scene_off_date(monkeypatc
 
     scene = idle_scene.IdleScene(object(), object())
 
-    assert scene.scenes == (classic, custom)
+    assert scene is classic
+
+
+def test_idle_scene_factory_hides_an_unselected_custom_scene_on_date(monkeypatch):
+    from scenes.idle.themes import classic_idle_theme, custom_text_idle_theme
+
+    classic = MagicMock()
+    custom = MagicMock()
+    monkeypatch.setattr(
+        Config,
+        "instance",
+        lambda: MagicMock(
+            idle_screen_theme="classic",
+            idle_screen_themes=["classic"],
+            birthday_enabled=False,
+            custom_scene_1_text="Not permitted",
+            custom_scene_1_date=_mmdd(datetime.date.today()),
+        ),
+    )
+    monkeypatch.setattr(
+        classic_idle_theme, "ClassicIdleTheme", lambda canvas, panel: classic
+    )
+    monkeypatch.setattr(
+        custom_text_idle_theme,
+        "CustomTextIdleTheme",
+        lambda canvas, panel, slot=1: custom,
+    )
+
+    scene = idle_scene.IdleScene(object(), object())
+
+    assert scene is classic
 
 
 def test_idle_scene_factory_debug_previews_an_empty_custom_slot(monkeypatch):

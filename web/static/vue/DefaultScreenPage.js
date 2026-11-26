@@ -50,6 +50,8 @@ export default defineComponent({
         <p class="text-muted small mb-2">
           Tick every scene you want on the idle screen when no flights or satellites are
           overhead. Each selected scene is shown for 30 seconds, in the order listed here.
+          Birthday and custom messages are date-gated: ticking them allows them into the
+          rotation, but they only appear on their saved dates.
         </p>
         <input type="hidden" name="idle_screen_themes_submitted" value="1" />
         <div class="form-check">
@@ -89,7 +91,7 @@ export default defineComponent({
                  name="idle_screen_themes" value="birthday"
                  v-model="store.config.idle_screen_themes" />
           <label class="form-check-label small" for="idle_theme_birthday">
-            Happy Birthday <span class="text-muted">- celebration scene</span>
+            Happy Birthday <span class="text-muted">- celebration scene on its date</span>
           </label>
         </div>
       </div>
@@ -108,10 +110,10 @@ export default defineComponent({
         <input type="date" class="form-control form-control-sm" id="birthday_date"
                name="birthday_date" v-model="store.config.birthday_date" />
         <div class="form-text text-muted small">
-          Enter a birthday date to add the scene to the idle rotation on that month and day
-          each year. The year in the picker is ignored. Clear the date to disable it. Tick
-          <strong>Happy Birthday</strong> above, or use
-          <strong>Sky Monitoring &rarr; Debug</strong>, to preview it at any time.
+          Enter a birthday date to show the scene on that month and day each year. The
+          year in the picker is ignored. Tick <strong>Happy Birthday</strong> above to
+          allow it in the idle rotation; both the tick and the date are required. Use
+          <strong>Sky Monitoring &rarr; Debug</strong> to preview it at any time.
         </div>
       </div>
     </div>
@@ -122,8 +124,9 @@ export default defineComponent({
       <p class="text-muted small">
         Up to three messages that appear automatically on a recurring month and day each
         year - an anniversary, a pet's birthday, or any other date worth celebrating. The
-        year in the picker is ignored. Tick a message to preview it at any time; a message
-        with no date is preview-only. ASCII/Latin-1 text only - emoji will not render on
+        year in the picker is ignored. Tick a message to allow it in the idle rotation;
+        both the tick and the date are required. Use Sky Monitoring &rarr; Debug to
+        preview a message at any time. ASCII/Latin-1 text only - emoji will not render on
         the matrix. Messages up to 40 characters.
       </p>
 
@@ -163,7 +166,7 @@ export default defineComponent({
                      name="idle_screen_themes" value="custom_1"
                      v-model="store.config.idle_screen_themes" />
               <label class="form-check-label small" for="idle_theme_custom_1">
-                Preview this message in the rotation
+                Allow in rotation on its date
               </label>
             </div>
           </div>
@@ -204,7 +207,7 @@ export default defineComponent({
                      name="idle_screen_themes" value="custom_2"
                      v-model="store.config.idle_screen_themes" />
               <label class="form-check-label small" for="idle_theme_custom_2">
-                Preview this message in the rotation
+                Allow in rotation on its date
               </label>
             </div>
           </div>
@@ -245,7 +248,7 @@ export default defineComponent({
                      name="idle_screen_themes" value="custom_3"
                      v-model="store.config.idle_screen_themes" />
               <label class="form-check-label small" for="idle_theme_custom_3">
-                Preview this message in the rotation
+                Allow in rotation on its date
               </label>
             </div>
           </div>

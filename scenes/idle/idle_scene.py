@@ -19,6 +19,7 @@ from setup.configuration import ALL_IDLE_THEMES, CUSTOM_IDLE_THEMES, Config
 
 PRIORITY = 0
 IDLE_THEME_CYCLE_SECONDS = 30
+DATED_IDLE_THEMES = ("birthday", *CUSTOM_IDLE_THEMES)
 
 
 class BaseIdleScene:
@@ -180,15 +181,6 @@ def _birthday_scheduled(cfg) -> bool:
     return is_birthday(getattr(cfg, "birthday_date", ""))
 
 
-def _custom_slot_has_text(cfg, name: str) -> bool:
-    """True for non-custom themes, or a custom slot with a saved message."""
-    if name not in CUSTOM_IDLE_THEMES:
-        return True
-    from utilities.custom_scene import cfg_text, slot_from_name
-
-    return bool(cfg_text(cfg, slot_from_name(name)))
-
-
 def _scheduled_custom_scenes(cfg) -> list[str]:
     """Custom scene names whose recurring date matches today."""
     from utilities.custom_scene import scheduled_scene_names
@@ -236,17 +228,17 @@ def IdleScene(canvas, panel):
     """
     Factory that returns the idle scene (or rotation) selected by config.
 
-    Every name in ``cfg.idle_screen_themes`` is instantiated in order; two
-    or more selected scenes are wrapped in a :class:`CyclingIdleScene`.
+    Every non-dated name in ``cfg.idle_screen_themes`` is instantiated in
+    order; two or more scenes are wrapped in a :class:`CyclingIdleScene`.
     Unknown names fall back to ``classic``.  A multi-scene rotation shows
     the forecast in its three-day form (matching the legacy ``cycle``
     behaviour), while a forecast-only selection honours the configured
     forecast duration.
 
-    Selecting the birthday theme previews it regardless of the saved date.
-    When the birthday or a custom slot has a saved recurring date matching
-    today, those scenes join the rotation at the front, even if they were
-    not selected.
+    Birthday and custom slots are date-gated: ticking them permits them into
+    the rotation, but they only appear when their recurring date matches
+    today. Scheduled dated scenes lead the rotation. The Debug selector can
+    still force a dated scene regardless of the saved date.
     """
     cfg = Config.instance()
     debug_scene = str(getattr(cfg, "debug_scene", "auto"))
@@ -268,17 +260,19 @@ def IdleScene(canvas, panel):
         preview_text = None if cfg_text(cfg, slot) else f"Custom message {slot}"
         return CustomTextIdleTheme(canvas, panel, slot=slot, preview_text=preview_text)
 
-    selected = [
-        name for name in _selected_theme_names(cfg) if _custom_slot_has_text(cfg, name)
+    selected_names = _selected_theme_names(cfg)
+    dated = dated_theme_names(cfg)
+
+    # A checkbox permits a dated scene; it does not force it. Keep only the
+    # dated scenes that are both selected and scheduled for today, ahead of
+    # the always-available themes.
+    permitted_dated = [name for name in dated if name in selected_names]
+    selected = permitted_dated + [
+        name for name in selected_names if name not in DATED_IDLE_THEMES
     ]
     if not selected:
         selected = ["classic"]
     rotating = len(selected) > 1
-
-    # Date-triggered scenes lead the rotation so they appear in the first
-    # slot whenever idle is on screen. Keep birthday ahead of custom slots.
-    dated = [name for name in dated_theme_names(cfg) if name not in selected]
-    selected = dated + selected
 
     themes = _load_themes()
     scenes = []

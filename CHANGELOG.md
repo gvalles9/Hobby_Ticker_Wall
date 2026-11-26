@@ -16,6 +16,10 @@ adopted.)
 
 ### Changed
 
+- Ticking Birthday or a custom message now permits that dated scene into the
+  idle rotation instead of forcing it: the scene must also be scheduled for
+  today. Unticked dated scenes stay hidden, and Classic is the fallback when
+  no scene is available. Debug previews still ignore the saved date.
 - Birthday and date-matched custom scenes now lead the idle rotation, so they
   appear in the first slot whenever the display is idle.
 - Date-triggered scenes now also appear at the end of the flight rotation:

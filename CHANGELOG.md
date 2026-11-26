@@ -14,6 +14,8 @@ adopted.)
 
 ## [Unreleased]
 
+## [1.7.2] - 2026-11-26
+
 ### Changed
 
 - Ticking Birthday or a custom message now permits that dated scene into the
